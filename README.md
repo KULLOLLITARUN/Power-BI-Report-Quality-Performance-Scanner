@@ -1,12 +1,12 @@
 # PBIP Sentinel (pbiscan)
 
-[![Live Demo](https://img.shields.io/badge/Live_Workbench-pbip--sentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbip-sentinel.netlify.app/)
+[![Live Demo](https://img.shields.io/badge/Live_Workbench-pbipsentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbipsentinel.netlify.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Tests: Passing](https://img.shields.io/badge/Tests-118%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 
 **PBIP Sentinel** is a static analysis diagnostic engine and quality linter for Power BI Projects (`.pbip`).
 
-👉 **Try the Live In-Browser Workbench:** **[https://pbip-sentinel.netlify.app/](https://pbip-sentinel.netlify.app/)** *(100% In-Browser & Private — zero files uploaded to any server)*
+👉 **Try the Live In-Browser Workbench:** **[https://pbipsentinel.netlify.app/](https://pbipsentinel.netlify.app/)** *(100% In-Browser & Private — zero files uploaded to any server)*
 
 `pbiscan` scans semantic model definitions (TMDL / TMSL) and report layout metadata (PBIR / JSON) to detect anti-patterns, performance risks, and DAX duplication before reports are published to production.
 
