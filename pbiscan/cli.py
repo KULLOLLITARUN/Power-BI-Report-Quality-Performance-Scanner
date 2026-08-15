@@ -43,6 +43,7 @@ _BOLD  = "\033[1m"
 _DIM   = "\033[2m"
 _GREEN = "\033[32m"
 _CYAN  = "\033[36m"
+_RED   = "\033[31m"
 
 
 def _colour(text: str, code: str) -> str:
@@ -128,6 +129,12 @@ def main() -> None:
     show_default=True,
     help="Output format when --out is specified.",
 )
+@click.option(
+    "--fail-under",
+    type=int,
+    default=None,
+    help="Exit with code 1 if overall score is below this threshold (CI/CD gate).",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose/debug logging.")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress all output except errors.")
 def scan(
@@ -135,6 +142,7 @@ def scan(
     config: str | None,
     out: str | None,
     output_format: str,
+    fail_under: int | None,
     verbose: bool,
     quiet: bool,
 ) -> None:
@@ -287,6 +295,15 @@ def scan(
             sys.exit(1)
     elif not quiet:
         click.echo("")
+
+    # Step 8 — CI/CD threshold gate
+    if fail_under is not None and overall < fail_under:
+        if not quiet:
+            click.echo(
+                f"  {_colour('FAIL:', _RED)} Overall score {overall:.1f} is below threshold {fail_under}\n",
+                err=True,
+            )
+        sys.exit(1)
 
 
 @main.command()

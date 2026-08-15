@@ -106,3 +106,14 @@ class TestPipelineSmoke:
             f"test_measure_referenced_by_another. Base Revenue is referenced by "
             f"Revenue Per Unit and must not be flagged as unused."
         )
+
+    def test_cli_fail_under_gate(self):
+        """Verify --fail-under exits with 0 on pass and 1 on fail in CLI."""
+        from click.testing import CliRunner
+        from pbiscan.cli import main
+        runner = CliRunner()
+        res_pass = runner.invoke(main, ["scan", str(GOLDEN_DIR / "test_bidirectional"), "--fail-under", "50"])
+        assert res_pass.exit_code == 0
+        res_fail = runner.invoke(main, ["scan", str(GOLDEN_DIR / "test_bidirectional"), "--fail-under", "100"])
+        assert res_fail.exit_code == 1
+        assert "FAIL: Overall score" in res_fail.output
