@@ -149,12 +149,19 @@ class PBIPReader:
         if not root.exists():
             raise InputError(f"Path does not exist: {root}")
         if root.is_file():
-            # If the user passed the .pbip file directly, use its containing folder
+            # If the user passed the .pbip file directly, use its stem
+            report_name = root.stem
             root = root.parent
+        else:
+            # If a folder was passed, check for any .pbip file inside to name the report
+            pbip_files = list(root.glob("*.pbip"))
+            if pbip_files:
+                report_name = pbip_files[0].stem
+            else:
+                report_name = root.name
+
         if not root.is_dir():
             raise InputError(f"Path is not a directory: {root}")
-
-        report_name = root.name
 
         # Locate sub-directories
         semantic_model_dir = self._find_semantic_model_dir(root)
