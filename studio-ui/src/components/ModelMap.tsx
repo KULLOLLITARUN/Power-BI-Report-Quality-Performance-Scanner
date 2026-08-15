@@ -209,7 +209,7 @@ export const ModelMap: React.FC<ModelMapProps> = ({ tables, relationships }) => 
       data: {
         ...t,
         column_count: t.columns?.length || 0,
-        calc_cols_count: t.calculated_columns_count || 0,
+        calc_cols_count: (t as any).calc_cols_count || (t as any).calculated_columns_count || 0,
       },
       position: { x: 0, y: 0 },
     }));
@@ -220,7 +220,7 @@ export const ModelMap: React.FC<ModelMapProps> = ({ tables, relationships }) => 
     return relationships
       .filter((r) => visibleTableNames.has(r.from_table) && visibleTableNames.has(r.to_table))
       .map((r, idx) => {
-        const isBidi = r.cross_filtering_behavior === 'BothDirections';
+        const isBidi = (r.cross_filter_direction || '').toLowerCase().includes('both') || (r as any).cross_filtering_behavior === 'BothDirections';
         return {
           id: `e-${r.from_table}-${r.to_table}-${idx}`,
           source: r.to_table,

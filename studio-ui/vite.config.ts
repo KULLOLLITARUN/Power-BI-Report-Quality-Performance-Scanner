@@ -19,7 +19,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../pbiscan/studio/dist',
+    outDir: process.env.NETLIFY ? 'dist' : '../pbiscan/studio/dist',
     emptyOutDir: true,
   },
 });
