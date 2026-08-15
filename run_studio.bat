@@ -1,5 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
+set PORT=8000
 title PBIP Sentinel - Studio Launcher
 
 echo ============================================================
@@ -7,13 +7,8 @@ echo   PBIP Sentinel - Power BI Diagnostic Workbench
 echo ============================================================
 echo.
 
-set PORT=8000
-
-echo [*] Checking for existing processes on port %PORT%...
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":%PORT%" ^| findstr "LISTENING"') do (
-    echo [*] Terminating existing process on port %PORT% (PID: %%a)...
-    taskkill /F /PID %%a >nul 2>&1
-)
+echo [*] Checking and freeing port %PORT% if in use...
+powershell -NoProfile -Command "$conns = Get-NetTCPConnection -LocalPort %PORT% -ErrorAction SilentlyContinue; if ($conns) { foreach ($c in $conns) { try { Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue } catch {} } }"
 
 echo [*] Starting PBIP Sentinel Studio on http://127.0.0.1:%PORT%...
 echo.
