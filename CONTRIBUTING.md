@@ -1,76 +1,73 @@
 # Contributing to pbiscan
 
-Thank you for your interest in contributing to `pbiscan`!
-
-`pbiscan` is built on a strict, modular contract architecture to guarantee deterministic, reproducible, and noise-free static analysis for Power BI projects.
+We welcome contributions to `pbiscan`, whether it's adding new rules, improving TMDL/PBIR parsing, or refining developer documentation.
 
 ---
 
-## 🏛 Architectural Contracts
+## Architecture Principles
 
-When submitting rules or modifying existing components, please adhere to these core design rules:
+`pbiscan` relies on a few core design constraints to keep the scanner fast, predictable, and maintainable:
 
-1. **Extraction Decoupling**: Rule functions (`pbiscan/rules/`) must **only** import from `pbiscan.canonical.model` and never from `pbiscan.extraction`.
-2. **Prose Separation**: Rule functions must return detection data only (`RuleFinding`). Never hardcode recommendation prose inside rule functions. All developer recommendations belong in `pbiscan/engine/recommendations.py`.
-3. **Config-Driven Scoring**: Thresholds, deductions, and category weights live in `rules.config.json` — never hardcode numerical penalties in rule logic.
-4. **Deterministic Analysis**: `pbiscan` operates strictly on local project artifacts (`.pbip`, TMDL, TMSL, PBIR). No external API calls, runtime connections, or LLMs.
+1. **Extraction Decoupling**: Rules in `pbiscan/rules/` only inspect the typed dataclasses in `pbiscan.canonical.model`. They must never import from or interact directly with `pbiscan.extraction`.
+2. **Prose Separation**: Rule functions only perform detection logic and return `RuleFinding` instances with structural evidence. All user-facing explanations, impact descriptions, and fix recommendations belong in `pbiscan/engine/recommendations.py`.
+3. **External Independence**: `pbiscan` operates strictly on local project files. It does not invoke runtime engines, external network endpoints, or cloud services.
+4. **Config-Driven Weights**: Scoring penalties and thresholds are loaded from `rules.config.json` rather than hardcoded in rule definitions.
 
 ---
 
-## 🛠 Local Development Setup
+## Local Setup
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/pbiscan.git
+git clone https://github.com/KULLOLLITARUN/pbiscan.git
 cd pbiscan
 
-# 2. Create and activate a virtual environment
+# 2. Set up virtual environment
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\Activate.ps1
 
 # 3. Install in editable mode with development dependencies
 pip install -e ".[dev]"
 
-# 4. Run the test suite
+# 4. Run tests
 pytest
 ```
 
 ---
 
-## ➕ Adding a New Rule
+## Adding a New Rule
 
-To add a new quality rule (e.g. `M006` or `D005`):
-
-1. **Define the Rule Function** in `pbiscan/rules/<category>.py`:
+1. **Implement Detection Logic**:
+   Add your check to the appropriate category module (`pbiscan/rules/model.py`, `dax.py`, or `report.py`):
    ```python
-   def check_my_new_rule(report: CanonicalReport) -> list[RuleFinding]:
+   def check_example_rule(report: CanonicalReport) -> list[RuleFinding]:
        findings = []
-       # Detection logic using canonical report only
+       # Evaluate conditions against report.model, report.dax, or report.report
        return findings
    ```
-2. **Register the Recommendation** in `pbiscan/engine/recommendations.py`:
+
+2. **Register Recommendation Text**:
+   Add an entry in `pbiscan/engine/recommendations.py`:
    ```python
-   "MY_NEW_RULE_ID": {
-       "title": "Short Title",
-       "issue": "What was detected.",
-       "impact": "Why this matters in Power BI.",
-       "recommendation": "What the developer should review or change.",
+   "CATEGORY_RULE_NAME": {
+       "title": "Short descriptive title",
+       "issue": "Specific condition detected in the model or report.",
+       "impact": "Why this condition matters in Power BI.",
+       "recommendation": "Actionable guidance on how to address it.",
    }
    ```
-3. **Register the Function** in the category rule list (`MODEL_RULES`, `DAX_RULES`, or `REPORT_RULES`).
-4. **Add Unit & Golden Tests** in `tests/unit/` and `tests/golden/`.
+
+3. **Register the Rule**:
+   Append your function to `MODEL_RULES`, `DAX_RULES`, or `REPORT_RULES`.
+
+4. **Add Tests**:
+   - Add unit tests in `tests/unit/` testing true-positive and false-positive edge cases.
+   - Add a golden PBIP fixture in `tests/golden/` if applicable.
 
 ---
 
-## 🧪 Testing Checklist
+## Submitting Pull Requests
 
-Before opening a Pull Request:
-- [ ] Run `pytest` and ensure all 111+ tests pass without errors.
-- [ ] Run `pbiscan scan <fixture>` against golden fixtures to verify CLI output.
-- [ ] Ensure any new rule includes both positive and negative test cases.
-
----
-
-## 📄 License
-
-By contributing to `pbiscan`, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+- Ensure `pytest` passes with 100% success.
+- Follow PEP 8 conventions and maintain strict type annotations where applicable.
+- Keep PRs focused on a single feature, bugfix, or rule addition.
