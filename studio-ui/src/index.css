@@ -8,62 +8,35 @@
 
 body {
   margin: 0;
-  background-color: #070A0F;
-  color: #F3F4F6;
+  background-color: #090A0F;
+  color: #F1F5F9;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-x: hidden;
 }
 
-/* Custom Sleek Scrollbar */
+/* Crisp Clean Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #0B0F17;
+  background: #090A0F;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1F2937;
-  border-radius: 3px;
+  background: #1F2433;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #374151;
+  background: #2D3449;
 }
 
-/* Custom ReactFlow node overrides */
+/* ReactFlow canvas styling */
 .react-flow__node {
   border-radius: 8px;
 }
 .react-flow__handle {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   background: #3B82F6;
-  border: 2px solid #0B0F17;
-}
-.react-flow__edge-path {
-  stroke-width: 1.5;
-}
-
-/* Code block highlight styles */
-.dax-keyword {
-  color: #F472B6;
-  font-weight: 600;
-}
-.dax-func {
-  color: #60A5FA;
-  font-weight: 600;
-}
-.dax-table {
-  color: #34D399;
-}
-.dax-measure {
-  color: #FBBF24;
-  font-weight: 600;
-}
-.dax-string {
-  color: #A7F3D0;
-}
-.dax-comment {
-  color: #6B7280;
-  font-style: italic;
+  border: 1px solid #090A0F;
 }

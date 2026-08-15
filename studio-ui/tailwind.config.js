@@ -8,30 +8,28 @@ export default {
   theme: {
     extend: {
       colors: {
-        obsidian: {
-          950: '#070A0F',
-          900: '#0B0F17',
-          800: '#111827',
-          700: '#1A2234',
-          600: '#26334D',
+        studio: {
+          bg: '#090A0F',
+          sidebar: '#0E1017',
+          card: '#131620',
+          cardHover: '#181C28',
+          border: '#1F2433',
+          borderLight: '#2D3449',
+          subtle: '#64748B',
+          text: '#F1F5F9',
+          textMuted: '#94A3B8',
         },
-        emerald: {
-          400: '#34D399',
-          500: '#10B981',
-          600: '#059669',
-        },
-        cyan: {
-          400: '#22D3EE',
-          500: '#06B6D4',
-        },
-        blue: {
-          500: '#3B82F6',
-          600: '#2563EB',
-        },
+        brand: {
+          blue: '#2563EB',
+          blueHover: '#1D4ED8',
+          emerald: '#10B981',
+          amber: '#F59E0B',
+          red: '#EF4444',
+        }
       },
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        mono: ['SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', 'monospace'],
+        mono: ['JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Consolas', 'monospace'],
       },
     },
   },
