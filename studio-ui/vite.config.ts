@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
+  root: path.resolve(__dirname),
   plugins: [react()],
   resolve: {
     alias: {
@@ -21,5 +22,8 @@ export default defineConfig({
   build: {
     outDir: process.env.NETLIFY ? 'dist' : '../pbiscan/studio/dist',
     emptyOutDir: true,
+    rollupOptions: {
+      input: path.resolve(__dirname, 'index.html'),
+    },
   },
 });
