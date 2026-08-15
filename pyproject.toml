@@ -16,9 +16,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+studio = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.28.0",
+]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
+    "httpx>=0.27.0",
 ]
 
 [project.scripts]
@@ -27,6 +32,13 @@ pbiscan = "pbiscan.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["pbiscan*"]
+
+[tool.setuptools.package-data]
+pbiscan = [
+    "render/templates/*.j2",
+    "studio/dist/*",
+    "studio/dist/**/*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
