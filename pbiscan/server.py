@@ -64,6 +64,24 @@ async def health_check():
     return {"status": "ok", "version": __version__, "service": "pbiscan-studio"}
 
 
+@app.post("/api/native-dialog")
+async def open_native_dialog():
+    """Open native Windows folder picker dialog."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        selected_path = filedialog.askdirectory(title="Select Power BI Project (.pbip) Folder")
+        root.destroy()
+        if selected_path:
+            return {"path": os.path.normpath(selected_path), "canceled": False}
+        return {"path": "", "canceled": True}
+    except Exception as exc:
+        return {"path": "", "canceled": True, "error": str(exc)}
+
+
 @app.post("/api/scan")
 async def scan_project(req: ScanRequest):
     """Scan a PBIP project and return structured quality audit data."""
