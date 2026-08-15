@@ -291,9 +291,9 @@ export const DaxExplorer: React.FC<DaxExplorerProps> = ({
                     {selectedItem.table}
                   </span>
                 </div>
-                {selectedItem.description && (
+                {(selectedItem as any).description && (
                   <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                    {selectedItem.description}
+                    {(selectedItem as any).description}
                   </p>
                 )}
               </div>
