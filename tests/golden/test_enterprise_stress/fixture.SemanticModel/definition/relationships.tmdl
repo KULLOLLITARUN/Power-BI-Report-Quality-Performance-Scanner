@@ -1,0 +1,25 @@
+relationship rel_sales_dates
+	fromColumn: Sales.OrderDate
+	toColumn: Dates.Date
+
+relationship rel_sales_customers
+	fromColumn: Sales.CustomerID
+	toColumn: Customers.CustomerID
+
+relationship rel_sales_products
+	fromColumn: Sales.ProductID
+	toColumn: Products.ProductID
+
+relationship rel_inventory_products
+	fromColumn: Inventory.ProductID
+	toColumn: Products.ProductID
+
+relationship rel_inventory_dates
+	fromColumn: Inventory.SnapshotDate
+	toColumn: Dates.Date
+
+/// Intentional bidirectional relationship to test M001 in enterprise context
+relationship rel_sales_inventory_bidir
+	crossFilteringBehavior: bothDirections
+	fromColumn: Sales.ProductID
+	toColumn: Inventory.ProductID

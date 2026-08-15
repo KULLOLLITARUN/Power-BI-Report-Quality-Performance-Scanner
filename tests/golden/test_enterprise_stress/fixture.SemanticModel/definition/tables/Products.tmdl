@@ -1,0 +1,18 @@
+table Products
+
+	column ProductID
+		dataType: string
+		isKey
+		sourceColumn: ProductID
+
+	column ProductName
+		dataType: string
+		sourceColumn: ProductName
+
+	column Category
+		dataType: string
+		sourceColumn: Category
+
+	column SubCategory
+		dataType: string
+		sourceColumn: SubCategory

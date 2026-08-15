@@ -1,0 +1,23 @@
+table Dates
+	dataCategory: Time
+
+	column Date
+		dataType: dateTime
+		isKey
+		sourceColumn: Date
+
+	column Year
+		dataType: int64
+		sourceColumn: Year
+
+	column Month
+		dataType: string
+		sourceColumn: Month
+
+	column MonthNumber
+		dataType: int64
+		sourceColumn: MonthNumber
+
+	column Day
+		dataType: int64
+		sourceColumn: Day

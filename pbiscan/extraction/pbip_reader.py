@@ -326,7 +326,10 @@ class PBIPReader:
                     current_expr_lines.append("")
                 continue
 
-            if line.startswith("table "):
+            if line.startswith("///") or stripped.startswith("///"):
+                flush_current()
+                continue
+            elif line.startswith("table "):
                 flush_current()
                 table_name = self._unquote_tmdl(line[6:].strip())
                 if "DateTable" in table_name or "LocalDateTable" in table_name:
@@ -337,19 +340,25 @@ class PBIPReader:
                 flush_current()
                 current_item_type = "measure"
                 measure_sig = stripped[8:].strip()
-                if measure_sig.endswith("="):
-                    m_name = self._unquote_tmdl(measure_sig[:-1].strip())
+                if "=" in measure_sig:
+                    parts = measure_sig.split("=", 1)
+                    m_name = self._unquote_tmdl(parts[0].strip())
+                    inline_expr = parts[1].strip()
+                    current_item_data = {"name": m_name, "annotations": []}
+                    current_expr_lines = [inline_expr] if inline_expr else []
                 else:
                     m_name = self._unquote_tmdl(measure_sig)
-                current_item_data = {"name": m_name, "annotations": []}
-                current_expr_lines = []
+                    current_item_data = {"name": m_name, "annotations": []}
+                    current_expr_lines = []
             elif stripped.startswith("column ") and "=" in stripped:
                 flush_current()
                 current_item_type = "calc_col"
                 col_sig = stripped[7:].strip()
-                col_name = self._unquote_tmdl(col_sig.split("=", 1)[0].strip())
+                parts = col_sig.split("=", 1)
+                col_name = self._unquote_tmdl(parts[0].strip())
+                inline_expr = parts[1].strip()
                 current_item_data = {"name": col_name, "dataType": "string", "annotations": []}
-                current_expr_lines = []
+                current_expr_lines = [inline_expr] if inline_expr else []
             elif stripped.startswith("column "):
                 flush_current()
                 current_item_type = "column"
@@ -685,11 +694,25 @@ class PBIPReader:
         for select_item in pq.get("Select", []):
             name = select_item.get("Name", "")
             if name:
-                fields_used.append(name)
+                clean_name = name.split(".", 1)[-1] if "." in name else name
+                fields_used.append(clean_name)
             if "Measure" in select_item:
                 prop = select_item["Measure"].get("Property", "")
                 if prop:
                     measure_refs.append(prop)
+
+        # Extract from projections (e.g. {"Values": [{"queryRef": "Sales.Net Sales"}]})
+        projections = single_visual.get("projections", {})
+        if isinstance(projections, dict):
+            for _bucket, items in projections.items():
+                if isinstance(items, list):
+                    for item in items:
+                        if isinstance(item, dict):
+                            qref = item.get("queryRef", "")
+                            if qref:
+                                clean_name = qref.split(".", 1)[-1] if "." in qref else qref
+                                fields_used.append(clean_name)
+                                measure_refs.append(clean_name)
 
         return RawVisual(
             visual_type=visual_type,

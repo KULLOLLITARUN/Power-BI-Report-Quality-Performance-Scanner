@@ -1,0 +1,18 @@
+table Customers
+
+	column CustomerID
+		dataType: string
+		isKey
+		sourceColumn: CustomerID
+
+	column CustomerName
+		dataType: string
+		sourceColumn: CustomerName
+
+	column Segment
+		dataType: string
+		sourceColumn: Segment
+
+	column Country
+		dataType: string
+		sourceColumn: Country
