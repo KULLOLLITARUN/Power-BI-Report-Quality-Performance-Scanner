@@ -60,8 +60,8 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding }) => {
 
   const sevStyle = getSeverityStyle(finding.severity);
   const confidence = finding.confidence ?? 100;
+  const isDax = (finding.category || '').toLowerCase() === 'dax';
 
-  // Extract inline DAX expression if available from evidence or formula
   // Only extract real DAX formula snippet if rule flagged an actual code pattern
   let daxSnippet = '';
   if (finding.rule_id === 'DAX_SUSPICIOUS_PATTERN' || finding.rule_id === 'DAX_EXPENSIVE_PATTERN') {
