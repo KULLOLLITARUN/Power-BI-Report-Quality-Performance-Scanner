@@ -1,0 +1,32 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.1.0/schema.json",
+  "name": "31e79edb5c2ee60d5402",
+  "displayName": "Page 5",
+  "displayOption": "FitToPage",
+  "height": 720,
+  "width": 1280,
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "acbb7cc342eb8073c034",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Banana Exports"
+              }
+            },
+            "Property": "period"
+          }
+        },
+        "type": "Advanced",
+        "howCreated": "User"
+      }
+    ]
+  },
+  "pageBinding": {
+    "name": "f84e3a11c0a1b9273745",
+    "type": "Default",
+    "parameters": []
+  }
+}

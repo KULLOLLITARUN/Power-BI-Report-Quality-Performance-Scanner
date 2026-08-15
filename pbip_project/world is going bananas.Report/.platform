@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Report",
+    "displayName": "world is going bananas"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "91ef5c77-191c-45cd-a879-c320ed3bdb29"
+  }
+}

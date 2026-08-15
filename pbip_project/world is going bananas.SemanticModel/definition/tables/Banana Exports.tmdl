@@ -1,0 +1,126 @@
+table 'Banana Exports'
+	lineageTag: 037a65f7-1a0f-4b24-8554-27296e19f3ba
+
+	measure 'Primary Value (M)' =
+			
+			SUM('Banana Exports'[primaryValue])
+		lineageTag: 797af439-5667-4bea-bfc7-f9dbb4b1c234
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Total Value' =
+			
+			SUM('Banana Exports'[primaryValue])
+		formatString: \$#,0.###############;(\$#,0.###############);\$#,0.###############
+		lineageTag: 1b874a13-54bd-44ae-ab2d-575aba0b01ca
+
+	measure 'Total Value (Display)' =
+			
+			VAR v = SUM('Banana Exports'[primaryValue])
+			RETURN
+			IF(
+			    v >= 1000000000,
+			    FORMAT(v, "$0.0,,B"),
+			    FORMAT(v, "$0.0,M")
+			)
+		lineageTag: 6831829b-ce86-4056-b8bb-bba1c3be14b4
+
+	column period
+		dataType: int64
+		formatString: 0
+		lineageTag: 460fc9a3-3605-4d1d-8d51-a6cacde20b0f
+		summarizeBy: sum
+		sourceColumn: period
+
+		annotation SummarizationSetBy = Automatic
+
+	column reporterISO
+		dataType: string
+		lineageTag: fd6068c2-6177-4d18-8e9f-10ec50e1579b
+		summarizeBy: none
+		sourceColumn: reporterISO
+
+		annotation SummarizationSetBy = Automatic
+
+	column reporterDesc
+		dataType: string
+		lineageTag: 98f8c773-cfca-4d3c-863b-a29a129b0726
+		summarizeBy: none
+		sourceColumn: reporterDesc
+
+		annotation SummarizationSetBy = Automatic
+
+	column flowCode
+		dataType: string
+		lineageTag: 256f374e-cba4-4f9b-bc62-206844748df1
+		summarizeBy: none
+		sourceColumn: flowCode
+
+		annotation SummarizationSetBy = Automatic
+
+	column flowDesc
+		dataType: string
+		lineageTag: f5637d3a-e3fd-429a-93cd-0a0cf1a251e9
+		summarizeBy: none
+		sourceColumn: flowDesc
+
+		annotation SummarizationSetBy = Automatic
+
+	column partnerISO
+		dataType: string
+		lineageTag: c31a51de-a353-4663-8425-3988b97f6c1d
+		summarizeBy: none
+		sourceColumn: partnerISO
+
+		annotation SummarizationSetBy = Automatic
+
+	column partnerDesc
+		dataType: string
+		lineageTag: 1281b59e-e2c7-4123-8dd5-ee6b637235ba
+		summarizeBy: none
+		sourceColumn: partnerDesc
+
+		annotation SummarizationSetBy = Automatic
+
+	column qty
+		dataType: double
+		lineageTag: 10d83739-67d5-4e4c-af81-2ebd8336bce8
+		summarizeBy: sum
+		sourceColumn: qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column primaryValue
+		dataType: double
+		formatString: \$#,0;(\$#,0);\$#,0
+		lineageTag: 565ca9a0-4028-4518-a150-d5683caf920d
+		summarizeBy: sum
+		sourceColumn: primaryValue
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"currencyCulture":"en-US"}
+
+	column Flow =
+			
+			'Banana Exports'[reporterDesc] & " -> " & 'Banana Exports'[partnerDesc]
+		lineageTag: 74484838-7cf3-4ec8-8433-4ca1b2a85126
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Banana Exports' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(File.Contents("C:\Users\TARUN\OneDrive\Desktop\The_World_is_Going_Bananas_Tables.xlsx"), null, true),
+				    #"Banana Exports_Sheet" = Source{[Item="Banana Exports",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Banana Exports_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"period", Int64.Type}, {"reporterISO", type text}, {"reporterDesc", type text}, {"flowCode", type text}, {"flowDesc", type text}, {"partnerISO", type text}, {"partnerDesc", type text}, {"qty", type number}, {"primaryValue", type number}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_ResultType = Table
+

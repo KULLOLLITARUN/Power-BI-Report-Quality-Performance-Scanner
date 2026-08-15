@@ -1,0 +1,20 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_visualbloat — fires R001 (REPORT_VISUAL_BLOAT). Page has 16 bar chart visuals (threshold = 15).",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [{"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"}],
+        "measures": [{"name": "Total Revenue", "expression": "SUM(Sales[Amount])"}],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": []
+  }
+}

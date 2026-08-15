@@ -1,0 +1,52 @@
+table 'Banana Price (BLS)'
+	lineageTag: 45baa693-fe96-40c6-a6cd-24c2ccbe4df1
+
+	column Date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 6c26d0e8-8374-493c-baff-f072e4505ef6
+		summarizeBy: none
+		sourceColumn: Date
+
+		variation Variation
+			isDefault
+			relationship: 5f8f7e38-4d63-45f1-8407-8947bd29c3c3
+			defaultHierarchy: LocalDateTable_6179b6f8-f964-446d-85c9-7b7d4d077e3e.'Date Hierarchy'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Value
+		dataType: double
+		lineageTag: 9be7fcc1-10a1-4b58-adc9-c0a4f4744de2
+		summarizeBy: sum
+		sourceColumn: Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Value Inflation Adjusted'
+		dataType: double
+		lineageTag: ee4727ea-173f-49ad-b257-2f34808c0b79
+		summarizeBy: sum
+		sourceColumn: Value Inflation Adjusted
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Banana Price (BLS)' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(File.Contents("C:\Users\TARUN\OneDrive\Desktop\The_World_is_Going_Bananas_Tables.xlsx"), null, true),
+				    #"Banana Price (BLS)_Sheet" = Source{[Item="Banana Price (BLS)",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Banana Price (BLS)_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Date", type date}, {"Value", type number}, {"Value Inflation Adjusted", type number}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_ResultType = Table
+

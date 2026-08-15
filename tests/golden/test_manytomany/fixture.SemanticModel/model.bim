@@ -1,0 +1,45 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_manytomany — fires M002 (MODEL_MANY_TO_MANY) exactly once.",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {"name": "SalesID", "dataType": "int64", "sourceColumn": "SalesID"},
+          {"name": "ProductID", "dataType": "int64", "sourceColumn": "ProductID"},
+          {"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"}
+        ],
+        "measures": [
+          {"name": "Total Revenue", "expression": "SUM(Sales[Amount])"}
+        ],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "Product",
+        "columns": [
+          {"name": "ProductID", "dataType": "int64", "sourceColumn": "ProductID"},
+          {"name": "ProductName", "dataType": "string", "sourceColumn": "ProductName"}
+        ],
+        "partitions": [{"name": "Product", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "Sales_Product",
+        "fromTable": "Sales",
+        "fromColumn": "ProductID",
+        "toTable": "Product",
+        "toColumn": "ProductID",
+        "fromCardinality": "many",
+        "toCardinality": "many",
+        "crossFilteringBehavior": "oneDirection"
+      }
+    ]
+  }
+}

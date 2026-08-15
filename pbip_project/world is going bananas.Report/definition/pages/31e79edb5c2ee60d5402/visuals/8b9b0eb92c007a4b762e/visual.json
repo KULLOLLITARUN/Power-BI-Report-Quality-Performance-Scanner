@@ -1,0 +1,89 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json",
+  "name": "8b9b0eb92c007a4b762e",
+  "position": {
+    "x": 9.95167777987744,
+    "y": 386.87147369273544,
+    "z": 1000,
+    "height": 333.38120562589421,
+    "width": 427.92214453472991,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "D3JSVisual_PBI_CV_CDD143DEC3A145E7A507B562AF6CF490",
+    "query": {
+      "queryState": {
+        "dataset": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Banana Exports"
+                    }
+                  },
+                  "Property": "partnerDesc"
+                }
+              },
+              "queryRef": "Banana Exports.partnerDesc",
+              "nativeQueryRef": "partnerDesc"
+            },
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Banana Exports"
+                        }
+                      },
+                      "Property": "primaryValue"
+                    }
+                  },
+                  "Function": 0
+                }
+              },
+              "queryRef": "Sum(Banana Exports.primaryValue)",
+              "nativeQueryRef": "Sum of primaryValue"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Banana Exports"
+                    }
+                  },
+                  "Property": "reporterDesc"
+                }
+              },
+              "queryRef": "Banana Exports.reporterDesc",
+              "nativeQueryRef": "reporterDesc"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "Banana Exports"
+                  }
+                },
+                "Property": "partnerDesc"
+              }
+            },
+            "direction": "Ascending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

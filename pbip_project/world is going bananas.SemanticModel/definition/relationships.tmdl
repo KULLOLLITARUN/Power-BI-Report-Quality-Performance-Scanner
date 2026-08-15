@@ -1,0 +1,37 @@
+relationship 5f8f7e38-4d63-45f1-8407-8947bd29c3c3
+	joinOnDateBehavior: datePartOnly
+	fromColumn: 'Banana Price (BLS)'.Date
+	toColumn: LocalDateTable_6179b6f8-f964-446d-85c9-7b7d4d077e3e.Date
+
+relationship AutoDetected_b2b811d0-5e0a-4b53-8df8-67607e09f07a
+	fromColumn: 'Banana Exports'.reporterISO
+	toColumn: 'Exports - Reporter Lat'.'Reporter ISO'
+
+relationship AutoDetected_c528406e-aba1-418d-a69a-9e7460a54c9a
+	fromColumn: 'Banana Imports'.reporterISO
+	toColumn: 'Exports - Reporter Lat'.'Reporter ISO'
+
+relationship AutoDetected_af9b1a4a-d0de-4afc-b30a-13e5f6a9545c
+	fromColumn: 'Banana Exports'.partnerISO
+	toColumn: 'Exports - Partner Lat'.'Partner ISO'
+
+relationship AutoDetected_0bce329c-98fc-4ce1-b23b-5a69011ceb46
+	fromColumn: 'Banana Imports'.partnerISO
+	toColumn: 'Exports - Partner Lat'.'Partner ISO'
+
+relationship AutoDetected_804d557a-7aff-4b5e-ad0a-a06e303f590d
+	fromColumn: 'Banana Exports'.partnerISO
+	toColumn: 'Imports - Partner Lat'.'Partner ISO'
+
+relationship AutoDetected_946ec217-ad64-4183-b0bc-08866fcc8030
+	fromColumn: 'Banana Imports'.partnerISO
+	toColumn: 'Imports - Partner Lat'.'Partner ISO'
+
+relationship AutoDetected_8f08f694-418f-4184-9f90-e5644010596c
+	fromColumn: 'Banana Exports'.partnerISO
+	toColumn: 'Imports - Reporter Lat'.'Partner ISO'
+
+relationship AutoDetected_9eb6e980-a23a-4eaf-9f2e-aeeaecdcbb1f
+	fromColumn: 'Banana Imports'.partnerISO
+	toColumn: 'Imports - Reporter Lat'.'Partner ISO'
+

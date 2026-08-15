@@ -1,0 +1,191 @@
+{
+  "version": "1.1.0",
+  "diagrams": [
+    {
+      "ordinal": 0,
+      "scrollPosition": {
+        "x": 334.15987533337142,
+        "y": 0
+      },
+      "nodes": [
+        {
+          "location": {
+            "x": 334.15987533337142,
+            "y": 253.66533178107875
+          },
+          "nodeIndex": "Banana Exports",
+          "nodeLineageTag": "037a65f7-1a0f-4b24-8554-27296e19f3ba",
+          "size": {
+            "height": 296,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 618.22397564169728,
+            "y": -50
+          },
+          "nodeIndex": "Banana Imports",
+          "nodeLineageTag": "3fe6be45-725d-49d8-8471-85a4e207859d",
+          "size": {
+            "height": 296,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 1136.3996773488745,
+            "y": 324.91561818639434
+          },
+          "nodeIndex": "Banana Price (BLS)",
+          "nodeLineageTag": "45baa693-fe96-40c6-a6cd-24c2ccbe4df1",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 50,
+            "y": 209.56973119563196
+          },
+          "nodeIndex": "Exports - Partner Lat",
+          "nodeLineageTag": "7cd4264e-dbfc-4d07-84f1-fc4c21f30bd8",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 902.39967734887455,
+            "y": 84.56595633730808
+          },
+          "nodeIndex": "Exports - Reporter Lat",
+          "nodeLineageTag": "35d448ac-0daa-4dd4-8800-ee26b61e2c32",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 1420.3996773488745,
+            "y": 250.91561818639434
+          },
+          "nodeIndex": "Food Balance Combined",
+          "nodeLineageTag": "de9b2cd1-f7c7-4c34-bdf5-374325bdf955",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 1704.3996773488745,
+            "y": 250.91561818639434
+          },
+          "nodeIndex": "Fruit Prices Combined",
+          "nodeLineageTag": "4f0e94a7-2705-470e-bcd6-a1ed25ebb35d",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 263.20959296287248,
+            "y": 7.4012394005926581
+          },
+          "nodeIndex": "Imports - Partner Lat",
+          "nodeLineageTag": "8b84338a-1fb3-4206-b771-d3098c4329c2",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 447.12480950707055,
+            "y": 599.83123637278868
+          },
+          "nodeIndex": "Imports - Reporter Lat",
+          "nodeLineageTag": "47d99dbf-97b1-43fb-9dbe-b1eca1fd797a",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 1988.3996773488745,
+            "y": 250.91561818639434
+          },
+          "nodeIndex": "Nutritional Data",
+          "nodeLineageTag": "9978d3a4-e934-415e-a4bb-e384e50dd000",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 2556.3996773488743,
+            "y": 300.91561818639434
+          },
+          "nodeIndex": "Timeline",
+          "nodeLineageTag": "1c5b03b8-4519-413c-bd64-6c373f0538d2",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 2840.3996773488743,
+            "y": 348.91561818639434
+          },
+          "nodeIndex": "Toggle",
+          "nodeLineageTag": "dd1d4ccf-6d82-442b-93da-866f3c7abe04",
+          "size": {
+            "height": 104,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 3074.3996773488743,
+            "y": 250.91561818639434
+          },
+          "nodeIndex": "Ripening Changes",
+          "nodeLineageTag": "1ee4e905-e027-48fd-92f3-c06b821532eb",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        }
+      ],
+      "name": "All tables",
+      "zoomValue": 100,
+      "pinKeyFieldsToTop": false,
+      "showExtraHeaderInfo": false,
+      "hideKeyFieldsWhenCollapsed": false,
+      "tablesLocked": false
+    }
+  ],
+  "selectedDiagram": "All tables",
+  "defaultDiagram": "All tables"
+}

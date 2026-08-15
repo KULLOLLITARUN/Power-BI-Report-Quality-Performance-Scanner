@@ -1,0 +1,228 @@
+table 'Ripening Changes'
+	lineageTag: 1ee4e905-e027-48fd-92f3-c06b821532eb
+
+	measure Measure
+		lineageTag: c0a2e5a9-6962-4b48-8b2e-79aafaf69e7b
+
+		annotation 43dbc3e8-3a1c-4b6f-9923-b49ff7d6691c = True
+
+	measure 'Avg Fiber Tableau' =
+			
+			AVERAGEX(
+			    'Ripening Changes',
+			    ROUND('Ripening Changes'[Total Dietary Fiber (HMWDF + LMWSDF)], 0)
+			)
+		lineageTag: 011c878e-4699-4730-9f9d-4e86906a0439
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Avg Starch Label' = FORMAT([Avg Starch], "0") & "g"
+		lineageTag: 47a121e0-c1e0-4209-94f2-c8b8e0156f6b
+
+	measure 'Avg Starch' = ROUND(AVERAGE('Ripening Changes'[Starch]), 0)
+		lineageTag: 916a0bca-178e-43b4-899a-95eebeef817e
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Original sample*'
+		dataType: string
+		lineageTag: 7d695de3-bd34-493b-9849-748206106d71
+		summarizeBy: none
+		sourceColumn: Original sample*
+
+		annotation SummarizationSetBy = Automatic
+
+	column CompNo
+		dataType: string
+		lineageTag: 1c22088f-7d61-486a-93e6-b8300cad1442
+		summarizeBy: none
+		sourceColumn: CompNo
+
+		annotation SummarizationSetBy = Automatic
+
+	column Ripeness
+		dataType: string
+		lineageTag: 3258ddb5-1641-4f56-953e-d8bf81c2aade
+		summarizeBy: none
+		sourceColumn: Ripeness
+
+		annotation SummarizationSetBy = Automatic
+
+	column Supplier
+		dataType: string
+		lineageTag: 980ed4e9-0aa1-4593-9eb1-a444458073a6
+		summarizeBy: none
+		sourceColumn: Supplier
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Source country'
+		dataType: string
+		lineageTag: 5f46c46d-7750-4a75-8f99-57596145bd18
+		summarizeBy: none
+		sourceColumn: Source country
+
+		annotation SummarizationSetBy = Automatic
+
+	column Study
+		dataType: string
+		lineageTag: 7590a476-e76c-4ddf-b4fc-c10068651f1a
+		summarizeBy: none
+		sourceColumn: Study
+
+		annotation SummarizationSetBy = Automatic
+
+	column Size
+		dataType: string
+		lineageTag: 553ae801-4047-4e08-bf73-e690d71c0609
+		summarizeBy: none
+		sourceColumn: Size
+
+		annotation SummarizationSetBy = Automatic
+
+	column Moisture
+		dataType: double
+		lineageTag: 2874cee4-9ec0-49d4-b8e9-e16c7dcbb007
+		summarizeBy: sum
+		sourceColumn: Moisture
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'mEG Total Fiber'
+		dataType: double
+		lineageTag: 4f8b41eb-fa73-4ead-9bcb-bba3c693d7aa
+		summarizeBy: sum
+		sourceColumn: mEG Total Fiber
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'EG Total Fiber'
+		dataType: double
+		lineageTag: 67bdf4b5-ae1c-4529-a2da-27640c014c2e
+		summarizeBy: sum
+		sourceColumn: EG Total Fiber
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Starch
+		dataType: double
+		lineageTag: ea932887-462e-4780-b605-c03212dfc2a5
+		summarizeBy: sum
+		sourceColumn: Starch
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Total sugars'
+		dataType: double
+		lineageTag: 93cfb7ac-39bc-495d-9e43-dc380d7670db
+		summarizeBy: sum
+		sourceColumn: Total sugars
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'HMWDF (IDF+ SDFP)'
+		dataType: double
+		lineageTag: 07cf35dd-2385-4c90-9add-b13443b259ea
+		summarizeBy: sum
+		sourceColumn: HMWDF (IDF+ SDFP)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Insoluble Dietary Fiber (IDF)'
+		dataType: double
+		lineageTag: 8168efd9-ce71-4f68-acd7-8e88ac44e374
+		summarizeBy: sum
+		sourceColumn: Insoluble Dietary Fiber (IDF)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Low Molecular Weight Fiber (LMWSDF)'
+		dataType: double
+		lineageTag: b3840702-c3f6-44d1-8269-b2a58873ef7b
+		summarizeBy: sum
+		sourceColumn: Low Molecular Weight Fiber (LMWSDF)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Soluble Dietary Fiber Precipitate (SDFP)'
+		dataType: double
+		lineageTag: 6d107709-8ce0-435b-bcb5-f18e9df7b3a1
+		summarizeBy: sum
+		sourceColumn: Soluble Dietary Fiber Precipitate (SDFP)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Total Dietary Fiber (HMWDF + LMWSDF)'
+		dataType: double
+		lineageTag: 4ff90880-8aef-4925-826f-dccd1d9949c0
+		summarizeBy: sum
+		sourceColumn: Total Dietary Fiber (HMWDF + LMWSDF)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Total Soluble Fiber (SDFP + LMWSDF)'
+		dataType: double
+		lineageTag: 7c8ffb67-f3c8-4f2a-8e09-436cf4397a43
+		summarizeBy: sum
+		sourceColumn: Total Soluble Fiber (SDFP + LMWSDF)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Sugar Type'
+		dataType: string
+		lineageTag: a140f223-838b-4843-b2cb-6858f1f25ae5
+		summarizeBy: none
+		sourceColumn: Sugar Type
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Sugar Value'
+		dataType: double
+		lineageTag: 9b02e09f-020f-4c2f-a2f2-9f0e61ab8d43
+		summarizeBy: sum
+		sourceColumn: Sugar Value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Ripening Changes' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(File.Contents("C:\Users\TARUN\OneDrive\Desktop\The_World_is_Going_Bananas_Tables.xlsx"), null, true),
+				    #"Ripening Changes_Sheet" = Source{[Item="Ripening Changes",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Ripening Changes_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Original sample*", type text}, {"CompNo", type text}, {"Ripeness", type text}, {"Supplier", type text}, {"Source country", type text}, {"Study", type text}, {"Size", type text}, {"Moisture", type number}, {"Fructose", type number}, {"Glucose", type number}, {"Sucrose", type number}, {"mEG Total Fiber", type number}, {"EG Total Fiber", type number}, {"Starch", type number}, {"Total sugars", type number}, {"HMWDF (IDF+ SDFP)", type number}, {"Insoluble Dietary Fiber (IDF)", type number}, {"Low Molecular Weight Fiber (LMWSDF)", type number}, {"Soluble Dietary Fiber Precipitate (SDFP)", type number}, {"Total Dietary Fiber (HMWDF + LMWSDF)", type number}, {"Total Soluble Fiber (SDFP + LMWSDF)", type number}}),
+				    #"Unpivoted Columns" = Table.UnpivotOtherColumns(#"Changed Type", {"Original sample*", "CompNo", "Ripeness", "Supplier", "Source country", "Study", "Size", "Moisture", "mEG Total Fiber", "EG Total Fiber", "Starch", "Total sugars", "HMWDF (IDF+ SDFP)", "Insoluble Dietary Fiber (IDF)", "Low Molecular Weight Fiber (LMWSDF)", "Soluble Dietary Fiber Precipitate (SDFP)", "Total Dietary Fiber (HMWDF + LMWSDF)", "Total Soluble Fiber (SDFP + LMWSDF)"}, "Attribute", "Value"),
+				    #"Renamed Columns" = Table.RenameColumns(#"Unpivoted Columns",{{"Attribute", "Sugar Type"}, {"Value", "Sugar Value"}}),
+				    #"Filtered Rows" = Table.SelectRows(#"Renamed Columns", each true)
+				in
+				    #"Filtered Rows"
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_NavigationStepName = Navigation
+

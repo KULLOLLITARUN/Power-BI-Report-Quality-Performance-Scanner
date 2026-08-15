@@ -1,0 +1,44 @@
+table 'Exports - Partner Lat'
+	lineageTag: 7cd4264e-dbfc-4d07-84f1-fc4c21f30bd8
+
+	column 'Partner ISO'
+		dataType: string
+		lineageTag: ad85fd79-29a4-4360-9ede-314e217a29ea
+		summarizeBy: none
+		sourceColumn: Partner ISO
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Latitude (generated)'
+		dataType: double
+		lineageTag: a5223d1a-c2f7-4441-945f-9df265492153
+		summarizeBy: sum
+		sourceColumn: Latitude (generated)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'Longitude (generated)'
+		dataType: double
+		lineageTag: 77c717d3-60c3-4de2-87f4-4c2428a21cb1
+		summarizeBy: sum
+		sourceColumn: Longitude (generated)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Exports - Partner Lat' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(File.Contents("C:\Users\TARUN\OneDrive\Desktop\The_World_is_Going_Bananas_Tables.xlsx"), null, true),
+				    #"Exports - Partner Lat_Sheet" = Source{[Item="Exports - Partner Lat",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Exports - Partner Lat_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Partner ISO", type text}, {"Latitude (generated)", type number}, {"Longitude (generated)", type number}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_ResultType = Table
+

@@ -1,0 +1,57 @@
+table Timeline
+	lineageTag: 1c5b03b8-4519-413c-bd64-6c373f0538d2
+
+	column Topic
+		dataType: string
+		lineageTag: a213dd00-7e7a-4491-830c-eb3de096bc17
+		summarizeBy: none
+		sourceColumn: Topic
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Monkey message'
+		dataType: string
+		lineageTag: ecda9d21-ea85-4c21-b045-4d3e2350522f
+		summarizeBy: none
+		sourceColumn: Monkey message
+
+		annotation SummarizationSetBy = Automatic
+
+	column Event
+		dataType: int64
+		formatString: 0
+		lineageTag: 013fa20f-bf87-4a42-b6a7-9b39daef454b
+		summarizeBy: sum
+		sourceColumn: Event
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sheet
+		dataType: string
+		lineageTag: 6b82696a-62b2-43d6-8ced-b931d06d451c
+		summarizeBy: none
+		sourceColumn: Sheet
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Table Name'
+		dataType: string
+		lineageTag: a2ffd173-05d7-42a2-b9a3-7f8d7b588a25
+		summarizeBy: none
+		sourceColumn: Table Name
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Timeline = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(File.Contents("C:\Users\TARUN\OneDrive\Desktop\The_World_is_Going_Bananas_Tables.xlsx"), null, true),
+				    Timeline_Sheet = Source{[Item="Timeline",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(Timeline_Sheet, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Topic", type text}, {"Monkey message", type text}, {"Event", Int64.Type}, {"Sheet", type text}, {"Table Name", type text}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_ResultType = Table
+

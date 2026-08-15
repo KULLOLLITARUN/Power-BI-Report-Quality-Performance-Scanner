@@ -1,0 +1,18 @@
+{
+  "_comment": "Minimal report — 1 page, 1 bar chart using Total Revenue. Kept clean to avoid R001/R002.",
+  "id": "test-bidirectional-report",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Sales Overview",
+      "ordinal": 0,
+      "visibility": 0,
+      "visualContainers": [
+        {
+          "x": 0, "y": 0, "z": 1, "width": 400, "height": 300,
+          "config": "{\"name\":\"v1\",\"singleVisual\":{\"visualType\":\"barChart\",\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"s\",\"Entity\":\"Sales\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"s\"}},\"Property\":\"Total Revenue\"},\"Name\":\"Sales.Total Revenue\"}]}}}"
+        }
+      ]
+    }
+  ]
+}

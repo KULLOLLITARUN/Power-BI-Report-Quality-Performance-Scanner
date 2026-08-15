@@ -1,0 +1,105 @@
+table 'Fruit Prices Combined'
+	lineageTag: 4f0e94a7-2705-470e-bcd6-a1ed25ebb35d
+
+	column Food
+		dataType: string
+		lineageTag: 968a0f66-988b-4a14-9bfd-88050a57ba32
+		summarizeBy: none
+		sourceColumn: Food
+
+		annotation SummarizationSetBy = Automatic
+
+	column Form
+		dataType: string
+		lineageTag: 3c9deecb-6bf7-4828-9482-47189c582acd
+		summarizeBy: none
+		sourceColumn: Form
+
+		annotation SummarizationSetBy = Automatic
+
+	column RetailPrice
+		dataType: double
+		lineageTag: 5c1d529c-87cc-4014-96f2-ef75364aefda
+		summarizeBy: sum
+		sourceColumn: RetailPrice
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column RetailPriceUnit
+		dataType: string
+		lineageTag: 4c1abf15-7c9e-4a01-b1e3-492280f5c94f
+		summarizeBy: none
+		sourceColumn: RetailPriceUnit
+
+		annotation SummarizationSetBy = Automatic
+
+	column Yield
+		dataType: double
+		lineageTag: 107ac781-8138-46e9-a70c-a4d5bcb0c242
+		summarizeBy: sum
+		sourceColumn: Yield
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CupEquivalentSize
+		dataType: double
+		lineageTag: 4a9dae76-a9d6-4ac8-8d84-548474b83c25
+		summarizeBy: sum
+		sourceColumn: CupEquivalentSize
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column CupEquivalentUnit
+		dataType: string
+		lineageTag: 061657d7-720e-40f7-a2aa-73fe8f006872
+		summarizeBy: none
+		sourceColumn: CupEquivalentUnit
+
+		annotation SummarizationSetBy = Automatic
+
+	column CupEquivalentPrice
+		dataType: double
+		lineageTag: 49fc6bd1-85e6-4e13-9d32-59e17c1f3d60
+		summarizeBy: sum
+		sourceColumn: CupEquivalentPrice
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column type
+		dataType: string
+		lineageTag: d338b4a8-12e1-4022-845b-96178a88aa89
+		summarizeBy: none
+		sourceColumn: type
+
+		annotation SummarizationSetBy = Automatic
+
+	column year
+		dataType: int64
+		formatString: 0
+		lineageTag: 58cb2cd6-fc83-4878-82f1-000cbc792449
+		summarizeBy: sum
+		sourceColumn: year
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Fruit Prices Combined' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(File.Contents("C:\Users\TARUN\OneDrive\Desktop\The_World_is_Going_Bananas_Tables.xlsx"), null, true),
+				    #"Fruit Prices Combined_Sheet" = Source{[Item="Fruit Prices Combined",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Fruit Prices Combined_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Food", type text}, {"Form", type text}, {"RetailPrice", type number}, {"RetailPriceUnit", type text}, {"Yield", type number}, {"CupEquivalentSize", type number}, {"CupEquivalentUnit", type text}, {"CupEquivalentPrice", type number}, {"type", type text}, {"year", Int64.Type}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_ResultType = Table
+

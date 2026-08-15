@@ -1,0 +1,32 @@
+{
+  "_comment": "CRITICAL NEGATIVE FIXTURE: test_measure_referenced_by_another — DAX_UNUSED_MEASURE must be 0.\nBase Revenue is not in any visual but IS referenced by Revenue Per Unit.\nRevenue Per Unit IS in a visual.\nExpected: D004 = 0 for both measures.",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"},
+          {"name": "Units", "dataType": "int64", "sourceColumn": "Units"}
+        ],
+        "measures": [
+          {
+            "name": "Base Revenue",
+            "expression": "SUM(Sales[Amount])"
+          },
+          {
+            "name": "Revenue Per Unit",
+            "expression": "[Base Revenue] / SUM(Sales[Units])"
+          }
+        ],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": []
+  }
+}

@@ -1,0 +1,285 @@
+table 'Food Balance Combined'
+	lineageTag: de9b2cd1-f7c7-4c34-bdf5-374325bdf955
+
+	column 'Domain Code'
+		dataType: string
+		lineageTag: 6dfef1cc-84c0-4bd2-8579-70b42c04590c
+		summarizeBy: none
+		sourceColumn: Domain Code
+
+		annotation SummarizationSetBy = Automatic
+
+	column Area
+		dataType: string
+		lineageTag: 5a59dae0-933d-43eb-bc2d-3c463f931db1
+		summarizeBy: none
+		sourceColumn: Area
+
+		annotation SummarizationSetBy = Automatic
+
+	column Year
+		dataType: int64
+		formatString: 0
+		lineageTag: 7654ffca-295e-4656-99a0-72bc046846dc
+		summarizeBy: sum
+		sourceColumn: Year
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'total population - both sexes'
+		dataType: double
+		lineageTag: 8fbd0b88-d64d-4fe7-bc9d-02deba1227ca
+		summarizeBy: sum
+		sourceColumn: total population - both sexes
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'import quantity'
+		dataType: int64
+		formatString: 0
+		lineageTag: 45b3d8d1-da74-437f-96fc-07b68f2f0a00
+		summarizeBy: sum
+		sourceColumn: import quantity
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'domestic supply quantity'
+		dataType: int64
+		formatString: 0
+		lineageTag: 97b68e52-5904-46ea-af74-889cbd461e4e
+		summarizeBy: sum
+		sourceColumn: domestic supply quantity
+
+		annotation SummarizationSetBy = Automatic
+
+	column processing
+		dataType: int64
+		formatString: 0
+		lineageTag: b9c5b5b5-d8e3-4f09-ab9e-fe341f0bde69
+		summarizeBy: sum
+		sourceColumn: processing
+
+		annotation SummarizationSetBy = Automatic
+
+	column residuals
+		dataType: int64
+		formatString: 0
+		lineageTag: 55c6fe3c-7d09-4bc3-b90e-431eb96ef8a6
+		summarizeBy: sum
+		sourceColumn: residuals
+
+		annotation SummarizationSetBy = Automatic
+
+	column food
+		dataType: int64
+		formatString: 0
+		lineageTag: ecab4043-a145-4348-8c41-f48fa58b777d
+		summarizeBy: sum
+		sourceColumn: food
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'food supply quantity (kg/capita/yr)'
+		dataType: double
+		lineageTag: 7526b846-72a9-4d11-9a99-6c8f12023c14
+		summarizeBy: sum
+		sourceColumn: food supply quantity (kg/capita/yr)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'food supply (kcal/capita/day)'
+		dataType: double
+		lineageTag: 7e8548b8-e49c-4078-94e0-a779dc3cdd96
+		summarizeBy: sum
+		sourceColumn: food supply (kcal/capita/day)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'food supply (kcal)'
+		dataType: double
+		lineageTag: 16e02c0d-c1e6-4f2c-81ae-b8bbaebab3cf
+		summarizeBy: sum
+		sourceColumn: food supply (kcal)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'protein supply quantity (g/capita/day)'
+		dataType: double
+		lineageTag: d426d5bb-4894-412f-839d-a56865a2a3da
+		summarizeBy: sum
+		sourceColumn: protein supply quantity (g/capita/day)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'protein supply quantity (t)'
+		dataType: double
+		lineageTag: 6021637a-8c2f-43d0-84be-2002b42e46ee
+		summarizeBy: sum
+		sourceColumn: protein supply quantity (t)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'fat supply quantity (g/capita/day)'
+		dataType: double
+		lineageTag: 5c8e19c0-23c4-4d15-a0cc-484ccbc11293
+		summarizeBy: sum
+		sourceColumn: fat supply quantity (g/capita/day)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'fat supply quantity (t)'
+		dataType: double
+		lineageTag: 067e9740-9d7a-42ff-85d3-fb13f5e2d498
+		summarizeBy: sum
+		sourceColumn: fat supply quantity (t)
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'export quantity'
+		dataType: int64
+		formatString: 0
+		lineageTag: ac40fd88-4300-4cee-b163-8a3fdd520d35
+		summarizeBy: sum
+		sourceColumn: export quantity
+
+		annotation SummarizationSetBy = Automatic
+
+	column production
+		dataType: int64
+		formatString: 0
+		lineageTag: 0bae2d69-299e-414b-8d4b-83ad01ecef57
+		summarizeBy: sum
+		sourceColumn: production
+
+		annotation SummarizationSetBy = Automatic
+
+	column losses
+		dataType: int64
+		formatString: 0
+		lineageTag: 4d9258e3-1961-4606-a510-6c36cb2b6681
+		summarizeBy: sum
+		sourceColumn: losses
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'tourist consumption'
+		dataType: string
+		lineageTag: 111fece8-58a3-4d8f-b0fa-875b654a6327
+		summarizeBy: none
+		sourceColumn: tourist consumption
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'other uses (non-food)'
+		dataType: string
+		lineageTag: e19a7249-8306-4698-98bf-f1a74aadd674
+		summarizeBy: none
+		sourceColumn: other uses (non-food)
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'stock variation'
+		dataType: string
+		lineageTag: 92096f02-cabf-4f49-a76b-2a0c62a47920
+		summarizeBy: none
+		sourceColumn: stock variation
+
+		annotation SummarizationSetBy = Automatic
+
+	column feed
+		dataType: string
+		lineageTag: 25c175ae-585f-40fc-a55b-487c81810623
+		summarizeBy: none
+		sourceColumn: feed
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'food supply (kcal/capita/day) - grand total'
+		dataType: double
+		lineageTag: 492d1953-bd49-445c-995c-3ac319c4acd4
+		summarizeBy: sum
+		sourceColumn: food supply (kcal/capita/day) - grand total
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'food supply (kcal) - grand total'
+		dataType: double
+		lineageTag: 9fc024d7-a246-402a-85e3-17af1ddd73de
+		summarizeBy: sum
+		sourceColumn: food supply (kcal) - grand total
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'protein supply quantity (g/capita/day) - grand total'
+		dataType: double
+		lineageTag: 93824bbc-5db6-4b41-9ff3-519b616a0db1
+		summarizeBy: sum
+		sourceColumn: protein supply quantity (g/capita/day) - grand total
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'protein supply quantity (t) - grand total'
+		dataType: double
+		lineageTag: 0d95c4cd-6659-468a-929c-190384bfa01e
+		summarizeBy: sum
+		sourceColumn: protein supply quantity (t) - grand total
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'fat supply quantity (g/capita/day) - grand total'
+		dataType: double
+		lineageTag: 80be18a1-cde9-485e-b14d-381c4f798bd1
+		summarizeBy: sum
+		sourceColumn: fat supply quantity (g/capita/day) - grand total
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column 'fat supply quantity (t) - grand total'
+		dataType: double
+		lineageTag: 70f31bc2-57b1-486e-8942-0a8856060c63
+		summarizeBy: sum
+		sourceColumn: fat supply quantity (t) - grand total
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Food Balance Combined' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(File.Contents("C:\Users\TARUN\OneDrive\Desktop\The_World_is_Going_Bananas_Tables.xlsx"), null, true),
+				    #"Food Balance Combined_Sheet" = Source{[Item="Food Balance Combined",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Food Balance Combined_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Domain Code", type text}, {"Area", type text}, {"Year", Int64.Type}, {"total population - both sexes", type number}, {"import quantity", Int64.Type}, {"domestic supply quantity", Int64.Type}, {"processing", Int64.Type}, {"residuals", Int64.Type}, {"food", Int64.Type}, {"food supply quantity (kg/capita/yr)", type number}, {"food supply (kcal/capita/day)", type number}, {"food supply (kcal)", type number}, {"protein supply quantity (g/capita/day)", type number}, {"protein supply quantity (t)", type number}, {"fat supply quantity (g/capita/day)", type number}, {"fat supply quantity (t)", type number}, {"export quantity", Int64.Type}, {"production", Int64.Type}, {"losses", Int64.Type}, {"tourist consumption", type any}, {"other uses (non-food)", type any}, {"stock variation", type any}, {"feed", type any}, {"food supply (kcal/capita/day) - grand total", type number}, {"food supply (kcal) - grand total", type number}, {"protein supply quantity (g/capita/day) - grand total", type number}, {"protein supply quantity (t) - grand total", type number}, {"fat supply quantity (g/capita/day) - grand total", type number}, {"fat supply quantity (t) - grand total", type number}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_ResultType = Table
+
