@@ -9,10 +9,10 @@ interface HealthScorecardProps {
 export const HealthScorecard: React.FC<HealthScorecardProps> = ({
   scores,
 }) => {
-  const overall = Math.round(scores.overall);
-  const modelScore = Math.round(scores.category_scores.model ?? 100);
-  const daxScore = Math.round(scores.category_scores.dax ?? 100);
-  const reportScore = Math.round(scores.category_scores.report ?? 100);
+  const overall = scores?.overall !== undefined ? Math.round(scores.overall) : 100;
+  const modelScore = Math.round(scores?.category_scores?.model ?? 100);
+  const daxScore = Math.round(scores?.category_scores?.dax ?? 100);
+  const reportScore = Math.round(scores?.category_scores?.report ?? 100);
 
   const getStatus = (score: number) => {
     if (score >= 90) return { label: 'PASSING', text: 'Model and DAX structures conform to production standards.' };
