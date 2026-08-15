@@ -312,3 +312,8 @@ def studio(path: str | None, port: int, host: str, no_browser: bool) -> None:
 
     uvicorn.run("pbiscan.server:app", host=host, port=port, log_level="warning")
 
+
+if __name__ == "__main__":
+    main()
+
+
