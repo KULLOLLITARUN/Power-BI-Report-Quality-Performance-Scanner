@@ -1,0 +1,60 @@
+table Sales
+
+	column OrderNumber
+		dataType: string
+		sourceColumn: OrderNumber
+
+	column CustomerID
+		dataType: string
+		sourceColumn: CustomerID
+
+	column ProductID
+		dataType: string
+		sourceColumn: ProductID
+
+	column OrderDate
+		dataType: dateTime
+		sourceColumn: OrderDate
+
+	column Quantity
+		dataType: int64
+		sourceColumn: Quantity
+
+	column UnitPrice
+		dataType: decimal
+		sourceColumn: UnitPrice
+
+	column Amount
+		dataType: decimal
+		sourceColumn: Amount
+
+	column TaxAmount
+		dataType: decimal
+		sourceColumn: TaxAmount
+
+	/// Layer 0 Base Measure
+	measure 'Base Amount' = SUM(Sales[Amount])
+
+	/// Layer 1 Measure (References Layer 0)
+	measure 'Net Sales' = [Base Amount] * (1 - 0.05)
+
+	/// Layer 2 Measure with Time Intelligence (References Layer 1)
+	measure 'Net Sales YTD' = TOTALYTD([Net Sales], Dates[Date])
+
+	/// Layer 2 Measure with SamePeriodLastYear (References Layer 1)
+	measure 'Net Sales SPLY' = CALCULATE([Net Sales], SAMEPERIODLASTYEAR(Dates[Date]))
+
+	/// Layer 3 Measure (References Layer 1 and Layer 2)
+	measure 'Sales Growth YoY %' = DIVIDE([Net Sales] - [Net Sales SPLY], [Net Sales SPLY], 0)
+
+	/// Legitimate Calculate Override (Should NOT trigger D001)
+	measure 'Enterprise Sales' = CALCULATE([Net Sales], Customers[Segment] == "Enterprise", KEEPFILTERS(Dates[Year] >= 2024))
+
+	/// Deliberately Bad DAX Pattern (Should trigger D001)
+	measure 'Expensive Sales Filter' = CALCULATE(SUM(Sales[Amount]), FILTER(ALL(Sales), Sales[Amount] > 1000))
+
+	/// Duplicate Logic of Net Sales (Should trigger D003)
+	measure 'Duplicate Net Sales' = [Base Amount] * (1 - 0.05)
+
+	/// Orphaned Unused Measure (Should trigger D004)
+	measure 'Orphaned Tax Calc' = SUM(Sales[TaxAmount]) * 1.15

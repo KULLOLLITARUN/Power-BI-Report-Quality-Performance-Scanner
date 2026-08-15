@@ -130,8 +130,8 @@ def _normalise_expression(expr: str) -> str:
       4. Strip spaces around ( ) [ ] to make formatting-only diffs identical
       5. Lowercase
     """
-    # Strip -- comments
-    expr = re.sub(r"--[^\n]*", "", expr)
+    # Strip // and -- single-line comments
+    expr = re.sub(r"(//|--)[^\n]*", "", expr)
     # Strip /* */ block comments
     expr = re.sub(r"/\*.*?\*/", "", expr, flags=re.DOTALL)
     # Collapse whitespace

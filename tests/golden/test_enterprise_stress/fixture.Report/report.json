@@ -1,0 +1,25 @@
+{
+  "sections": [
+    {
+      "name": "ExecutiveSummary",
+      "displayName": "Executive Summary",
+      "visualContainers": [
+        {
+          "config": "{\"name\":\"v1\",\"singleVisual\":{\"visualType\":\"card\",\"projections\":{\"Values\":[{\"queryRef\":\"Sales.Sales Growth YoY %\"}]}}}"
+        },
+        {
+          "config": "{\"name\":\"v2\",\"singleVisual\":{\"visualType\":\"lineChart\",\"projections\":{\"Y\":[{\"queryRef\":\"Sales.Net Sales YTD\"}],\"Category\":[{\"queryRef\":\"Dates.Month\"}]}}}"
+        },
+        {
+          "config": "{\"name\":\"v3\",\"singleVisual\":{\"visualType\":\"barChart\",\"projections\":{\"Y\":[{\"queryRef\":\"Inventory.TotalInventoryValue\"}],\"Category\":[{\"queryRef\":\"Products.Category\"}]}}}"
+        },
+        {
+          "config": "{\"name\":\"v4\",\"singleVisual\":{\"visualType\":\"tableEx\",\"projections\":{\"Values\":[{\"queryRef\":\"Sales.Enterprise Sales\"}]}}}"
+        },
+        {
+          "config": "{\"name\":\"s1\",\"singleVisual\":{\"visualType\":\"slicer\",\"projections\":{\"Values\":[{\"queryRef\":\"Dates.Year\"}]}}}"
+        }
+      ]
+    }
+  ]
+}

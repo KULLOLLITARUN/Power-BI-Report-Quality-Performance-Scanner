@@ -1,0 +1,23 @@
+table Inventory
+
+	column InventoryID
+		dataType: int64
+		sourceColumn: InventoryID
+
+	column ProductID
+		dataType: string
+		sourceColumn: ProductID
+
+	column SnapshotDate
+		dataType: dateTime
+		sourceColumn: SnapshotDate
+
+	column UnitsOnHand
+		dataType: int64
+		sourceColumn: UnitsOnHand
+
+	column UnitCost
+		dataType: decimal
+		sourceColumn: UnitCost
+
+	measure TotalInventoryValue = SUMX(Inventory, Inventory[UnitsOnHand] * Inventory[UnitCost])
