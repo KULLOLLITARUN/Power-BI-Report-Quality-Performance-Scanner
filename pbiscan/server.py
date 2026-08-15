@@ -68,16 +68,14 @@ class DialogRequest(BaseModel):
     mode: Optional[str] = "file"  # "file" or "folder"
 
 
-@app.post("/api/native-dialog")
-async def open_native_dialog(req: Optional[DialogRequest] = None):
-    """Open native Windows file/folder picker dialog."""
-    mode = req.mode if req else "file"
+def _show_dialog_sync(mode: str) -> dict:
     try:
         import tkinter as tk
         from tkinter import filedialog
         root = tk.Tk()
         root.withdraw()
-        root.attributes('-topmost', True)
+        root.wm_attributes("-topmost", 1)
+        root.update()
 
         if mode == "folder":
             selected_path = filedialog.askdirectory(title="Select Power BI Project Folder")
@@ -96,6 +94,14 @@ async def open_native_dialog(req: Optional[DialogRequest] = None):
         return {"path": "", "canceled": True}
     except Exception as exc:
         return {"path": "", "canceled": True, "error": str(exc)}
+
+
+@app.post("/api/native-dialog")
+async def open_native_dialog(req: Optional[DialogRequest] = None):
+    """Open native Windows file/folder picker dialog asynchronously."""
+    import asyncio
+    mode = req.mode if req else "file"
+    return await asyncio.to_thread(_show_dialog_sync, mode)
 
 
 @app.post("/api/scan")
