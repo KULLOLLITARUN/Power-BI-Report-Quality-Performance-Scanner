@@ -12,8 +12,8 @@ export const PagesViewer: React.FC<PagesViewerProps> = ({ pages, findings }) => 
   const slicerBloatFindings = findings.filter((f) => f.rule_id === 'REPORT_SLICER_BLOAT');
 
   return (
-    <div className="space-y-4">
-      <div className="text-xs text-slate-400">
+    <div className="space-y-4 font-mono">
+      <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
         Review visual layout density and slicer counts across all report pages. Pages with &gt;15 visuals or &gt;6 slicers trigger performance warnings.
       </div>
 
@@ -25,28 +25,47 @@ export const PagesViewer: React.FC<PagesViewerProps> = ({ pages, findings }) => 
           return (
             <div
               key={page.name || idx}
-              className={`p-5 rounded-xl border transition shadow-sm ${
-                hasVisualBloat || hasSlicerBloat
-                  ? 'bg-amber-500/5 border-amber-500/30'
-                  : 'bg-obsidian-800/80 border-obsidian-700/80'
-              }`}
+              className="p-5 rounded border transition shadow-sm"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                borderColor: hasVisualBloat || hasSlicerBloat 
+                  ? 'var(--severity-warning)' 
+                  : 'var(--border-hairline)',
+              }}
             >
               {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-obsidian-700/60">
+              <div 
+                className="flex items-center justify-between pb-3 border-b"
+                style={{ borderColor: 'var(--border-hairline)' }}
+              >
                 <div className="flex items-center gap-2 min-w-0">
-                  <Layout className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <h4 className="font-bold text-sm text-white truncate" title={page.display_name}>
+                  <Layout className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
+                  <h4 className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }} title={page.display_name}>
                     {page.display_name}
                   </h4>
                 </div>
 
                 {page.is_hidden ? (
-                  <span className="flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                  <span 
+                    className="flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border"
+                    style={{
+                      backgroundColor: 'var(--bg-canvas)',
+                      borderColor: 'var(--border-hairline)',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
                     <EyeOff className="w-2.5 h-2.5" />
                     <span>hidden</span>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span 
+                    className="flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border"
+                    style={{
+                      backgroundColor: 'var(--bg-canvas)',
+                      borderColor: 'var(--border-strong)',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
                     <Eye className="w-2.5 h-2.5" />
                     <span>visible</span>
                   </span>
@@ -55,42 +74,44 @@ export const PagesViewer: React.FC<PagesViewerProps> = ({ pages, findings }) => 
 
               {/* Stats */}
               <div className="grid grid-cols-2 gap-3 mt-4">
-                <div className="p-3 rounded-lg bg-obsidian-950 border border-obsidian-700 text-center">
-                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider flex items-center justify-center gap-1">
-                    <BarChart2 className="w-3 h-3 text-blue-400" />
+                <div 
+                  className="p-3 rounded border text-center"
+                  style={{
+                    backgroundColor: 'var(--bg-canvas)',
+                    borderColor: 'var(--border-hairline)',
+                  }}
+                >
+                  <div className="text-[10px] font-semibold uppercase tracking-wider flex items-center justify-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                    <BarChart2 className="w-3 h-3" />
                     <span>Visuals</span>
                   </div>
-                  <div className={`text-xl font-bold font-mono mt-1 ${page.visual_count > 15 ? 'text-amber-400' : 'text-white'}`}>
+                  <div className="text-xl font-bold mt-1" style={{ color: 'var(--text-primary)' }}>
                     {page.visual_count}
                   </div>
-                  <div className="text-[10px] text-slate-500 font-mono mt-0.5">threshold: 15</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: hasVisualBloat ? 'var(--severity-warning)' : 'var(--text-muted)' }}>
+                    {hasVisualBloat ? '⚠️ >15 Bloat' : 'Optimal'}
+                  </div>
                 </div>
 
-                <div className="p-3 rounded-lg bg-obsidian-950 border border-obsidian-700 text-center">
-                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider flex items-center justify-center gap-1">
-                    <Filter className="w-3 h-3 text-emerald-400" />
+                <div 
+                  className="p-3 rounded border text-center"
+                  style={{
+                    backgroundColor: 'var(--bg-canvas)',
+                    borderColor: 'var(--border-hairline)',
+                  }}
+                >
+                  <div className="text-[10px] font-semibold uppercase tracking-wider flex items-center justify-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                    <Filter className="w-3 h-3" />
                     <span>Slicers</span>
                   </div>
-                  <div className={`text-xl font-bold font-mono mt-1 ${page.slicer_count > 6 ? 'text-amber-400' : 'text-white'}`}>
+                  <div className="text-xl font-bold mt-1" style={{ color: 'var(--text-primary)' }}>
                     {page.slicer_count}
                   </div>
-                  <div className="text-[10px] text-slate-500 font-mono mt-0.5">threshold: 6</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: hasSlicerBloat ? 'var(--severity-warning)' : 'var(--text-muted)' }}>
+                    {hasSlicerBloat ? '⚠️ >6 Slicers' : 'Optimal'}
+                  </div>
                 </div>
               </div>
-
-              {/* Warnings if any */}
-              {(hasVisualBloat || hasSlicerBloat) && (
-                <div className="mt-3 p-2 rounded bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>
-                    {hasVisualBloat && hasSlicerBloat
-                      ? 'High visual & slicer density detected.'
-                      : hasVisualBloat
-                      ? 'Visual density exceeds recommended limit.'
-                      : 'Slicer count exceeds recommended limit.'}
-                  </span>
-                </div>
-              )}
             </div>
           );
         })}

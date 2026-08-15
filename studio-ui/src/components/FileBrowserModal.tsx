@@ -5,7 +5,6 @@ import {
   ChevronRight, 
   ArrowLeft, 
   X, 
-  Check, 
   HardDrive,
   RefreshCw
 } from 'lucide-react';
@@ -57,28 +56,54 @@ export const FileBrowserModal: React.FC<FileBrowserModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-obsidian-900 border border-obsidian-700 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div 
+        className="border rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150"
+        style={{
+          backgroundColor: 'var(--bg-surface-raised)',
+          borderColor: 'var(--border-hairline)',
+          color: 'var(--text-primary)',
+          boxShadow: 'var(--shadow-raised)',
+        }}
+      >
         {/* Modal Header */}
-        <div className="p-4 border-b border-obsidian-700 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <HardDrive className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-bold text-white">Select Power BI Project (.pbip)</h3>
+        <div 
+          className="p-4 border-b flex items-center justify-between"
+          style={{ borderColor: 'var(--border-hairline)' }}
+        >
+          <div className="flex items-center gap-2.5">
+            <HardDrive className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+            <h3 className="text-sm font-mono font-bold" style={{ color: 'var(--text-primary)' }}>
+              Select Power BI Project (.pbip)
+            </h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-obsidian-800 transition"
+            className="p-1 rounded transition"
+            style={{ color: 'var(--text-muted)' }}
+            title="Close"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Path Navigation Bar */}
-        <div className="p-3 bg-obsidian-950 border-b border-obsidian-700 flex items-center gap-2">
+        <div 
+          className="p-3 border-b flex items-center gap-2"
+          style={{ 
+            backgroundColor: 'var(--bg-canvas)',
+            borderColor: 'var(--border-hairline)',
+          }}
+        >
           {browseData?.parent_path && (
             <button
               onClick={() => fetchDirectory(browseData.parent_path!)}
-              className="p-1.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 border border-obsidian-700"
+              className="p-1.5 rounded border transition"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                borderColor: 'var(--border-strong)',
+                color: 'var(--text-secondary)',
+              }}
               title="Up one level"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -93,84 +118,122 @@ export const FileBrowserModal: React.FC<FileBrowserModalProps> = ({
               if (e.key === 'Enter') fetchDirectory(manualPath);
             }}
             placeholder="Type or paste path..."
-            className="flex-1 px-3 py-1.5 bg-obsidian-900 border border-obsidian-700 rounded text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+            className="flex-1 px-3 py-1.5 rounded text-xs font-mono focus:outline-none transition border"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-hairline)',
+              color: 'var(--text-primary)',
+            }}
           />
 
           <button
             onClick={() => fetchDirectory(manualPath)}
-            className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-xs font-medium"
+            className="px-3 py-1.5 rounded font-mono font-bold text-xs transition"
+            style={{
+              backgroundColor: 'var(--accent)',
+              color: 'var(--bg-canvas)',
+            }}
           >
             Go
           </button>
         </div>
 
-        {/* Directory & PBIP List */}
-        <div className="p-3 max-h-[380px] overflow-y-auto space-y-1">
+        {/* Directory Listing Area */}
+        <div 
+          className="p-4 max-h-96 overflow-y-auto space-y-4"
+          style={{ backgroundColor: 'var(--bg-surface)' }}
+        >
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-slate-400 text-xs gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-              <span>Browsing filesystem...</span>
+            <div className="py-12 flex flex-col items-center justify-center gap-2 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+              <RefreshCw className="w-5 h-5 animate-spin" style={{ color: 'var(--accent)' }} />
+              <span>Reading filesystem...</span>
             </div>
           ) : (
             <>
-              {/* PBIP Project Candidates */}
+              {/* Found .pbip Projects */}
               {browseData?.pbip_projects && browseData.pbip_projects.length > 0 && (
-                <div className="space-y-1 mb-3">
-                  <div className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider px-2 py-1">
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider px-1" style={{ color: 'var(--accent)' }}>
                     Power BI Projects Found
                   </div>
-                  {browseData.pbip_projects.map((proj) => (
-                    <div
-                      key={proj.path}
-                      onClick={() => {
-                        onSelectProject(proj.path);
-                        onClose();
-                      }}
-                      className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 cursor-pointer transition flex items-center justify-between text-xs"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <FileText className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span className="font-bold text-white truncate">{proj.name}</span>
+                  <div className="space-y-1">
+                    {browseData.pbip_projects.map((proj) => (
+                      <div
+                        key={proj.path}
+                        onClick={() => {
+                          onSelectProject(proj.path);
+                          onClose();
+                        }}
+                        className="p-2.5 rounded border transition flex items-center justify-between cursor-pointer"
+                        style={{
+                          backgroundColor: 'var(--accent-muted)',
+                          borderColor: 'var(--accent)',
+                          color: 'var(--text-primary)',
+                        }}
+                      >
+                        <div className="flex items-center gap-2 font-mono font-bold text-xs truncate">
+                          <FileText className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
+                          <span className="truncate">{proj.name}</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold shrink-0" style={{ color: 'var(--accent)' }}>
+                          Scan Project &rarr;
+                        </span>
                       </div>
-                      <span className="text-[11px] font-medium text-emerald-300 shrink-0 flex items-center gap-1">
-                        <span>Scan Project</span>
-                        <ChevronRight className="w-3 h-3" />
-                      </span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* Subdirectories */}
-              {browseData?.directories && browseData.directories.length > 0 ? (
+              {/* Subfolders */}
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-mono font-medium uppercase tracking-wider px-1" style={{ color: 'var(--text-muted)' }}>
+                  Folders
+                </div>
                 <div className="space-y-0.5">
-                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-2 py-1">
-                    Folders
-                  </div>
-                  {browseData.directories.map((dir) => (
+                  {browseData?.directories.map((dir) => (
                     <div
                       key={dir.path}
                       onClick={() => fetchDirectory(dir.path)}
-                      className="p-2 rounded-md hover:bg-obsidian-800 cursor-pointer transition flex items-center justify-between text-xs text-slate-300"
+                      className="px-2.5 py-1.5 rounded transition flex items-center justify-between cursor-pointer text-xs font-mono"
+                      style={{ color: 'var(--text-secondary)' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--bg-canvas)';
+                        e.currentTarget.style.color = 'var(--text-primary)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = 'var(--text-secondary)';
+                      }}
                     >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <Folder className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <div className="flex items-center gap-2 truncate">
+                        <Folder className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
                         <span className="truncate">{dir.name}</span>
                       </div>
-                      <ChevronRight className="w-3 h-3 text-slate-600 shrink-0" />
+                      <ChevronRight className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-muted)' }} />
                     </div>
                   ))}
+                  {browseData?.directories.length === 0 && (!browseData.pbip_projects || browseData.pbip_projects.length === 0) && (
+                    <div className="text-center py-6 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Folder is empty
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="text-center py-6 text-xs text-slate-500">No subfolders</div>
-              )}
+              </div>
             </>
           )}
         </div>
 
         {/* Modal Footer */}
-        <div className="p-3 border-t border-obsidian-700 bg-obsidian-950 flex items-center justify-between text-xs text-slate-400">
-          <span>Click any project to load into Studio</span>
+        <div 
+          className="p-3 border-t flex items-center justify-between font-mono text-xs"
+          style={{ 
+            backgroundColor: 'var(--bg-canvas)',
+            borderColor: 'var(--border-hairline)',
+          }}
+        >
+          <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            Click any project to load into Sentinel
+          </span>
           <button
             onClick={() => {
               if (currentPath) {
@@ -178,7 +241,12 @@ export const FileBrowserModal: React.FC<FileBrowserModalProps> = ({
                 onClose();
               }
             }}
-            className="px-3 py-1.5 bg-obsidian-800 hover:bg-obsidian-700 text-white rounded border border-obsidian-700 font-medium transition"
+            className="px-3 py-1 rounded border font-mono font-medium text-xs transition"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-strong)',
+              color: 'var(--text-primary)',
+            }}
           >
             Scan Current Folder
           </button>

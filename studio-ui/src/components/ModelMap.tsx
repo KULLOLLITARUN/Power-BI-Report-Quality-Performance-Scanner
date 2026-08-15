@@ -19,15 +19,8 @@ import { TableInfo, RelationshipInfo } from '../types';
 import { 
   Database, 
   Search, 
-  CheckSquare, 
-  Square,
   Key,
-  Layers,
-  Code2,
-  Table as TableIcon,
-  X,
-  Eye,
-  EyeOff
+  X
 } from 'lucide-react';
 
 interface ModelMapProps {
@@ -43,60 +36,87 @@ const TableNode: React.FC<{ data: any; selected: boolean }> = ({ data, selected 
 
   return (
     <div
-      className={`w-[240px] rounded-lg border text-left transition-all duration-150 shadow-md ${
-        selected
-          ? 'border-blue-500 ring-2 ring-blue-500/30 bg-studio-card'
-          : isFocused
-          ? 'border-blue-400/80 bg-studio-card'
-          : 'border-studio-border bg-studio-card hover:border-studio-borderLight'
-      }`}
+      className="w-[240px] rounded border text-left transition-all duration-150 shadow-sm"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        borderColor: selected 
+          ? 'var(--accent)' 
+          : isFocused 
+          ? 'var(--border-strong)' 
+          : 'var(--border-hairline)',
+        borderWidth: selected ? '2px' : '1px',
+      }}
     >
       {/* ReactFlow Connection Handles */}
       <Handle
         type="target"
         position={Position.Top}
-        className="w-2.5 h-2.5 bg-blue-500 border-2 border-studio-bg rounded-full"
+        className="w-2.5 h-2.5 rounded-full"
+        style={{
+          backgroundColor: 'var(--accent)',
+          borderColor: 'var(--bg-canvas)',
+        }}
       />
       <Handle
         type="source"
         position={Position.Bottom}
-        className="w-2.5 h-2.5 bg-blue-500 border-2 border-studio-bg rounded-full"
+        className="w-2.5 h-2.5 rounded-full"
+        style={{
+          backgroundColor: 'var(--accent)',
+          borderColor: 'var(--bg-canvas)',
+        }}
       />
 
       {/* Node Header */}
-      <div className={`p-2.5 border-b flex items-center justify-between rounded-t-lg ${
-        isDate 
-          ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' 
-          : 'bg-studio-bg border-studio-border text-slate-200'
-      }`}>
+      <div 
+        className="p-2.5 border-b flex items-center justify-between font-mono"
+        style={{
+          backgroundColor: isDate ? 'var(--accent-muted)' : 'var(--bg-canvas)',
+          borderColor: 'var(--border-hairline)',
+        }}
+      >
         <div className="flex items-center gap-2 min-w-0">
-          <Database className={`w-3.5 h-3.5 shrink-0 ${isDate ? 'text-amber-400' : 'text-blue-400'}`} />
-          <span className="font-semibold text-xs truncate font-mono" title={data.name}>
+          <Database 
+            className="w-3.5 h-3.5 shrink-0" 
+            style={{ color: isDate ? 'var(--accent)' : 'var(--text-secondary)' }} 
+          />
+          <span 
+            className="font-bold text-xs truncate" 
+            style={{ color: 'var(--text-primary)' }}
+            title={data.name}
+          >
             {data.name}
           </span>
         </div>
 
         {isHidden && (
-          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-studio-border text-studio-subtle">
+          <span 
+            className="text-[9px] font-mono px-1 py-0.2 rounded border"
+            style={{
+              backgroundColor: 'var(--bg-canvas)',
+              borderColor: 'var(--border-hairline)',
+              color: 'var(--text-muted)',
+            }}
+          >
             hidden
           </span>
         )}
       </div>
 
       {/* Node Summary Stats */}
-      <div className="p-2.5 text-[11px] font-mono text-studio-subtle space-y-1">
+      <div className="p-2.5 text-[11px] font-mono space-y-1" style={{ color: 'var(--text-secondary)' }}>
         <div className="flex items-center justify-between">
-          <span>Columns</span>
-          <span className="text-slate-200 font-semibold">{data.column_count || 0}</span>
+          <span style={{ color: 'var(--text-muted)' }}>Columns</span>
+          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{data.column_count || 0}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span>Measures</span>
-          <span className="text-emerald-400 font-semibold">{data.measures_count || 0}</span>
+          <span style={{ color: 'var(--text-muted)' }}>Measures</span>
+          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{data.measures_count || 0}</span>
         </div>
         {data.calc_cols_count > 0 && (
           <div className="flex items-center justify-between">
-            <span>Calc Columns</span>
-            <span className="text-purple-400 font-semibold">{data.calc_cols_count}</span>
+            <span style={{ color: 'var(--text-muted)' }}>Calc Columns</span>
+            <span className="font-semibold" style={{ color: 'var(--accent)' }}>{data.calc_cols_count}</span>
           </div>
         )}
       </div>
@@ -123,255 +143,232 @@ const computeDagreLayout = (
     ranksep: 70,
   });
 
-  const nodeWidth = 240;
-  const nodeHeight = 110;
-
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+    dagreGraph.setNode(node.id, { width: 250, height: 110 });
   });
 
   edges.forEach((edge) => {
     dagreGraph.setEdge(edge.source, edge.target);
   });
 
-  try {
-    dagre.layout(dagreGraph);
-  } catch (err) {
-    console.error('Dagre layout error:', err);
-  }
+  dagre.layout(dagreGraph);
 
-  const layoutedNodes = nodes.map((node, idx) => {
+  const layoutedNodes = nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
-    const x = nodeWithPosition ? nodeWithPosition.x - nodeWidth / 2 : (idx % 4) * 280;
-    const y = nodeWithPosition ? nodeWithPosition.y - nodeHeight / 2 : Math.floor(idx / 4) * 160;
-
     return {
       ...node,
       targetPosition: Position.Top,
       sourcePosition: Position.Bottom,
-      position: { x, y },
+      position: {
+        x: nodeWithPosition.x - 125,
+        y: nodeWithPosition.y - 55,
+      },
     };
   });
 
   return { nodes: layoutedNodes, edges };
 };
 
-export const ModelMap: React.FC<ModelMapProps> = ({ tables = [], relationships = [] }) => {
-  const [collapseDateTables, setCollapseDateTables] = useState(true);
-  const [hideDisconnected, setHideDisconnected] = useState(false);
-  const [searchTable, setSearchTable] = useState('');
+export const ModelMap: React.FC<ModelMapProps> = ({ tables, relationships }) => {
+  const [hideDateTables, setHideDateTables] = useState(true);
+  const [hideHiddenTables, setHideHiddenTables] = useState(true);
+  const [searchFilter, setSearchFilter] = useState('');
   const [selectedTable, setSelectedTable] = useState<TableInfo | null>(null);
 
-  // Compute connected table set
-  const connectedTableNames = useMemo(() => {
-    const set = new Set<string>();
-    relationships.forEach((rel) => {
-      set.add(rel.from_table.toLowerCase());
-      set.add(rel.to_table.toLowerCase());
-    });
-    return set;
-  }, [relationships]);
+  // Filter visible tables
+  const visibleTables = useMemo(() => {
+    return tables.filter((t) => {
+      const isDate =
+        t.is_date_table ||
+        t.name.toLowerCase().includes('localdatetable') ||
+        t.name.toLowerCase().includes('datetabletemplate');
 
-  // Build raw nodes & edges
-  const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(() => {
-    // Filter tables
-    const visibleTables = tables.filter((t) => {
-      const isDate = t.is_date_table || t.name.toLowerCase().includes('localdatetable') || t.name.toLowerCase().includes('datetabletemplate');
-      if (collapseDateTables && isDate) return false;
-      if (hideDisconnected && !connectedTableNames.has(t.name.toLowerCase())) return false;
-      if (searchTable.trim()) {
-        return t.name.toLowerCase().includes(searchTable.toLowerCase());
+      if (hideDateTables && isDate) return false;
+      if (hideHiddenTables && t.hidden) return false;
+      if (searchFilter.trim()) {
+        const matchesName = t.name.toLowerCase().includes(searchFilter.toLowerCase());
+        const matchesCol = t.columns?.some((c) =>
+          c.name.toLowerCase().includes(searchFilter.toLowerCase())
+        );
+        return matchesName || matchesCol;
       }
       return true;
     });
+  }, [tables, hideDateTables, hideHiddenTables, searchFilter]);
 
-    const visibleTableSet = new Set(visibleTables.map((t) => t.name.toLowerCase()));
+  const visibleTableNames = useMemo(
+    () => new Set(visibleTables.map((t) => t.name)),
+    [visibleTables]
+  );
 
-    // Neighborhood isolation if table selected
-    const neighborhoodTableSet = new Set<string>();
-    if (selectedTable) {
-      neighborhoodTableSet.add(selectedTable.name.toLowerCase());
-      relationships.forEach((rel) => {
-        if (rel.from_table.toLowerCase() === selectedTable.name.toLowerCase()) {
-          neighborhoodTableSet.add(rel.to_table.toLowerCase());
-        }
-        if (rel.to_table.toLowerCase() === selectedTable.name.toLowerCase()) {
-          neighborhoodTableSet.add(rel.from_table.toLowerCase());
-        }
+  // Build raw nodes
+  const initialNodes: Node[] = useMemo(() => {
+    return visibleTables.map((t) => ({
+      id: t.name,
+      type: 'tableNode',
+      data: {
+        ...t,
+        column_count: t.columns?.length || 0,
+        calc_cols_count: t.calculated_columns_count || 0,
+      },
+      position: { x: 0, y: 0 },
+    }));
+  }, [visibleTables]);
+
+  // Build raw edges
+  const initialEdges: Edge[] = useMemo(() => {
+    return relationships
+      .filter((r) => visibleTableNames.has(r.from_table) && visibleTableNames.has(r.to_table))
+      .map((r, idx) => {
+        const isBidi = r.cross_filtering_behavior === 'BothDirections';
+        return {
+          id: `e-${r.from_table}-${r.to_table}-${idx}`,
+          source: r.to_table,
+          target: r.from_table,
+          type: 'smoothstep',
+          animated: isBidi,
+          style: {
+            stroke: isBidi ? 'var(--severity-warning)' : 'var(--border-strong)',
+            strokeWidth: isBidi ? 2 : 1.5,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 14,
+            height: 14,
+            color: isBidi ? 'var(--severity-warning)' : 'var(--border-strong)',
+          },
+        };
       });
-    }
+  }, [relationships, visibleTableNames]);
 
-    const rawNodes: Node[] = visibleTables.map((table) => {
-      const isFocused = selectedTable ? neighborhoodTableSet.has(table.name.toLowerCase()) : false;
-      return {
-        id: table.name,
-        type: 'tableNode',
-        data: {
-          ...table,
-          isNeighborhoodFocus: isFocused,
-        },
-        position: { x: 0, y: 0 },
-      };
-    });
-
-    const rawEdges: Edge[] = [];
-    relationships.forEach((rel, idx) => {
-      const fromLower = rel.from_table.toLowerCase();
-      const toLower = rel.to_table.toLowerCase();
-
-      if (!visibleTableSet.has(fromLower) || !visibleTableSet.has(toLower)) {
-        return;
-      }
-
-      const isBiDir = rel.cross_filter_direction.toLowerCase().includes('both');
-      const isHighlighted = selectedTable
-        ? fromLower === selectedTable.name.toLowerCase() || toLower === selectedTable.name.toLowerCase()
-        : true;
-
-      rawEdges.push({
-        id: `e-${rel.from_table}-${rel.to_table}-${idx}`,
-        source: rel.to_table, // Dimension -> Fact filter propagation
-        target: rel.from_table,
-        animated: isBiDir,
-        label: `${rel.from_column} ↔ ${rel.to_column}`,
-        style: {
-          stroke: isBiDir ? '#F59E0B' : isHighlighted ? '#3B82F6' : '#2D3449',
-          strokeWidth: isBiDir ? 2.5 : isHighlighted ? 1.5 : 1,
-          opacity: isHighlighted ? 1 : 0.25,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: isBiDir ? '#F59E0B' : '#3B82F6',
-        },
-        markerStart: isBiDir
-          ? {
-              type: MarkerType.ArrowClosed,
-              color: '#F59E0B',
-            }
-          : undefined,
-      });
-    });
-
-    return computeDagreLayout(rawNodes, rawEdges);
-  }, [tables, relationships, collapseDateTables, hideDisconnected, searchTable, selectedTable, connectedTableNames]);
+  // Apply Dagre auto-layout
+  const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(() => {
+    return computeDagreLayout(initialNodes, initialEdges, 'TB');
+  }, [initialNodes, initialEdges]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutedEdges);
 
-  // Sync state when layout recalculates
   useEffect(() => {
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
   }, [layoutedNodes, layoutedEdges, setNodes, setEdges]);
 
-  const onNodeClick = useCallback((_: any, node: Node) => {
-    const tableObj = tables.find((t) => t.name === node.id);
-    setSelectedTable((prev) => (prev?.name === node.id ? null : tableObj || null));
-  }, [tables]);
+  const onNodeClick = useCallback(
+    (_: any, node: Node) => {
+      const matched = tables.find((t) => t.name === node.id);
+      if (matched) {
+        setSelectedTable(matched);
+      }
+    },
+    [tables]
+  );
 
   return (
-    <div className="h-full flex flex-col space-y-3">
-      {/* Control Strip */}
-      <div className="p-3 rounded-lg bg-studio-card border border-studio-border flex flex-wrap items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-3">
-          {/* Search Box */}
-          <div className="relative w-48 sm:w-60">
-            <Search className="w-3.5 h-3.5 text-studio-subtle absolute left-2.5 top-1/2 -translate-y-1/2" />
+    <div className="flex flex-col gap-3 h-[calc(100vh-8.5rem)]">
+      {/* Top Filter Bar */}
+      <div 
+        className="p-3 border rounded flex flex-wrap items-center justify-between gap-3 text-xs font-mono"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          borderColor: 'var(--border-hairline)',
+        }}
+      >
+        <div className="flex items-center gap-3 flex-1 max-w-md">
+          <div className="relative flex-1">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
             <input
               type="text"
-              placeholder="Search table in model..."
-              value={searchTable}
-              onChange={(e) => setSearchTable(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-studio-bg border border-studio-border rounded-md text-xs text-studio-text placeholder-studio-subtle focus:outline-none focus:border-blue-500 font-mono transition"
+              placeholder="Filter tables or columns..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 rounded text-xs font-mono focus:outline-none transition border"
+              style={{
+                backgroundColor: 'var(--bg-canvas)',
+                borderColor: 'var(--border-hairline)',
+                color: 'var(--text-primary)',
+              }}
             />
           </div>
-
-          {/* Toggle Auto Date Tables */}
-          <button
-            onClick={() => setCollapseDateTables(!collapseDateTables)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition ${
-              collapseDateTables
-                ? 'bg-blue-600/20 text-blue-300 border-blue-500/40'
-                : 'bg-studio-bg text-studio-subtle border-studio-border hover:text-slate-200'
-            }`}
-          >
-            {collapseDateTables ? <CheckSquare className="w-3.5 h-3.5 text-blue-400" /> : <Square className="w-3.5 h-3.5" />}
-            <span>Hide Auto Date Tables</span>
-          </button>
-
-          {/* Toggle Disconnected */}
-          <button
-            onClick={() => setHideDisconnected(!hideDisconnected)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition ${
-              hideDisconnected
-                ? 'bg-blue-600/20 text-blue-300 border-blue-500/40'
-                : 'bg-studio-bg text-studio-subtle border-studio-border hover:text-slate-200'
-            }`}
-          >
-            {hideDisconnected ? <CheckSquare className="w-3.5 h-3.5 text-blue-400" /> : <Square className="w-3.5 h-3.5" />}
-            <span>Hide Disconnected</span>
-          </button>
         </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-4 text-xs text-studio-subtle font-mono">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-500" />
-            <span>Single Direction</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <span>Bi-directional (Warning)</span>
-          </div>
-          {selectedTable && (
-            <button
-              onClick={() => setSelectedTable(null)}
-              className="text-blue-400 hover:underline font-sans text-xs flex items-center gap-1"
-            >
-              <X className="w-3 h-3" />
-              <span>Clear Focus ({selectedTable.name})</span>
-            </button>
-          )}
+        {/* Toggles */}
+        <div className="flex items-center gap-4" style={{ color: 'var(--text-secondary)' }}>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideDateTables}
+              onChange={(e) => setHideDateTables(e.target.checked)}
+              className="rounded"
+            />
+            <span>Hide Auto-Date Tables</span>
+          </label>
+
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideHiddenTables}
+              onChange={(e) => setHideHiddenTables(e.target.checked)}
+              className="rounded"
+            />
+            <span>Hide System Tables</span>
+          </label>
+
+          <span style={{ color: 'var(--text-muted)' }}>
+            Showing {visibleTables.length} / {tables.length} tables
+          </span>
         </div>
       </div>
 
-      {/* Main Canvas & Detail Drawer Area */}
-      <div className="flex-1 flex gap-3 min-h-[500px] h-[calc(100vh-14rem)]">
+      {/* Main Canvas & Detail Drawer */}
+      <div className="flex-1 flex gap-3 min-h-0">
         {/* ReactFlow Canvas */}
-        <div className="flex-1 rounded-lg border border-studio-border bg-studio-bg overflow-hidden relative shadow-inner">
+        <div 
+          className="flex-1 border rounded overflow-hidden relative"
+          style={{
+            backgroundColor: 'var(--bg-canvas)',
+            borderColor: 'var(--border-hairline)',
+          }}
+        >
           <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
-            onNodeClick={onNodeClick}
             nodeTypes={nodeTypes}
+            onNodeClick={onNodeClick}
             fitView
             attributionPosition="bottom-right"
           >
-            <Background color="#1F2433" gap={18} size={1} variant={BackgroundVariant.Dots} />
-            <Controls className="bg-studio-card border border-studio-border text-slate-200 fill-slate-200" />
-            <MiniMap
-              nodeColor={() => '#2563EB'}
-              className="bg-studio-sidebar border border-studio-border rounded-md overflow-hidden"
-            />
+            <Background gap={18} size={1} variant={BackgroundVariant.Dots} />
+            <Controls />
+            <MiniMap />
           </ReactFlow>
         </div>
 
-        {/* Table Column Details Drawer (when a table is clicked) */}
+        {/* Table Column Details Drawer */}
         {selectedTable && (
-          <div className="w-72 bg-studio-card border border-studio-border rounded-lg p-4 flex flex-col justify-between shrink-0 overflow-hidden shadow-lg animate-in slide-in-from-right duration-150">
+          <div 
+            className="w-72 border rounded p-4 flex flex-col justify-between shrink-0 overflow-hidden shadow-lg animate-in slide-in-from-right duration-150"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-hairline)',
+            }}
+          >
             <div className="space-y-3 flex-1 flex flex-col min-h-0">
-              <div className="flex items-center justify-between pb-2 border-b border-studio-border">
+              <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: 'var(--border-hairline)' }}>
                 <div className="min-w-0">
-                  <h4 className="font-bold text-xs text-white font-mono truncate">{selectedTable.name}</h4>
-                  <p className="text-[10px] text-studio-subtle font-mono mt-0.5">
+                  <h4 className="font-bold text-xs font-mono truncate" style={{ color: 'var(--text-primary)' }}>
+                    {selectedTable.name}
+                  </h4>
+                  <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--text-muted)' }}>
                     {selectedTable.columns?.length || 0} Columns · {selectedTable.measures_count || 0} Measures
                   </p>
                 </div>
                 <button
                   onClick={() => setSelectedTable(null)}
-                  className="p-1 rounded text-studio-subtle hover:text-white"
+                  className="p-1 rounded transition"
+                  style={{ color: 'var(--text-muted)' }}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -379,34 +376,47 @@ export const ModelMap: React.FC<ModelMapProps> = ({ tables = [], relationships =
 
               {/* Column List */}
               <div className="flex-1 overflow-y-auto space-y-1 pr-1 min-h-0">
-                <div className="text-[10px] font-semibold text-studio-subtle uppercase tracking-wider mb-1">
+                <div className="text-[10px] font-mono font-medium uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>
                   Columns Schema
                 </div>
                 {selectedTable.columns && selectedTable.columns.length > 0 ? (
                   selectedTable.columns.map((col) => (
                     <div
                       key={col.name}
-                      className="p-2 rounded bg-studio-bg border border-studio-border text-xs flex items-center justify-between"
+                      className="p-2 rounded border text-xs flex items-center justify-between font-mono"
+                      style={{
+                        backgroundColor: 'var(--bg-canvas)',
+                        borderColor: 'var(--border-hairline)',
+                      }}
                     >
                       <div className="min-w-0">
-                        <div className="font-mono text-slate-200 truncate flex items-center gap-1.5">
-                          {col.in_relationship && <Key className="w-3 h-3 text-blue-400 shrink-0" />}
+                        <div className="truncate flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                          {col.in_relationship && <Key className="w-3 h-3 shrink-0" style={{ color: 'var(--accent)' }} />}
                           <span className="truncate">{col.name}</span>
                         </div>
-                        <div className="text-[10px] font-mono text-studio-subtle truncate">
+                        <div className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
                           {col.data_type || 'string'}
                         </div>
                       </div>
 
                       {col.is_unique && (
-                        <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                        <span 
+                          className="text-[9px] font-mono px-1 py-0.2 rounded border shrink-0 font-bold"
+                          style={{
+                            backgroundColor: 'var(--accent-muted)',
+                            borderColor: 'var(--accent)',
+                            color: 'var(--accent)',
+                          }}
+                        >
                           PK
                         </span>
                       )}
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-6 text-xs text-studio-subtle">No columns in table</div>
+                  <div className="text-center py-6 text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                    No columns in table
+                  </div>
                 )}
               </div>
             </div>
