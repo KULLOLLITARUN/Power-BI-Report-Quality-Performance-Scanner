@@ -64,16 +64,32 @@ async def health_check():
     return {"status": "ok", "version": __version__, "service": "pbiscan-studio"}
 
 
+class DialogRequest(BaseModel):
+    mode: Optional[str] = "file"  # "file" or "folder"
+
+
 @app.post("/api/native-dialog")
-async def open_native_dialog():
-    """Open native Windows folder picker dialog."""
+async def open_native_dialog(req: Optional[DialogRequest] = None):
+    """Open native Windows file/folder picker dialog."""
+    mode = req.mode if req else "file"
     try:
         import tkinter as tk
         from tkinter import filedialog
         root = tk.Tk()
         root.withdraw()
         root.attributes('-topmost', True)
-        selected_path = filedialog.askdirectory(title="Select Power BI Project (.pbip) Folder")
+
+        if mode == "folder":
+            selected_path = filedialog.askdirectory(title="Select Power BI Project Folder")
+        else:
+            selected_path = filedialog.askopenfilename(
+                title="Select Power BI Project (.pbip) File",
+                filetypes=[
+                    ("Power BI Projects (*.pbip)", "*.pbip"),
+                    ("All Files (*.*)", "*.*"),
+                ],
+            )
+
         root.destroy()
         if selected_path:
             return {"path": os.path.normpath(selected_path), "canceled": False}
