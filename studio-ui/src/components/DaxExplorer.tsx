@@ -6,12 +6,9 @@ import {
   Search, 
   Copy, 
   Check, 
-  AlertTriangle, 
-  Eye, 
-  EyeOff, 
-  Filter,
+  Calculator,
   Columns,
-  Calculator
+  Sparkles
 } from 'lucide-react';
 
 interface DaxExplorerProps {
@@ -68,6 +65,14 @@ export const DaxExplorer: React.FC<DaxExplorerProps> = ({
     return true;
   });
 
+  const isDuplicate = (name: string) => {
+    return duplicateFindings.some((f) => f.evidence.includes(name) || f.location?.includes(name));
+  };
+
+  const isUnused = (name: string) => {
+    return unusedFindings.some((f) => f.evidence.includes(name) || f.location?.includes(name));
+  };
+
   const handleCopy = () => {
     if (selectedItem?.expression) {
       navigator.clipboard.writeText(selectedItem.expression);
@@ -76,31 +81,37 @@ export const DaxExplorer: React.FC<DaxExplorerProps> = ({
     }
   };
 
-  const isDuplicate = (name: string) => {
-    return duplicateFindings.some((f) => f.evidence.includes(name));
-  };
-
-  const isUnused = (name: string) => {
-    return unusedFindings.some((f) => f.evidence.includes(name));
-  };
-
   return (
-    <div className="h-[calc(100vh-8.5rem)] flex flex-col md:flex-row gap-4">
-      {/* Left Column: Measure & Column List */}
-      <div className="w-full md:w-80 bg-obsidian-800/80 border border-obsidian-700 rounded-xl p-4 flex flex-col justify-between shrink-0 overflow-hidden shadow-sm">
-        <div className="space-y-3 flex-1 flex flex-col min-h-0">
+    <div className="flex flex-col md:flex-row gap-4 h-[calc(100vh-8.5rem)]">
+      {/* Left Sidebar: Master List */}
+      <div 
+        className="w-full md:w-80 border rounded p-3 flex flex-col justify-between shrink-0 overflow-hidden"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          borderColor: 'var(--border-hairline)',
+        }}
+      >
+        <div className="space-y-2.5 flex-1 flex flex-col min-h-0">
           {/* Tab switch: Measures vs Calc Columns */}
-          <div className="grid grid-cols-2 gap-1 p-1 bg-obsidian-950 rounded-lg border border-obsidian-700/80 text-xs">
+          <div 
+            className="grid grid-cols-2 gap-1 p-1 rounded border text-xs font-mono"
+            style={{
+              backgroundColor: 'var(--bg-canvas)',
+              borderColor: 'var(--border-hairline)',
+            }}
+          >
             <button
               onClick={() => {
                 setActiveTab('measures');
                 if (filteredMeasures.length > 0) setSelectedItem(filteredMeasures[0]);
               }}
-              className={`py-1.5 rounded-md font-medium transition flex items-center justify-center gap-1.5 ${
-                activeTab === 'measures'
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className="py-1.5 rounded transition flex items-center justify-center gap-1.5 border"
+              style={{
+                backgroundColor: activeTab === 'measures' ? 'var(--accent-muted)' : 'transparent',
+                borderColor: activeTab === 'measures' ? 'var(--accent)' : 'transparent',
+                color: activeTab === 'measures' ? 'var(--accent)' : 'var(--text-secondary)',
+                fontWeight: activeTab === 'measures' ? 'bold' : 'normal',
+              }}
             >
               <Calculator className="w-3.5 h-3.5" />
               <span>Measures ({measures.length})</span>
@@ -110,11 +121,13 @@ export const DaxExplorer: React.FC<DaxExplorerProps> = ({
                 setActiveTab('calcCols');
                 if (filteredCalcCols.length > 0) setSelectedItem(filteredCalcCols[0]);
               }}
-              className={`py-1.5 rounded-md font-medium transition flex items-center justify-center gap-1.5 ${
-                activeTab === 'calcCols'
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className="py-1.5 rounded transition flex items-center justify-center gap-1.5 border"
+              style={{
+                backgroundColor: activeTab === 'calcCols' ? 'var(--accent-muted)' : 'transparent',
+                borderColor: activeTab === 'calcCols' ? 'var(--accent)' : 'transparent',
+                color: activeTab === 'calcCols' ? 'var(--accent)' : 'var(--text-secondary)',
+                fontWeight: activeTab === 'calcCols' ? 'bold' : 'normal',
+              }}
             >
               <Columns className="w-3.5 h-3.5" />
               <span>Calc Cols ({calcCols.length})</span>
@@ -123,13 +136,18 @@ export const DaxExplorer: React.FC<DaxExplorerProps> = ({
 
           {/* Search Bar */}
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
             <input
               type="text"
               placeholder="Filter by name or formula..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-obsidian-950 border border-obsidian-700 rounded-md text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+              className="w-full pl-8 pr-3 py-1.5 rounded text-xs font-mono focus:outline-none transition border"
+              style={{
+                backgroundColor: 'var(--bg-canvas)',
+                borderColor: 'var(--border-hairline)',
+                color: 'var(--text-primary)',
+              }}
             />
           </div>
 
@@ -137,7 +155,12 @@ export const DaxExplorer: React.FC<DaxExplorerProps> = ({
           <select
             value={selectedTable}
             onChange={(e) => setSelectedTable(e.target.value)}
-            className="w-full px-2.5 py-1.5 bg-obsidian-950 border border-obsidian-700 rounded-md text-xs text-slate-300 focus:outline-none focus:border-emerald-500 transition font-mono"
+            className="w-full px-2.5 py-1.5 rounded text-xs font-mono focus:outline-none transition border"
+            style={{
+              backgroundColor: 'var(--bg-canvas)',
+              borderColor: 'var(--border-hairline)',
+              color: 'var(--text-primary)',
+            }}
           >
             <option value="all">All Tables ({tableNames.length})</option>
             {tableNames.map((t) => (
@@ -160,25 +183,40 @@ export const DaxExplorer: React.FC<DaxExplorerProps> = ({
                     <div
                       key={`${m.table}-${m.name}`}
                       onClick={() => setSelectedItem(m)}
-                      className={`p-2.5 rounded-lg cursor-pointer transition border text-xs flex items-center justify-between ${
-                        isSelected
-                          ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
-                          : 'bg-obsidian-900/60 border-obsidian-700/60 hover:bg-obsidian-800 text-slate-300'
-                      }`}
+                      className="p-2 rounded cursor-pointer transition border text-xs flex items-center justify-between font-mono"
+                      style={{
+                        backgroundColor: isSelected ? 'var(--accent-muted)' : 'var(--bg-canvas)',
+                        borderColor: isSelected ? 'var(--accent)' : 'var(--border-hairline)',
+                        color: isSelected ? 'var(--accent)' : 'var(--text-primary)',
+                      }}
                     >
                       <div className="min-w-0">
-                        <div className="font-semibold truncate font-mono">{m.name}</div>
-                        <div className="text-[10px] text-slate-500 font-mono truncate">{m.table}</div>
+                        <div className="font-semibold truncate">{m.name}</div>
+                        <div className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>{m.table}</div>
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
                         {duplicate && (
-                          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                          <span 
+                            className="text-[9px] font-mono px-1 py-0.2 rounded border font-bold"
+                            style={{
+                              backgroundColor: 'var(--severity-warning-bg)',
+                              borderColor: 'var(--severity-warning-border)',
+                              color: 'var(--severity-warning)',
+                            }}
+                          >
                             duplicate
                           </span>
                         )}
                         {unused && (
-                          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+                          <span 
+                            className="text-[9px] font-mono px-1 py-0.2 rounded border font-bold"
+                            style={{
+                              backgroundColor: 'var(--severity-advisory-bg)',
+                              borderColor: 'var(--severity-advisory-border)',
+                              color: 'var(--severity-advisory)',
+                            }}
+                          >
                             unused
                           </span>
                         )}
@@ -187,90 +225,108 @@ export const DaxExplorer: React.FC<DaxExplorerProps> = ({
                   );
                 })
               ) : (
-                <div className="text-center py-8 text-xs text-slate-500">No measures match search</div>
+                <div className="text-center py-8 text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                  No matching measures
+                </div>
               )
             ) : filteredCalcCols.length > 0 ? (
               filteredCalcCols.map((c) => {
                 const isSelected = selectedItem?.name === c.name && selectedItem?.table === c.table;
+
                 return (
                   <div
                     key={`${c.table}-${c.name}`}
                     onClick={() => setSelectedItem(c)}
-                    className={`p-2.5 rounded-lg cursor-pointer transition border text-xs flex items-center justify-between ${
-                      isSelected
-                        ? 'bg-blue-500/15 border-blue-500/40 text-blue-200'
-                        : 'bg-obsidian-900/60 border-obsidian-700/60 hover:bg-obsidian-800 text-slate-300'
-                    }`}
+                    className="p-2 rounded cursor-pointer transition border text-xs flex items-center justify-between font-mono"
+                    style={{
+                      backgroundColor: isSelected ? 'var(--accent-muted)' : 'var(--bg-canvas)',
+                      borderColor: isSelected ? 'var(--accent)' : 'var(--border-hairline)',
+                      color: isSelected ? 'var(--accent)' : 'var(--text-primary)',
+                    }}
                   >
                     <div className="min-w-0">
-                      <div className="font-semibold truncate font-mono">{c.name}</div>
-                      <div className="text-[10px] text-slate-500 font-mono truncate">{c.table}</div>
+                      <div className="font-semibold truncate">{c.name}</div>
+                      <div className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>{c.table}</div>
                     </div>
                   </div>
                 );
               })
             ) : (
-              <div className="text-center py-8 text-xs text-slate-500">No calculated columns match search</div>
+              <div className="text-center py-8 text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                No calculated columns found
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Right Column: DAX Code Viewer & Quality Alerts */}
-      <div className="flex-1 bg-obsidian-800/80 border border-obsidian-700 rounded-xl p-5 flex flex-col justify-between overflow-hidden shadow-sm">
+      {/* Right Detail: Code Viewer & Diagnostics */}
+      <div 
+        className="flex-1 border rounded p-4 flex flex-col justify-between overflow-hidden"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          borderColor: 'var(--border-hairline)',
+        }}
+      >
         {selectedItem ? (
-          <div className="space-y-4 flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col min-h-0 space-y-3">
             {/* Header info */}
-            <div className="flex items-center justify-between pb-3 border-b border-obsidian-700/70">
+            <div 
+              className="pb-3 border-b flex items-start justify-between gap-4"
+              style={{ borderColor: 'var(--border-hairline)' }}
+            >
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold font-mono text-white">
+                  <h3 className="text-base font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
                     {selectedItem.name}
                   </h3>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-obsidian-700 text-slate-300 border border-obsidian-600">
+                  <span 
+                    className="text-[10px] font-mono font-medium px-2 py-0.5 rounded border"
+                    style={{
+                      backgroundColor: 'var(--bg-canvas)',
+                      borderColor: 'var(--border-strong)',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
                     {selectedItem.table}
                   </span>
                 </div>
-                <div className="text-xs text-slate-400 font-mono mt-0.5">
-                  Full reference: <span className="text-teal-300">'{selectedItem.table}'</span>[{selectedItem.name}]
-                </div>
+                {selectedItem.description && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                    {selectedItem.description}
+                  </p>
+                )}
               </div>
 
               <button
                 onClick={handleCopy}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-obsidian-900 hover:bg-obsidian-700 text-xs font-medium text-slate-200 border border-obsidian-700 transition"
+                className="px-2.5 py-1 rounded border text-xs font-mono flex items-center gap-1.5 transition shrink-0"
+                style={{
+                  backgroundColor: 'var(--bg-canvas)',
+                  borderColor: 'var(--border-strong)',
+                  color: 'var(--text-secondary)',
+                }}
               >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? <Check className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copied ? 'Copied' : 'Copy DAX'}</span>
               </button>
             </div>
 
-            {/* Quality Alerts if any */}
-            {(isDuplicate(selectedItem.name) || isUnused(selectedItem.name)) && (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
-                {isDuplicate(selectedItem.name) && (
-                  <div className="text-amber-300 font-medium flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Duplicate Logic Detected: This measure has the identical formula as another measure.</span>
-                  </div>
-                )}
-                {isUnused(selectedItem.name) && (
-                  <div className="text-indigo-300 font-medium flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Unused Measure: This measure is not placed in any report visuals or referenced by other measures.</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Syntax Highlighted Code Viewer */}
-            <div className="flex-1 rounded-xl bg-obsidian-950 border border-obsidian-700/80 p-4 overflow-y-auto font-mono text-xs">
+            {/* Code Box */}
+            <div 
+              className="flex-1 rounded border p-4 font-mono text-xs overflow-y-auto leading-relaxed"
+              style={{
+                backgroundColor: 'var(--bg-code)',
+                borderColor: 'var(--border-hairline)',
+                color: 'var(--text-primary)',
+              }}
+            >
               {highlightDax(selectedItem.expression)}
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-500 text-xs">
-            Select a measure or calculated column to view formula
+          <div className="h-full flex items-center justify-center font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+            Select a measure or column to inspect formula
           </div>
         )}
       </div>
