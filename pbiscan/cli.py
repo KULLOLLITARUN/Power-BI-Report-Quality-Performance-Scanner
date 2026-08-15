@@ -287,3 +287,28 @@ def scan(
             sys.exit(1)
     elif not quiet:
         click.echo("")
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True), required=False, default=None)
+@click.option("--port", "-p", default=8000, help="Port to bind the Studio server.")
+@click.option("--host", "-h", default="127.0.0.1", help="Host address to bind.")
+@click.option("--no-browser", is_flag=True, help="Do not automatically open browser.")
+def studio(path: str | None, port: int, host: str, no_browser: bool) -> None:
+    """Launch pbiscan Studio interactive developer web UI."""
+    import webbrowser
+    import uvicorn
+
+    url = f"http://{host}:{port}"
+    if path:
+        url += f"?path={Path(path).resolve()}"
+
+    click.echo(f"\n{_colour('⚡ pbiscan Studio', _BOLD)} — Starting visual workspace...")
+    click.echo(f"  Local Server: {_colour(url, _CYAN)}")
+    click.echo(f"  Press {_colour('Ctrl+C', _BOLD)} to stop.\n")
+
+    if not no_browser:
+        webbrowser.open(url)
+
+    uvicorn.run("pbiscan.server:app", host=host, port=port, log_level="warning")
+
