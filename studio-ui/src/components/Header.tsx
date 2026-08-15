@@ -3,12 +3,12 @@ import {
   FolderOpen, 
   Play, 
   RefreshCw, 
-  FileText, 
   ExternalLink,
-  ChevronRight,
-  ArrowLeft
+  Sun,
+  Moon
 } from 'lucide-react';
 import { ScanResult } from '../types';
+import { Theme } from '../hooks/useTheme';
 
 interface HeaderProps {
   scanResult: ScanResult | null;
@@ -18,6 +18,8 @@ interface HeaderProps {
   onRunScan: (path: string) => void;
   onNativeBrowse: () => void;
   onResetToHome: () => void;
+  theme?: Theme;
+  onToggleTheme?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,9 +30,17 @@ export const Header: React.FC<HeaderProps> = ({
   onRunScan,
   onNativeBrowse,
   onResetToHome,
+  theme = 'dark',
+  onToggleTheme,
 }) => {
   return (
-    <header className="h-14 border-b border-studio-border bg-studio-sidebar px-5 flex items-center justify-between sticky top-0 z-40">
+    <header 
+      className="h-14 px-5 flex items-center justify-between sticky top-0 z-40 border-b"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        borderColor: 'var(--border-hairline)',
+      }}
+    >
       {/* Brand & Breadcrumb */}
       <div className="flex items-center gap-3 shrink-0">
         <button 
@@ -38,26 +48,41 @@ export const Header: React.FC<HeaderProps> = ({
           className="flex items-center gap-2.5 hover:opacity-85 transition text-left"
           title="Return to Home"
         >
-          <div className="w-7 h-7 rounded-md bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+          <div 
+            className="w-7 h-7 rounded-sm flex items-center justify-center font-bold text-xs font-mono"
+            style={{
+              backgroundColor: 'var(--accent)',
+              color: 'var(--bg-canvas)',
+            }}
+          >
             PB
           </div>
           <div>
-            <span className="font-semibold text-sm tracking-tight text-white font-sans">
+            <span 
+              className="font-bold text-sm tracking-tight font-mono"
+              style={{ color: 'var(--text-primary)' }}
+            >
               pbiscan Studio
             </span>
           </div>
         </button>
 
         {scanResult && (
-          <div className="flex items-center gap-2 text-xs text-studio-textMuted ml-2 border-l border-studio-border pl-3">
-            <span className="font-mono text-slate-400 max-w-[200px] truncate">
+          <div 
+            className="flex items-center gap-2 text-xs ml-2 border-l pl-3 font-mono"
+            style={{ 
+              borderColor: 'var(--border-hairline)',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <span className="max-w-[200px] truncate">
               {scanResult.report_name}
             </span>
           </div>
         )}
       </div>
 
-      {/* Center: File Input & Quick Run (Active when viewing report or typing) */}
+      {/* Center: File Input & Quick Run */}
       <div className="flex-1 max-w-xl mx-6 flex items-center gap-2">
         <div className="relative flex-1 flex items-center">
           <input
@@ -70,13 +95,23 @@ export const Header: React.FC<HeaderProps> = ({
               }
             }}
             placeholder="Folder or path to .pbip project..."
-            className="w-full pl-3 pr-20 py-1.5 bg-studio-bg border border-studio-border rounded-md text-xs text-studio-text placeholder-studio-subtle focus:outline-none focus:border-blue-500 font-mono transition"
+            className="w-full pl-3 pr-20 py-1.5 rounded text-xs font-mono focus:outline-none transition border"
+            style={{
+              backgroundColor: 'var(--bg-canvas)',
+              borderColor: 'var(--border-hairline)',
+              color: 'var(--text-primary)',
+            }}
           />
           <button
             onClick={onNativeBrowse}
-            className="absolute right-1 px-2 py-0.5 rounded bg-studio-card hover:bg-studio-cardHover text-slate-300 border border-studio-border text-[11px] font-medium flex items-center gap-1 transition"
+            className="absolute right-1 px-2 py-0.5 rounded text-[11px] font-mono font-medium flex items-center gap-1 transition border"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-strong)',
+              color: 'var(--text-secondary)',
+            }}
           >
-            <FolderOpen className="w-3 h-3 text-blue-400" />
+            <FolderOpen className="w-3 h-3" style={{ color: 'var(--text-primary)' }} />
             <span>Browse</span>
           </button>
         </div>
@@ -84,27 +119,57 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={() => onRunScan(currentPath)}
           disabled={loading || !currentPath.trim()}
-          className="px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0 shadow-sm"
+          className="px-3.5 py-1.5 rounded font-mono font-bold text-xs flex items-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+          style={{
+            backgroundColor: 'var(--accent)',
+            color: 'var(--bg-canvas)',
+          }}
         >
           {loading ? (
             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
           ) : (
-            <Play className="w-3.5 h-3.5 fill-white" />
+            <Play className="w-3.5 h-3.5 fill-current" />
           )}
           <span>{loading ? 'Analyzing...' : 'Scan'}</span>
         </button>
       </div>
 
-      {/* Right Tools */}
+      {/* Right Tools: Theme Toggle & GitHub Link */}
       <div className="flex items-center gap-3 shrink-0 text-xs">
+        {onToggleTheme && (
+          <button
+            onClick={onToggleTheme}
+            className="p-1.5 rounded border transition flex items-center gap-1.5 font-mono text-[11px]"
+            style={{
+              backgroundColor: 'var(--bg-canvas)',
+              borderColor: 'var(--border-hairline)',
+              color: 'var(--text-secondary)',
+            }}
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Theme`}
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />
+                <span className="hidden sm:inline">Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />
+                <span className="hidden sm:inline">Dark</span>
+              </>
+            )}
+          </button>
+        )}
+
         <a
           href="https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-studio-subtle hover:text-studio-text transition flex items-center gap-1"
+          className="transition flex items-center gap-1 font-mono text-[11px]"
+          style={{ color: 'var(--text-muted)' }}
           title="GitHub Repository"
         >
-          <span>Docs &amp; GitHub</span>
+          <span className="hidden sm:inline">GitHub</span>
           <ExternalLink className="w-3 h-3" />
         </a>
       </div>

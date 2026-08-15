@@ -9,11 +9,13 @@ import { DaxExplorer } from './components/DaxExplorer';
 import { PagesViewer } from './components/PagesViewer';
 import { FileBrowserModal } from './components/FileBrowserModal';
 import { ScanResult } from './types';
-import {  RefreshCw,
- FolderOpen,
- Play,
-  lertCircle,
-  CeckCircle2,
+import { useTheme } from './hooks/useTheme';
+import { 
+  RefreshCw,
+  FolderOpen,
+  Play,
+  AlertCircle,
+  CheckCircle2,
   FileCode2,
   Database,
   ArrowRight,
@@ -24,6 +26,7 @@ import {  RefreshCw,
 } from 'lucide-react';
 
 export const App: React.FC = () => {
+  const { theme, toggleTheme } = useTheme();
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [currentPath, setCurrentPath] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -121,7 +124,13 @@ export const App: React.FC = () => {
   }, [scanResult, selectedCategory, selectedSeverity, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-studio-bg text-studio-text flex flex-col font-sans">
+    <div 
+      className="min-h-screen flex flex-col font-sans transition-colors duration-150"
+      style={{
+        backgroundColor: 'var(--bg-canvas)',
+        color: 'var(--text-primary)',
+      }}
+    >
       {/* Top Header */}
       <Header
         scanResult={scanResult}
@@ -135,6 +144,8 @@ export const App: React.FC = () => {
           setCurrentPath('');
           setError(null);
         }}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Main Layout */}
@@ -156,7 +167,10 @@ export const App: React.FC = () => {
         )}
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-6 bg-studio-bg">
+        <main 
+          className="flex-1 overflow-y-auto p-6"
+          style={{ backgroundColor: 'var(--bg-canvas)' }}
+        >
           {error && (
             <div className="max-w-4xl mx-auto mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -263,23 +277,44 @@ export const App: React.FC = () => {
           ) : (
             /* Clean Landing Screen (Human-Crafted Tool) */
             <div className="max-w-xl mx-auto py-16 text-center space-y-6">
-              <div className="w-12 h-12 rounded-xl bg-studio-card border border-studio-border flex items-center justify-center text-blue-400 mx-auto shadow-sm">
+              <div 
+                className="w-12 h-12 rounded border flex items-center justify-center mx-auto shadow-sm"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  borderColor: 'var(--border-hairline)',
+                  color: 'var(--accent)',
+                }}
+              >
                 <FileText className="w-6 h-6" />
               </div>
 
               <div>
-                <h2 className="text-xl font-bold text-white tracking-tight">
+                <h2 
+                  className="text-xl font-bold font-mono tracking-tight"
+                  style={{ color: 'var(--text-primary)' }}
+                >
                   Power BI Report Quality Scanner
                 </h2>
-                <p className="text-xs text-studio-subtle mt-1.5 max-w-md mx-auto leading-relaxed">
-                  Select your <span className="font-mono text-slate-300">.pbip</span> file or project directory to analyze semantic modeling, DAX performance, and report bloat.
+                <p 
+                  className="text-xs mt-1.5 max-w-md mx-auto leading-relaxed"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Select your <span className="font-mono" style={{ color: 'var(--accent)' }}>.pbip</span> file or project directory to analyze semantic modeling, DAX performance, and report bloat.
                 </p>
               </div>
 
               {/* Action Box with .pbip file browse button */}
-              <div className="p-6 rounded-xl bg-studio-card border border-studio-border text-left space-y-4 shadow-sm">
+              <div 
+                className="p-6 rounded border text-left space-y-4 shadow-sm"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  borderColor: 'var(--border-hairline)',
+                }}
+              >
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Selected Path or .pbip File</label>
+                  <label className="text-xs font-mono font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    Selected Path or .pbip File
+                  </label>
                   <input
                     type="text"
                     value={currentPath}
@@ -288,7 +323,12 @@ export const App: React.FC = () => {
                       if (e.key === 'Enter') scanPath(currentPath);
                     }}
                     placeholder="e.g. C:\Reports\SalesAnalytics.pbip"
-                    className="w-full px-3 py-2 bg-studio-bg border border-studio-border rounded-md text-xs text-studio-text placeholder-studio-subtle font-mono focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 rounded text-xs font-mono focus:outline-none transition border"
+                    style={{
+                      backgroundColor: 'var(--bg-canvas)',
+                      borderColor: 'var(--border-hairline)',
+                      color: 'var(--text-primary)',
+                    }}
                   />
                 </div>
 
@@ -296,7 +336,11 @@ export const App: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2.5">
                   <button
                     onClick={() => handleNativeBrowse('file')}
-                    className="py-2 px-3 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm"
+                    className="py-2 px-3 rounded font-mono font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                    style={{
+                      backgroundColor: 'var(--accent)',
+                      color: 'var(--bg-canvas)',
+                    }}
                   >
                     <FileText className="w-4 h-4" />
                     <span>Browse .pbip File</span>
@@ -304,9 +348,14 @@ export const App: React.FC = () => {
 
                   <button
                     onClick={() => setIsBrowserOpen(true)}
-                    className="py-2 px-3 rounded-md bg-studio-bg hover:bg-studio-border text-slate-200 border border-studio-border text-xs font-medium flex items-center justify-center gap-1.5 transition"
+                    className="py-2 px-3 rounded border font-mono font-medium text-xs flex items-center justify-center gap-1.5 transition"
+                    style={{
+                      backgroundColor: 'var(--bg-canvas)',
+                      borderColor: 'var(--border-strong)',
+                      color: 'var(--text-secondary)',
+                    }}
                   >
-                    <FolderOpen className="w-4 h-4 text-blue-400" />
+                    <FolderOpen className="w-4 h-4" style={{ color: 'var(--text-primary)' }} />
                     <span>In-App Explorer</span>
                   </button>
                 </div>
@@ -315,29 +364,45 @@ export const App: React.FC = () => {
                 {currentPath.trim() && (
                   <button
                     onClick={() => scanPath(currentPath)}
-                    className="w-full py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-sm"
+                    className="w-full py-2 rounded font-mono font-bold text-xs transition flex items-center justify-center gap-2 border"
+                    style={{
+                      backgroundColor: 'var(--bg-surface-raised)',
+                      borderColor: 'var(--accent)',
+                      color: 'var(--accent)',
+                    }}
                   >
-                    <Play className="w-3.5 h-3.5 fill-white" />
+                    <Play className="w-3.5 h-3.5 fill-current" />
                     <span>Run Quality Audit</span>
                   </button>
                 )}
               </div>
 
               {/* Sample Projects */}
-              <div className="pt-4 border-t border-studio-border text-left space-y-2">
-                <div className="text-[11px] font-medium text-studio-subtle uppercase tracking-wider">
+              <div 
+                className="pt-4 border-t text-left space-y-2"
+                style={{ borderColor: 'var(--border-hairline)' }}
+              >
+                <div className="text-[11px] font-mono font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
                   Test Fixtures
                 </div>
                 <div className="space-y-1.5">
                   <button
                     onClick={() => scanPath('pbip_project/world is going bananas.pbip')}
-                    className="w-full p-2.5 rounded-md bg-studio-card hover:bg-studio-cardHover border border-studio-border text-left transition flex items-center justify-between text-xs"
+                    className="w-full p-2.5 rounded border text-left transition flex items-center justify-between text-xs"
+                    style={{
+                      backgroundColor: 'var(--bg-surface)',
+                      borderColor: 'var(--border-hairline)',
+                    }}
                   >
                     <div>
-                      <div className="font-medium text-slate-200">world is going bananas.pbip</div>
-                      <div className="text-[10px] font-mono text-studio-subtle">15 tables · TMDL Semantic Model</div>
+                      <div className="font-mono font-medium" style={{ color: 'var(--text-primary)' }}>
+                        world is going bananas.pbip
+                      </div>
+                      <div className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                        15 tables · TMDL Semantic Model · 3 Findings
+                      </div>
                     </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-studio-subtle" />
+                    <ArrowRight className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
                   </button>
                 </div>
               </div>

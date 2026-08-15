@@ -1,5 +1,4 @@
 import React from 'react';
-import { Database, Code2, Layout, ShieldCheck } from 'lucide-react';
 import { ScoreData } from '../types';
 
 interface HealthScorecardProps {
@@ -9,96 +8,145 @@ interface HealthScorecardProps {
 
 export const HealthScorecard: React.FC<HealthScorecardProps> = ({
   scores,
-  warningsCount,
 }) => {
   const overall = Math.round(scores.overall);
-  const modelScore = scores.category_scores.model ?? 100;
-  const daxScore = scores.category_scores.dax ?? 100;
-  const reportScore = scores.category_scores.report ?? 100;
+  const modelScore = Math.round(scores.category_scores.model ?? 100);
+  const daxScore = Math.round(scores.category_scores.dax ?? 100);
+  const reportScore = Math.round(scores.category_scores.report ?? 100);
 
-  const getScoreBadge = (score: number) => {
-    if (score >= 90) return { text: 'text-emerald-400', label: 'Healthy', bg: 'bg-emerald-500/10 border-emerald-500/20' };
-    if (score >= 70) return { text: 'text-amber-400', label: 'Review', bg: 'bg-amber-500/10 border-amber-500/20' };
-    return { text: 'text-red-400', label: 'Critical', bg: 'bg-red-500/10 border-red-500/20' };
+  const getStatus = (score: number) => {
+    if (score >= 90) return { label: 'PASSING', text: 'Model and DAX structures conform to production standards.' };
+    if (score >= 70) return { label: 'REVIEW RECOMMENDED', text: 'Architectural or calculation warnings detected.' };
+    return { label: 'ACTION REQUIRED', text: 'High-severity anti-patterns detected in model/DAX.' };
   };
 
-  const overallBadge = getScoreBadge(overall);
+  const status = getStatus(overall);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
-      {/* Overall Score */}
-      <div className="p-4 rounded-lg bg-studio-card border border-studio-border flex flex-col justify-between">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium text-studio-textMuted uppercase tracking-wider">
-            Overall Health
-          </span>
-          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border font-mono ${overallBadge.bg} ${overallBadge.text}`}>
-            {overallBadge.label}
-          </span>
-        </div>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="text-3xl font-bold font-mono text-white">{overall}</span>
-          <span className="text-xs text-studio-subtle font-mono">/ 100</span>
-        </div>
-        <div className="w-full bg-studio-bg h-1.5 rounded-full mt-3 overflow-hidden">
-          <div 
-            className={`h-full rounded-full transition-all duration-500 ${overall >= 90 ? 'bg-emerald-500' : overall >= 70 ? 'bg-amber-500' : 'bg-red-500'}`}
-            style={{ width: `${overall}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Model Score */}
-      <div className="p-4 rounded-lg bg-studio-card border border-studio-border flex flex-col justify-between">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
-            <Database className="w-3.5 h-3.5 text-blue-400" />
-            <span>Semantic Model</span>
+    <div 
+      className="p-5 rounded border"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        borderColor: 'var(--border-hairline)',
+      }}
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+        {/* Left Hero Section (60%): Dominant Overall Health Anchor */}
+        <div className="lg:col-span-6 flex flex-col justify-between border-b lg:border-b-0 lg:border-r pb-5 lg:pb-0 lg:pr-6"
+             style={{ borderColor: 'var(--border-hairline)' }}>
+          <div className="flex items-center justify-between">
+            <span 
+              className="text-[11px] font-mono font-medium uppercase tracking-wider"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Diagnostic Verdict
+            </span>
+            <span 
+              className="text-[10px] font-mono font-bold px-2 py-0.5 rounded border"
+              style={{
+                backgroundColor: 'var(--bg-canvas)',
+                borderColor: 'var(--border-strong)',
+                color: overall >= 90 ? 'var(--text-primary)' : 'var(--accent)',
+              }}
+            >
+              {status.label}
+            </span>
           </div>
-          <span className="text-[10px] text-studio-subtle font-mono">35%</span>
-        </div>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="text-2xl font-bold font-mono text-white">{modelScore}</span>
-          <span className="text-xs text-studio-subtle font-mono">/ 100</span>
-        </div>
-        <div className="w-full bg-studio-bg h-1.5 rounded-full mt-3 overflow-hidden">
-          <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${modelScore}%` }} />
-        </div>
-      </div>
 
-      {/* DAX Score */}
-      <div className="p-4 rounded-lg bg-studio-card border border-studio-border flex flex-col justify-between">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
-            <Code2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>DAX Calculations</span>
+          <div className="my-3 flex items-baseline gap-3">
+            <span 
+              className="text-5xl font-mono font-bold tracking-tight"
+              style={{ color: 'var(--accent)' }}
+            >
+              {overall}
+            </span>
+            <span 
+              className="text-sm font-mono"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              / 100
+            </span>
           </div>
-          <span className="text-[10px] text-studio-subtle font-mono">25%</span>
-        </div>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="text-2xl font-bold font-mono text-white">{daxScore}</span>
-          <span className="text-xs text-studio-subtle font-mono">/ 100</span>
-        </div>
-        <div className="w-full bg-studio-bg h-1.5 rounded-full mt-3 overflow-hidden">
-          <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${daxScore}%` }} />
-        </div>
-      </div>
 
-      {/* Report Canvas Score */}
-      <div className="p-4 rounded-lg bg-studio-card border border-studio-border flex flex-col justify-between">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
-            <Layout className="w-3.5 h-3.5 text-purple-400" />
-            <span>Report Canvas</span>
+          <p 
+            className="text-xs leading-relaxed"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            {status.text}
+          </p>
+        </div>
+
+        {/* Right Secondary Section (40%): Compact Sub-Category Telemetry */}
+        <div className="lg:col-span-6 space-y-3.5">
+          <div className="text-[11px] font-mono font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+            Category Diagnostics
           </div>
-          <span className="text-[10px] text-studio-subtle font-mono">20%</span>
-        </div>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="text-2xl font-bold font-mono text-white">{reportScore}</span>
-          <span className="text-xs text-studio-subtle font-mono">/ 100</span>
-        </div>
-        <div className="w-full bg-studio-bg h-1.5 rounded-full mt-3 overflow-hidden">
-          <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${reportScore}%` }} />
+
+          {/* Model Architecture Meter */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-mono" style={{ color: 'var(--text-secondary)' }}>
+                Semantic Model
+              </span>
+              <div className="flex items-center gap-2 font-mono text-[11px]">
+                <span style={{ color: 'var(--text-muted)' }}>w: 35%</span>
+                <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{modelScore}%</span>
+              </div>
+            </div>
+            <div className="h-1.5 w-full rounded-sm overflow-hidden" style={{ backgroundColor: 'var(--bg-canvas)' }}>
+              <div 
+                className="h-full rounded-sm transition-all duration-300"
+                style={{ 
+                  width: `${modelScore}%`,
+                  backgroundColor: 'var(--border-strong)',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* DAX Calculations Meter */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-mono" style={{ color: 'var(--text-secondary)' }}>
+                DAX Calculations
+              </span>
+              <div className="flex items-center gap-2 font-mono text-[11px]">
+                <span style={{ color: 'var(--text-muted)' }}>w: 25%</span>
+                <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{daxScore}%</span>
+              </div>
+            </div>
+            <div className="h-1.5 w-full rounded-sm overflow-hidden" style={{ backgroundColor: 'var(--bg-canvas)' }}>
+              <div 
+                className="h-full rounded-sm transition-all duration-300"
+                style={{ 
+                  width: `${daxScore}%`,
+                  backgroundColor: 'var(--border-strong)',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Report Layout Meter */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-mono" style={{ color: 'var(--text-secondary)' }}>
+                Report Canvas
+              </span>
+              <div className="flex items-center gap-2 font-mono text-[11px]">
+                <span style={{ color: 'var(--text-muted)' }}>w: 20%</span>
+                <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{reportScore}%</span>
+              </div>
+            </div>
+            <div className="h-1.5 w-full rounded-sm overflow-hidden" style={{ backgroundColor: 'var(--bg-canvas)' }}>
+              <div 
+                className="h-full rounded-sm transition-all duration-300"
+                style={{ 
+                  width: `${reportScore}%`,
+                  backgroundColor: 'var(--border-strong)',
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

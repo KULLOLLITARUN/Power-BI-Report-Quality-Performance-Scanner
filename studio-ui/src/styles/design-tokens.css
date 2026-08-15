@@ -1,0 +1,112 @@
+/* ═════════════════════════════════════════════════════════════════════════════
+   pbiscan Studio — Dual-Theme Design Tokens
+   Restrained, low-saturation, technical developer palette for BI engineers.
+   Switched via [data-theme="dark"] or [data-theme="light"] on <html> or <body>.
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Canvas & Surfaces */
+  --bg-canvas: #14161C;          /* Warm-shifted charcoal */
+  --bg-surface: #1B1E27;         /* Card/panel surface */
+  --bg-surface-raised: #232733;  /* Modals, menus, dropdowns */
+  --bg-code: #111318;            /* High-density code containers */
+
+  /* Borders & Dividers */
+  --border-hairline: #2C303C;    /* Crisp 1px structural lines */
+  --border-strong: #3A3F4D;      /* Emphasized boundaries */
+  --border-focus: #C88B3A;       /* Focus ring / active outline */
+
+  /* Typography */
+  --text-primary: #E8E6E0;       /* Warm off-white */
+  --text-secondary: #A8A6A0;     /* Supporting technical text */
+  --text-muted: #6E6C68;         /* Captions, line numbers, subtle keys */
+
+  /* Hero Accent (Burnt amber/copper — strictly reserved for score & primary action) */
+  --accent: #C88B3A;
+  --accent-muted: rgba(200, 139, 58, 0.15);
+  --accent-text: #E8B470;
+
+  /* Severity Spectrum (Warm, muted, distinct from accent) */
+  --severity-critical: #B5453F;  /* Muted brick red */
+  --severity-critical-bg: rgba(181, 69, 63, 0.12);
+  --severity-critical-border: rgba(181, 69, 63, 0.35);
+
+  --severity-high: #C0623A;      /* Burnt coral */
+  --severity-high-bg: rgba(192, 98, 58, 0.12);
+  --severity-high-border: rgba(192, 98, 58, 0.35);
+
+  --severity-medium: #B58A3E;    /* Dark ochre */
+  --severity-medium-bg: rgba(181, 138, 62, 0.12);
+  --severity-medium-border: rgba(181, 138, 62, 0.35);
+
+  --severity-warning: #9C8244;   /* Muted olive-amber */
+  --severity-warning-bg: rgba(156, 130, 68, 0.12);
+  --severity-warning-border: rgba(156, 130, 68, 0.35);
+
+  --severity-advisory: #8A8880;  /* Neutral warm gray — NOT blue */
+  --severity-advisory-bg: rgba(138, 136, 128, 0.12);
+  --severity-advisory-border: rgba(138, 136, 128, 0.30);
+
+  /* Confidence Telemetry Meter (Decoupled flat neutral gray) */
+  --confidence-meter: #6E6C68;
+  --confidence-track: #232733;
+
+  /* Elevation shadow */
+  --shadow-raised: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Canvas & Surfaces */
+  --bg-canvas: #FAF8F4;          /* Warm off-white */
+  --bg-surface: #FFFFFF;         /* Crisp panel surface */
+  --bg-surface-raised: #FFFFFF;  /* Elevated elements with subtle shadow */
+  --bg-code: #F4F1EA;            /* High-density code containers */
+
+  /* Borders & Dividers */
+  --border-hairline: #E5E2DA;    /* Crisp 1px structural lines */
+  --border-strong: #D3CFC5;      /* Emphasized boundaries */
+  --border-focus: #A8672A;       /* Focus ring / active outline */
+
+  /* Typography */
+  --text-primary: #1E1C18;       /* Warm near-black */
+  --text-secondary: #5C5A54;     /* Supporting technical text */
+  --text-muted: #96938B;         /* Captions, line numbers */
+
+  /* Hero Accent (Darker copper for AA contrast) */
+  --accent: #A8672A;
+  --accent-muted: rgba(168, 103, 42, 0.12);
+  --accent-text: #8A4E1B;
+
+  /* Severity Spectrum */
+  --severity-critical: #A03E38;
+  --severity-critical-bg: rgba(160, 62, 56, 0.08);
+  --severity-critical-border: rgba(160, 62, 56, 0.25);
+
+  --severity-high: #A8552F;
+  --severity-high-bg: rgba(168, 85, 47, 0.08);
+  --severity-high-border: rgba(168, 85, 47, 0.25);
+
+  --severity-medium: #8F6B2E;
+  --severity-medium-bg: rgba(143, 107, 46, 0.08);
+  --severity-medium-border: rgba(143, 107, 46, 0.25);
+
+  --severity-warning: #7A6636;
+  --severity-warning-bg: rgba(122, 102, 54, 0.08);
+  --severity-warning-border: rgba(122, 102, 54, 0.25);
+
+  --severity-advisory: #6B6862;  /* Neutral warm gray — NOT blue */
+  --severity-advisory-bg: rgba(107, 104, 98, 0.08);
+  --severity-advisory-border: rgba(107, 104, 98, 0.20);
+
+  /* Confidence Telemetry Meter */
+  --confidence-meter: #96938B;
+  --confidence-track: #EAE6DC;
+
+  /* Elevation shadow */
+  --shadow-raised: 0 4px 20px -2px rgba(30, 28, 24, 0.08);
+}
