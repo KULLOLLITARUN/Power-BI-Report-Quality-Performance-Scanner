@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { 
   ChevronDown, 
-  ChevronRight, 
-  AlertTriangle, 
-  AlertCircle, 
-  Info,
-  Lightbulb,
-  Tag
+  ChevronRight,
+  CheckCircle2,
+  FileCode2,
+  Sparkles
 } from 'lucide-react';
 import { AuditFinding } from '../types';
+import { highlightDax } from '../utils/daxHighlighter';
 
 interface FindingCardProps {
   finding: AuditFinding;
@@ -18,128 +17,241 @@ interface FindingCardProps {
 export const FindingCard: React.FC<FindingCardProps> = ({ finding }) => {
   const [expanded, setExpanded] = useState(false);
 
-  const getSeverityBadge = (severity: string) => {
-    switch (severity) {
+  const getSeverityStyle = (severity: string) => {
+    switch (severity.toUpperCase()) {
       case 'CRITICAL':
-        return { bg: 'bg-red-500/10 text-red-400 border-red-500/30', icon: AlertCircle };
+        return {
+          stripe: 'var(--severity-critical)',
+          bg: 'var(--severity-critical-bg)',
+          border: 'var(--severity-critical-border)',
+          color: 'var(--severity-critical)',
+        };
       case 'HIGH':
-        return { bg: 'bg-orange-500/10 text-orange-400 border-orange-500/30', icon: AlertTriangle };
+        return {
+          stripe: 'var(--severity-high)',
+          bg: 'var(--severity-high-bg)',
+          border: 'var(--severity-high-border)',
+          color: 'var(--severity-high)',
+        };
       case 'MEDIUM':
-        return { bg: 'bg-amber-500/10 text-amber-400 border-amber-500/30', icon: AlertTriangle };
+        return {
+          stripe: 'var(--severity-medium)',
+          bg: 'var(--severity-medium-bg)',
+          border: 'var(--severity-medium-border)',
+          color: 'var(--severity-medium)',
+        };
       case 'WARNING':
-        return { bg: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30', icon: AlertTriangle };
+        return {
+          stripe: 'var(--severity-warning)',
+          bg: 'var(--severity-warning-bg)',
+          border: 'var(--severity-warning-border)',
+          color: 'var(--severity-warning)',
+        };
       case 'ADVISORY':
-        return { bg: 'bg-blue-500/10 text-blue-400 border-blue-500/30', icon: Info };
       default:
-        return { bg: 'bg-slate-500/10 text-slate-400 border-slate-500/30', icon: Info };
+        return {
+          stripe: 'var(--severity-advisory)',
+          bg: 'var(--severity-advisory-bg)',
+          border: 'var(--severity-advisory-border)',
+          color: 'var(--severity-advisory)',
+        };
     }
   };
 
-  const getCategoryBadge = (category: string) => {
-    switch (category) {
-      case 'model':
-        return 'text-blue-400 border-blue-500/20 bg-blue-500/10';
-      case 'dax':
-        return 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10';
-      case 'report':
-        return 'text-purple-400 border-purple-500/20 bg-purple-500/10';
-      default:
-        return 'text-slate-400 border-slate-500/20 bg-slate-500/10';
-    }
-  };
+  const sevStyle = getSeverityStyle(finding.severity);
+  const confidence = finding.confidence ?? 100;
 
-  const sev = getSeverityBadge(finding.severity);
-  const SevIcon = sev.icon;
+  // Extract inline DAX expression if available from evidence or formula
+  const isDax = finding.category.toLowerCase() === 'dax';
+  let daxSnippet = '';
+  if (isDax && finding.evidence) {
+    if (finding.evidence.includes('=')) {
+      daxSnippet = finding.evidence.split('=').slice(1).join('=').trim();
+    } else if (finding.evidence.includes(':')) {
+      daxSnippet = finding.evidence.split(':').slice(1).join(':').trim();
+    }
+  }
 
   return (
-    <div className="rounded-lg bg-studio-card border border-studio-border hover:border-studio-borderLight transition overflow-hidden">
-      {/* Header */}
+    <div 
+      className="rounded border overflow-hidden transition-all duration-150"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        borderColor: 'var(--border-hairline)',
+        borderLeftWidth: '4px',
+        borderLeftColor: sevStyle.stripe,
+      }}
+    >
+      {/* Header Row */}
       <div 
         onClick={() => setExpanded(!expanded)}
-        className="p-3.5 flex items-center justify-between gap-4 cursor-pointer hover:bg-studio-cardHover transition select-none"
+        className="p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer select-none"
+        style={{
+          borderBottom: expanded ? '1px solid var(--border-hairline)' : 'none',
+        }}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase border font-mono shrink-0 ${sev.bg}`}>
-            <SevIcon className="w-3 h-3" />
+        {/* Left Side: Severity Badge, Rule ID, Location & Title */}
+        <div className="flex items-start md:items-center gap-3 min-w-0 flex-1">
+          {/* Severity Square Tag */}
+          <span 
+            className="px-1.5 py-0.5 rounded-sm font-mono text-[10px] font-bold tracking-wider uppercase shrink-0 border"
+            style={{
+              backgroundColor: sevStyle.bg,
+              borderColor: sevStyle.border,
+              color: sevStyle.color,
+            }}
+          >
             {finding.severity}
           </span>
 
-          <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded border font-mono shrink-0 ${getCategoryBadge(finding.category)}`}>
-            {finding.category}
+          {/* Rule ID */}
+          <span 
+            className="font-mono text-xs font-semibold shrink-0"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            {finding.rule_id}
           </span>
 
-          <div className="min-w-0">
-            <h4 className="text-xs sm:text-sm font-semibold text-slate-200 truncate">
-              {finding.title}
-            </h4>
+          <span style={{ color: 'var(--border-strong)' }}>·</span>
+
+          {/* Title & Target Location */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2 truncate">
+              <span className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                {finding.title}
+              </span>
+              {finding.location && (
+                <span className="font-mono text-[11px] truncate hidden lg:inline" style={{ color: 'var(--text-secondary)' }}>
+                  [{finding.location}]
+                </span>
+              )}
+            </div>
+
             {finding.location && (
-              <p className="text-[11px] font-mono text-studio-subtle truncate mt-0.5">
+              <div className="font-mono text-[11px] truncate lg:hidden mt-0.5" style={{ color: 'var(--text-secondary)' }}>
                 {finding.location}
-              </p>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="text-[11px] font-mono text-studio-subtle hidden sm:inline">
-            {finding.rule_id}
-          </span>
-          <div className="text-studio-subtle">
+        {/* Right Side: Continuous Confidence Meter & Expand Toggle */}
+        <div className="flex items-center gap-4 shrink-0 justify-between md:justify-end pt-1 md:pt-0">
+          {/* Confidence Continuous Percentage Bar (Decoupled Flat Neutral) */}
+          <div className="flex items-center gap-2">
+            <span 
+              className="text-[10px] font-mono font-medium tracking-wide uppercase"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Confidence
+            </span>
+
+            {/* Continuous Progress Bar */}
+            <div 
+              className="w-16 h-1.5 rounded-sm overflow-hidden"
+              style={{ backgroundColor: 'var(--confidence-track)' }}
+              title={`${confidence}% Diagnostic Certainty`}
+            >
+              <div 
+                className="h-full rounded-sm transition-all duration-300"
+                style={{ 
+                  width: `${confidence}%`,
+                  backgroundColor: 'var(--confidence-meter)',
+                }}
+              />
+            </div>
+
+            <span 
+              className="font-mono text-xs font-bold w-9 text-right"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              {confidence}%
+            </span>
+          </div>
+
+          <div style={{ color: 'var(--text-muted)' }}>
             {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </div>
         </div>
       </div>
 
-      {/* Expanded Content */}
+      {/* Inline DAX Snippet (Domain-Specific Detail for DAX Findings) */}
+      {isDax && daxSnippet && !expanded && (
+        <div 
+          className="px-4 py-2 border-t font-mono text-[11px] truncate flex items-center gap-2"
+          style={{
+            backgroundColor: 'var(--bg-code)',
+            borderColor: 'var(--border-hairline)',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          <span className="text-[10px] font-bold uppercase tracking-wider shrink-0" style={{ color: 'var(--text-muted)' }}>
+            DAX:
+          </span>
+          <span className="truncate">
+            {daxSnippet}
+          </span>
+        </div>
+      )}
+
+      {/* Expanded 4-Part Diagnostic Inspection Body */}
       {expanded && (
-        <div className="p-4 border-t border-studio-border bg-studio-bg/60 space-y-3.5">
-          {/* Evidence */}
-          <div>
-            <div className="text-[10px] font-semibold uppercase text-studio-subtle mb-1 flex items-center gap-1">
-              <Tag className="w-3 h-3 text-blue-400" />
-              <span>Evidence Detail</span>
+        <div 
+          className="p-4 space-y-4"
+          style={{
+            backgroundColor: 'var(--bg-canvas)',
+          }}
+        >
+          {/* 1. Evidence / Raw Signal */}
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-mono font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+              Evidence / Detected Signal
             </div>
-            <div className="p-2.5 rounded bg-studio-bg border border-studio-border font-mono text-xs text-slate-200 leading-relaxed break-all">
-              {finding.evidence}
+            <div 
+              className="p-3 rounded border font-mono text-xs overflow-x-auto leading-relaxed"
+              style={{
+                backgroundColor: 'var(--bg-code)',
+                borderColor: 'var(--border-hairline)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              {isDax && daxSnippet ? highlightDax(daxSnippet) : finding.evidence}
             </div>
           </div>
 
-          {/* Issue & Impact Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="p-3 rounded bg-studio-card border border-studio-border">
-              <div className="text-[10px] font-semibold uppercase text-studio-subtle mb-1">
-                Issue Summary
+          {/* 2. Technical Impact & 3. Remediation Contract */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div 
+              className="p-3.5 rounded border space-y-1"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                borderColor: 'var(--border-hairline)',
+              }}
+            >
+              <div className="text-[11px] font-mono font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                Architectural Impact
               </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                {finding.issue}
-              </p>
-            </div>
-
-            <div className="p-3 rounded bg-studio-card border border-studio-border">
-              <div className="text-[10px] font-semibold uppercase text-studio-subtle mb-1">
-                Technical Impact
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                 {finding.impact}
               </p>
             </div>
-          </div>
 
-          {/* Remediation */}
-          <div className="p-3 rounded bg-emerald-500/5 border border-emerald-500/20">
-            <div className="text-[10px] font-semibold uppercase text-emerald-400 mb-1 flex items-center gap-1.5">
-              <Lightbulb className="w-3.5 h-3.5 text-emerald-400" />
-              <span>How to Fix</span>
+            <div 
+              className="p-3.5 rounded border space-y-1"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                borderColor: 'var(--border-hairline)',
+                borderLeftWidth: '3px',
+                borderLeftColor: 'var(--accent)',
+              }}
+            >
+              <div className="text-[11px] font-mono font-medium uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
+                Remediation Guidance
+              </div>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+                {finding.recommendation}
+              </p>
             </div>
-            <p className="text-xs text-slate-200 leading-relaxed">
-              {finding.recommendation}
-            </p>
-          </div>
-
-          {/* Footer info */}
-          <div className="flex items-center justify-between text-[11px] text-studio-subtle pt-1">
-            <span>Confidence: <strong className="text-slate-300 font-mono">{finding.confidence}%</strong></span>
-            <span className="font-mono text-[10px]">Rule ID: {finding.rule_id}</span>
           </div>
         </div>
       )}
