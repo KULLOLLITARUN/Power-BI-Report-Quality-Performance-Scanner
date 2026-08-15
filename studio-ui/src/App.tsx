@@ -196,7 +196,7 @@ export const App: React.FC = () => {
                 <div className="space-y-5">
                   <HealthScorecard
                     scores={scanResult.scores}
-                    warningsCount={scanResult.warnings.length}
+                    warningsCount={scanResult.warnings?.length || 0}
                   />
 
                   <FindingFilterBar
@@ -206,7 +206,7 @@ export const App: React.FC = () => {
                     onCategoryChange={setSelectedCategory}
                     selectedSeverity={selectedSeverity}
                     onSeverityChange={setSelectedSeverity}
-                    totalCount={scanResult.findings.length}
+                    totalCount={scanResult.findings?.length || 0}
                     filteredCount={filteredFindings.length}
                   />
 
