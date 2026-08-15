@@ -1,0 +1,15 @@
+{
+  "_comment": "Revenue Per Unit IS bound to the visual. Base Revenue is NOT directly in the visual but is referenced by Revenue Per Unit. D004 must fire 0 times.",
+  "id": "test-cross-reference-report",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Unit Economics",
+      "ordinal": 0,
+      "visibility": 0,
+      "visualContainers": [
+        {"x": 0, "y": 0, "z": 1, "width": 400, "height": 300, "config": "{\"name\":\"v1\",\"singleVisual\":{\"visualType\":\"card\",\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"s\",\"Entity\":\"Sales\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"s\"}},\"Property\":\"Revenue Per Unit\"},\"Name\":\"Sales.Revenue Per Unit\"}]}}}"}
+      ]
+    }
+  ]
+}

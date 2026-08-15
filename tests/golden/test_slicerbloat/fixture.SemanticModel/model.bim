@@ -1,0 +1,29 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_slicerbloat — fires R002 (REPORT_SLICER_BLOAT). Page has 7 slicers (threshold = 6).",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"},
+          {"name": "Region", "dataType": "string", "sourceColumn": "Region"},
+          {"name": "Category", "dataType": "string", "sourceColumn": "Category"},
+          {"name": "SubCategory", "dataType": "string", "sourceColumn": "SubCategory"},
+          {"name": "Channel", "dataType": "string", "sourceColumn": "Channel"},
+          {"name": "Segment", "dataType": "string", "sourceColumn": "Segment"},
+          {"name": "Country", "dataType": "string", "sourceColumn": "Country"},
+          {"name": "Product", "dataType": "string", "sourceColumn": "Product"}
+        ],
+        "measures": [{"name": "Total Revenue", "expression": "SUM(Sales[Amount])"}],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": []
+  }
+}

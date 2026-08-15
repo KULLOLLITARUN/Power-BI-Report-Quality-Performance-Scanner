@@ -1,0 +1,121 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.10.0/schema.json",
+  "name": "c2684d69095ff3ca015a",
+  "position": {
+    "x": 490.12013065896389,
+    "y": 0,
+    "z": 2000,
+    "height": 399.31107091758224,
+    "width": 393.09127230515884,
+    "tabOrder": 2000
+  },
+  "visual": {
+    "visualType": "clusteredBarChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Ripening Changes"
+                    }
+                  },
+                  "Property": "Ripeness"
+                }
+              },
+              "queryRef": "Ripening Changes.Ripeness",
+              "nativeQueryRef": "Ripeness",
+              "active": true
+            }
+          ]
+        },
+        "Series": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Ripening Changes"
+                    }
+                  },
+                  "Property": "Ripeness"
+                }
+              },
+              "queryRef": "Ripening Changes.Ripeness",
+              "nativeQueryRef": "Ripeness"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Ripening Changes"
+                    }
+                  },
+                  "Property": "Avg Starch"
+                }
+              },
+              "queryRef": "Ripening Changes.Avg Starch",
+              "nativeQueryRef": "Avg Starch1"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "Ripening Changes"
+                  }
+                },
+                "Property": "Ripeness"
+              }
+            },
+            "direction": "Descending"
+          }
+        ]
+      }
+    },
+    "objects": {
+      "labels": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "labelPosition": {
+              "expr": {
+                "Literal": {
+                  "Value": "'OutsideEnd'"
+                }
+              }
+            },
+            "optimizeLabelDisplay": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

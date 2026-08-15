@@ -1,0 +1,32 @@
+model Model
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-IN
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation PBI_QueryOrder = ["Banana Exports","Banana Imports","Banana Price (BLS)","Exports - Partner Lat","Exports - Reporter Lat","Food Balance Combined","Fruit Prices Combined","Imports - Partner Lat","Imports - Reporter Lat","Nutritional Data","Timeline","Toggle","Ripening Changes"]
+
+annotation __PBI_TimeIntelligenceEnabled = 1
+
+annotation PBI_ProTooling = ["DevMode"]
+
+ref table 'Banana Exports'
+ref table 'Banana Imports'
+ref table 'Banana Price (BLS)'
+ref table DateTableTemplate_79c1342f-96cf-41f7-ba1d-4ceb28893187
+ref table LocalDateTable_6179b6f8-f964-446d-85c9-7b7d4d077e3e
+ref table 'Exports - Partner Lat'
+ref table 'Exports - Reporter Lat'
+ref table 'Food Balance Combined'
+ref table 'Fruit Prices Combined'
+ref table 'Imports - Partner Lat'
+ref table 'Imports - Reporter Lat'
+ref table 'Nutritional Data'
+ref table Timeline
+ref table Toggle
+ref table 'Ripening Changes'
+
+ref cultureInfo en-US
+

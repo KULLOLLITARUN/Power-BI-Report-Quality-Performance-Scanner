@@ -1,0 +1,50 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_highcardinality — fires M004 (MODEL_HIGH_CARDINALITY). TransactionCode is a unique string not in a relationship.",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {"name": "SalesID", "dataType": "int64", "sourceColumn": "SalesID"},
+          {"name": "CustomerID", "dataType": "int64", "sourceColumn": "CustomerID"},
+          {"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"},
+          {
+            "name": "TransactionCode",
+            "dataType": "string",
+            "sourceColumn": "TransactionCode",
+            "summarizeBy": "none",
+            "annotations": [{"name": "PBI_IsUnique", "value": "true"}]
+          }
+        ],
+        "measures": [
+          {"name": "Total Revenue", "expression": "SUM(Sales[Amount])"}
+        ],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "Customer",
+        "columns": [
+          {"name": "CustomerID", "dataType": "int64", "sourceColumn": "CustomerID"},
+          {"name": "CustomerName", "dataType": "string", "sourceColumn": "CustomerName"}
+        ],
+        "partitions": [{"name": "Customer", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "Sales_Customer",
+        "fromTable": "Sales",
+        "fromColumn": "CustomerID",
+        "toTable": "Customer",
+        "toColumn": "CustomerID",
+        "crossFilteringBehavior": "oneDirection"
+      }
+    ]
+  }
+}

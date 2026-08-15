@@ -1,0 +1,23 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_duplicatedax — fires D003 (DAX_DUPLICATE_MEASURE). Two measures with identical normalised expressions.",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [{"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"}],
+        "measures": [
+          {"name": "Total Revenue", "expression": "SUM(Sales[Amount])"},
+          {"name": "Revenue Total", "expression": "SUM( Sales[Amount] )"}
+        ],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": []
+  }
+}

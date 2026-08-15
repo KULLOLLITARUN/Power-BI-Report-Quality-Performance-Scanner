@@ -1,0 +1,93 @@
+table 'Banana Imports'
+	lineageTag: 3fe6be45-725d-49d8-8471-85a4e207859d
+
+	column period
+		dataType: int64
+		formatString: 0
+		lineageTag: 9959d8fc-c67f-4af9-8ccb-8961d2bd6d1f
+		summarizeBy: sum
+		sourceColumn: period
+
+		annotation SummarizationSetBy = Automatic
+
+	column reporterISO
+		dataType: string
+		lineageTag: 332426b0-fb24-4cf9-b960-c5266505c992
+		summarizeBy: none
+		sourceColumn: reporterISO
+
+		annotation SummarizationSetBy = Automatic
+
+	column reporterDesc
+		dataType: string
+		lineageTag: 64f64969-b427-4848-a270-2c20042aded0
+		summarizeBy: none
+		sourceColumn: reporterDesc
+
+		annotation SummarizationSetBy = Automatic
+
+	column flowCode
+		dataType: string
+		lineageTag: 680593d5-bedb-483b-8718-3aa61df658df
+		summarizeBy: none
+		sourceColumn: flowCode
+
+		annotation SummarizationSetBy = Automatic
+
+	column flowDesc
+		dataType: string
+		lineageTag: 825b3961-0367-4567-8e74-263073517885
+		summarizeBy: none
+		sourceColumn: flowDesc
+
+		annotation SummarizationSetBy = Automatic
+
+	column partnerISO
+		dataType: string
+		lineageTag: f7533224-e8af-4413-a128-64da0d6e008c
+		summarizeBy: none
+		sourceColumn: partnerISO
+
+		annotation SummarizationSetBy = Automatic
+
+	column partnerDesc
+		dataType: string
+		lineageTag: 52aafb3b-35a6-4957-950d-dfd23c53cb19
+		summarizeBy: none
+		sourceColumn: partnerDesc
+
+		annotation SummarizationSetBy = Automatic
+
+	column qty
+		dataType: double
+		lineageTag: 07a533bd-5518-4e9e-9d43-9200d3132ec3
+		summarizeBy: sum
+		sourceColumn: qty
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column primaryValue
+		dataType: double
+		lineageTag: 7d20e597-b822-49ba-b018-c39d6489fbbc
+		summarizeBy: sum
+		sourceColumn: primaryValue
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Banana Imports' = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(File.Contents("C:\Users\TARUN\OneDrive\Desktop\The_World_is_Going_Bananas_Tables.xlsx"), null, true),
+				    #"Banana Imports_Sheet" = Source{[Item="Banana Imports",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(#"Banana Imports_Sheet", [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"period", Int64.Type}, {"reporterISO", type text}, {"reporterDesc", type text}, {"flowCode", type text}, {"flowDesc", type text}, {"partnerISO", type text}, {"partnerDesc", type text}, {"qty", type number}, {"primaryValue", type number}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_ResultType = Table
+

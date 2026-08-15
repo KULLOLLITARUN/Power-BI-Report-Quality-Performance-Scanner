@@ -1,0 +1,42 @@
+{
+  "_comment": "pbiscan v1 scoring and threshold configuration. All rule deductions and thresholds live here — never hardcoded in rule functions.",
+
+  "weights": {
+    "model":    0.35,
+    "dax":      0.25,
+    "report":   0.20,
+    "security": 0.20
+  },
+
+  "_security_note": "security weight is reserved for future rules. v1 excludes security from the weighted average when no security rules fire.",
+
+  "deductions": {
+    "CRITICAL": 15,
+    "HIGH":     10,
+    "MEDIUM":    5,
+    "WARNING":   3,
+    "ADVISORY":  1,
+    "LOW":       2
+  },
+
+  "thresholds": {
+    "maxVisualsPerPage":             15,
+    "maxSlicersPerPage":              6,
+    "maxCalculatedColumnsPerTable":   4
+  },
+
+  "dax_suspicious_patterns": [
+    {
+      "pattern": "FILTER\\s*\\(\\s*ALL\\s*\\(",
+      "description": "FILTER(ALL(...)) — consider using CALCULATE with filter arguments"
+    },
+    {
+      "pattern": "\\bEARLIER\\s*\\(",
+      "description": "EARLIER() — legacy iterator function; consider using variables instead"
+    },
+    {
+      "pattern": "CALCULATE\\s*\\(.*?CALCULATE\\s*\\(",
+      "description": "Nested CALCULATE() — verify context transition behaviour"
+    }
+  ]
+}

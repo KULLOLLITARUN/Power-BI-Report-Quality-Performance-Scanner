@@ -1,0 +1,38 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_nodatetable — fires M003 (MODEL_NO_DATE_TABLE). No date dimension present.",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {"name": "SalesID", "dataType": "int64", "sourceColumn": "SalesID"},
+          {"name": "CustomerID", "dataType": "int64", "sourceColumn": "CustomerID"},
+          {"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"},
+          {"name": "SaleDate", "dataType": "dateTime", "sourceColumn": "SaleDate"}
+        ],
+        "measures": [
+          {"name": "Total Revenue", "expression": "SUM(Sales[Amount])"}
+        ],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "Customer",
+        "columns": [
+          {"name": "CustomerID", "dataType": "int64", "sourceColumn": "CustomerID"},
+          {"name": "CustomerName", "dataType": "string", "sourceColumn": "CustomerName"}
+        ],
+        "partitions": [{"name": "Customer", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "Sales_Customer",
+        "fromTable": "Sales",
+        "fromColumn": "CustomerID",
+        "toTable": "Customer",
+        "toColumn": "CustomerID",
+        "crossFilteringBehavior": "oneDirection"
+      }
+    ]
+  }
+}

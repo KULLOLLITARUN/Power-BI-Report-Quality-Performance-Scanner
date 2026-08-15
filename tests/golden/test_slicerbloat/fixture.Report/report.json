@@ -1,0 +1,22 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_slicerbloat — 7 slicers on 1 page. Fires R002 (threshold=6).",
+  "id": "test-slicerbloat-report",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Filtered View",
+      "ordinal": 0,
+      "visibility": 0,
+      "visualContainers": [
+        {"x":   0, "y":   0, "z": 1, "width": 160, "height": 50, "config": "{\"name\":\"s1\",\"singleVisual\":{\"visualType\":\"slicer\",\"prototypeQuery\":{\"Version\":2,\"From\":[],\"Select\":[]}}}"},
+        {"x": 170, "y":   0, "z": 1, "width": 160, "height": 50, "config": "{\"name\":\"s2\",\"singleVisual\":{\"visualType\":\"slicer\",\"prototypeQuery\":{\"Version\":2,\"From\":[],\"Select\":[]}}}"},
+        {"x": 340, "y":   0, "z": 1, "width": 160, "height": 50, "config": "{\"name\":\"s3\",\"singleVisual\":{\"visualType\":\"slicer\",\"prototypeQuery\":{\"Version\":2,\"From\":[],\"Select\":[]}}}"},
+        {"x": 510, "y":   0, "z": 1, "width": 160, "height": 50, "config": "{\"name\":\"s4\",\"singleVisual\":{\"visualType\":\"slicer\",\"prototypeQuery\":{\"Version\":2,\"From\":[],\"Select\":[]}}}"},
+        {"x": 680, "y":   0, "z": 1, "width": 160, "height": 50, "config": "{\"name\":\"s5\",\"singleVisual\":{\"visualType\":\"slicer\",\"prototypeQuery\":{\"Version\":2,\"From\":[],\"Select\":[]}}}"},
+        {"x": 850, "y":   0, "z": 1, "width": 160, "height": 50, "config": "{\"name\":\"s6\",\"singleVisual\":{\"visualType\":\"slicer\",\"prototypeQuery\":{\"Version\":2,\"From\":[],\"Select\":[]}}}"},
+        {"x":   0, "y":  60, "z": 1, "width": 160, "height": 50, "config": "{\"name\":\"s7\",\"singleVisual\":{\"visualType\":\"slicer\",\"prototypeQuery\":{\"Version\":2,\"From\":[],\"Select\":[]}}}"},
+        {"x": 170, "y":  60, "z": 1, "width": 400, "height": 300, "config": "{\"name\":\"v1\",\"singleVisual\":{\"visualType\":\"barChart\",\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"s\",\"Entity\":\"Sales\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"s\"}},\"Property\":\"Total Revenue\"},\"Name\":\"Sales.Total Revenue\"}]}}}"}
+      ]
+    }
+  ]
+}

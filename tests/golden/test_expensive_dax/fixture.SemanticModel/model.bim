@@ -1,0 +1,29 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_expensive_dax — fires D001 (DAX_SUSPICIOUS_PATTERN). Revenue Filtered uses FILTER(ALL(...)).",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"},
+          {"name": "Region", "dataType": "string", "sourceColumn": "Region"}
+        ],
+        "measures": [
+          {"name": "Total Revenue", "expression": "SUM(Sales[Amount])"},
+          {
+            "name": "Revenue Filtered",
+            "expression": "CALCULATE(SUM(Sales[Amount]), FILTER(ALL(Sales), Sales[Amount] > 0))"
+          }
+        ],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": []
+  }
+}

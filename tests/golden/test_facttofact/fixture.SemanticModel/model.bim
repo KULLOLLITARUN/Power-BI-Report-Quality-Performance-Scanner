@@ -1,0 +1,47 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_facttofact — fires M005 (MODEL_FACT_TO_FACT). Orders and Returns are both fact-like tables connected directly.",
+  "model": {
+    "tables": [
+      {
+        "name": "Orders",
+        "columns": [
+          {"name": "OrderID", "dataType": "int64", "sourceColumn": "OrderID"},
+          {"name": "ProductID", "dataType": "int64", "sourceColumn": "ProductID"},
+          {"name": "OrderAmount", "dataType": "decimal", "sourceColumn": "OrderAmount"}
+        ],
+        "measures": [
+          {"name": "Total Orders", "expression": "SUM(Orders[OrderAmount])"}
+        ],
+        "partitions": [{"name": "Orders", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "Returns",
+        "columns": [
+          {"name": "ReturnID", "dataType": "int64", "sourceColumn": "ReturnID"},
+          {"name": "ProductID", "dataType": "int64", "sourceColumn": "ProductID"},
+          {"name": "ReturnAmount", "dataType": "decimal", "sourceColumn": "ReturnAmount"}
+        ],
+        "measures": [
+          {"name": "Total Returns", "expression": "SUM(Returns[ReturnAmount])"}
+        ],
+        "partitions": [{"name": "Returns", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "Orders_Returns",
+        "fromTable": "Orders",
+        "fromColumn": "ProductID",
+        "toTable": "Returns",
+        "toColumn": "ProductID",
+        "crossFilteringBehavior": "oneDirection"
+      }
+    ]
+  }
+}

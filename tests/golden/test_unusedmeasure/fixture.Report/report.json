@@ -1,0 +1,15 @@
+{
+  "_comment": "Only Total Revenue is used. Unused Measure is not referenced here or by any other measure.",
+  "id": "test-unusedmeasure-report",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Sales",
+      "ordinal": 0,
+      "visibility": 0,
+      "visualContainers": [
+        {"x": 0, "y": 0, "z": 1, "width": 400, "height": 300, "config": "{\"name\":\"v1\",\"singleVisual\":{\"visualType\":\"barChart\",\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"s\",\"Entity\":\"Sales\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"s\"}},\"Property\":\"Total Revenue\"},\"Name\":\"Sales.Total Revenue\"}]}}}"}
+      ]
+    }
+  ]
+}

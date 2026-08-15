@@ -1,0 +1,25 @@
+table Toggle
+	lineageTag: dd1d4ccf-6d82-442b-93da-866f3c7abe04
+
+	column toggle
+		dataType: int64
+		formatString: 0
+		lineageTag: 6ceffd8d-49c5-4433-b099-d4b09f07a14b
+		summarizeBy: sum
+		sourceColumn: toggle
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Toggle = m
+		mode: import
+		source =
+				let
+				    Source = Excel.Workbook(File.Contents("C:\Users\TARUN\OneDrive\Desktop\The_World_is_Going_Bananas_Tables.xlsx"), null, true),
+				    Toggle_Sheet = Source{[Item="Toggle",Kind="Sheet"]}[Data],
+				    #"Promoted Headers" = Table.PromoteHeaders(Toggle_Sheet, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"toggle", Int64.Type}})
+				in
+				    #"Changed Type"
+
+	annotation PBI_ResultType = Table
+
