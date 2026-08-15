@@ -20,11 +20,11 @@ import {
   ArrowRight,
   ShieldCheck,
   Zap,
-  HardDrive
+  HardDrive,
+  FileText
 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  // Initial state is null — no auto-loaded summary!
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [currentPath, setCurrentPath] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -65,10 +65,14 @@ export const App: React.FC = () => {
     }
   };
 
-  // Native Windows Folder Picker
-  const handleNativeBrowse = async () => {
+  // Native Windows File / Folder Picker
+  const handleNativeBrowse = async (mode: 'file' | 'folder' = 'file') => {
     try {
-      const res = await fetch('/api/native-dialog', { method: 'POST' });
+      const res = await fetch('/api/native-dialog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
       if (res.ok) {
         const data = await res.json();
         if (!data.canceled && data.path) {
@@ -81,7 +85,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // Only auto-scan if explicit ?path= was passed in the URL
+  // Only auto-scan if explicit ?path= was passed in URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const pathParam = urlParams.get('path');
@@ -123,7 +127,7 @@ export const App: React.FC = () => {
         onPathChange={setCurrentPath}
         loading={loading}
         onRunScan={(p) => scanPath(p)}
-        onNativeBrowse={handleNativeBrowse}
+        onNativeBrowse={() => handleNativeBrowse('file')}
         onResetToHome={() => {
           setScanResult(null);
           setCurrentPath('');
@@ -133,7 +137,7 @@ export const App: React.FC = () => {
 
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar (Only visible when a project is loaded) */}
+        {/* Left Sidebar (Visible when report is loaded) */}
         {scanResult && (
           <Sidebar
             activeTab={activeTab}
@@ -149,7 +153,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {/* Center Canvas */}
+        {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-6 bg-studio-bg">
           {error && (
             <div className="max-w-4xl mx-auto mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center justify-between">
@@ -158,10 +162,10 @@ export const App: React.FC = () => {
                 <span><strong>Scan Error:</strong> {error}</span>
               </div>
               <button
-                onClick={handleNativeBrowse}
+                onClick={() => handleNativeBrowse('file')}
                 className="underline hover:text-white font-medium ml-4 text-xs"
               >
-                Browse Another Folder
+                Browse .pbip File
               </button>
             </div>
           )}
@@ -169,13 +173,13 @@ export const App: React.FC = () => {
           {loading ? (
             <div className="h-full flex flex-col items-center justify-center py-28 text-studio-subtle gap-3">
               <RefreshCw className="w-7 h-7 animate-spin text-blue-500" />
-              <div className="text-sm font-semibold text-white">Running Static Quality &amp; Performance Audit...</div>
-              <div className="text-xs text-studio-subtle font-mono">Checking 11 semantic model, DAX, and canvas rules</div>
+              <div className="text-sm font-semibold text-white">Analyzing Power BI Artifacts...</div>
+              <div className="text-xs text-studio-subtle font-mono">Running 11 static model, DAX, and visual checks</div>
             </div>
           ) : scanResult ? (
-            /* Active Project Audit View */
+            /* Active Project Audit Dashboard */
             <div className="max-w-6xl mx-auto space-y-5">
-              {/* Tab 1: Audit Overview */}
+              {/* Tab 1: Dashboard Overview */}
               {activeTab === 'dashboard' && (
                 <div className="space-y-5">
                   <HealthScorecard
@@ -223,7 +227,7 @@ export const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Tab 2: Model Map */}
+              {/* Tab 2: Model Architecture */}
               {activeTab === 'model-map' && (
                 <div className="h-[calc(100vh-8.5rem)]">
                   <ModelMap
@@ -233,7 +237,7 @@ export const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Tab 3: DAX Explorer */}
+              {/* Tab 3: DAX Measures */}
               {activeTab === 'dax-explorer' && (
                 <div>
                   <DaxExplorer
@@ -244,7 +248,7 @@ export const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Tab 4: Report Pages */}
+              {/* Tab 4: Visual Pages */}
               {activeTab === 'pages' && (
                 <div>
                   <PagesViewer
@@ -255,60 +259,72 @@ export const App: React.FC = () => {
               )}
             </div>
           ) : (
-            /* Clean Landing / File Selection State (Human Developer UI) */
-            <div className="max-w-2xl mx-auto py-16 text-center space-y-6">
+            /* Clean Landing Screen (Human-Crafted Tool) */
+            <div className="max-w-xl mx-auto py-16 text-center space-y-6">
               <div className="w-12 h-12 rounded-xl bg-studio-card border border-studio-border flex items-center justify-center text-blue-400 mx-auto shadow-sm">
-                <FolderOpen className="w-6 h-6" />
+                <FileText className="w-6 h-6" />
               </div>
 
               <div>
                 <h2 className="text-xl font-bold text-white tracking-tight">
-                  Power BI Quality &amp; Performance Scanner
+                  Power BI Report Quality Scanner
                 </h2>
                 <p className="text-xs text-studio-subtle mt-1.5 max-w-md mx-auto leading-relaxed">
-                  Select a Power BI Project (<span className="font-mono text-slate-300">.pbip</span>) directory on your computer to run automated model, DAX, and report architecture diagnostics.
+                  Select your <span className="font-mono text-slate-300">.pbip</span> file or project directory to analyze semantic modeling, DAX performance, and report bloat.
                 </p>
               </div>
 
-              {/* Action Box */}
-              <div className="p-6 rounded-xl bg-studio-card border border-studio-border text-left space-y-4 max-w-lg mx-auto shadow-sm">
+              {/* Action Box with .pbip file browse button */}
+              <div className="p-6 rounded-xl bg-studio-card border border-studio-border text-left space-y-4 shadow-sm">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Project Directory Path</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={currentPath}
-                      onChange={(e) => setCurrentPath(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') scanPath(currentPath);
-                      }}
-                      placeholder="C:\Reports\SalesAnalytics.pbip"
-                      className="flex-1 px-3 py-2 bg-studio-bg border border-studio-border rounded-md text-xs text-studio-text placeholder-studio-subtle font-mono focus:outline-none focus:border-blue-500"
-                    />
-                    <button
-                      onClick={handleNativeBrowse}
-                      className="px-3 py-2 rounded-md bg-studio-bg hover:bg-studio-border text-slate-200 border border-studio-border text-xs font-medium flex items-center gap-1.5 transition shrink-0"
-                    >
-                      <FolderOpen className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Browse...</span>
-                    </button>
-                  </div>
+                  <label className="text-xs font-medium text-slate-300">Selected Path or .pbip File</label>
+                  <input
+                    type="text"
+                    value={currentPath}
+                    onChange={(e) => setCurrentPath(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') scanPath(currentPath);
+                    }}
+                    placeholder="e.g. C:\Reports\SalesAnalytics.pbip"
+                    className="w-full px-3 py-2 bg-studio-bg border border-studio-border rounded-md text-xs text-studio-text placeholder-studio-subtle font-mono focus:outline-none focus:border-blue-500"
+                  />
                 </div>
 
-                <button
-                  onClick={() => scanPath(currentPath)}
-                  disabled={!currentPath.trim()}
-                  className="w-full py-2.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Play className="w-3.5 h-3.5 fill-white" />
-                  <span>Run Report Audit</span>
-                </button>
+                {/* Primary Browse Action Buttons */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    onClick={() => handleNativeBrowse('file')}
+                    className="py-2 px-3 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Browse .pbip File</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleNativeBrowse('folder')}
+                    className="py-2 px-3 rounded-md bg-studio-bg hover:bg-studio-border text-slate-200 border border-studio-border text-xs font-medium flex items-center justify-center gap-1.5 transition"
+                  >
+                    <FolderOpen className="w-4 h-4 text-blue-400" />
+                    <span>Browse Folder</span>
+                  </button>
+                </div>
+
+                {/* Run Audit Button */}
+                {currentPath.trim() && (
+                  <button
+                    onClick={() => scanPath(currentPath)}
+                    className="w-full py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-white" />
+                    <span>Run Quality Audit</span>
+                  </button>
+                )}
               </div>
 
               {/* Sample Projects */}
-              <div className="pt-6 border-t border-studio-border max-w-lg mx-auto text-left space-y-2">
+              <div className="pt-4 border-t border-studio-border text-left space-y-2">
                 <div className="text-[11px] font-medium text-studio-subtle uppercase tracking-wider">
-                  Sample Projects for Testing
+                  Test Fixtures
                 </div>
                 <div className="space-y-1.5">
                   <button
@@ -316,19 +332,8 @@ export const App: React.FC = () => {
                     className="w-full p-2.5 rounded-md bg-studio-card hover:bg-studio-cardHover border border-studio-border text-left transition flex items-center justify-between text-xs"
                   >
                     <div>
-                      <div className="font-medium text-slate-200">World is Going Bananas</div>
-                      <div className="text-[10px] font-mono text-studio-subtle">15 tables · TMDL Semantic Model · 2 findings</div>
-                    </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-studio-subtle" />
-                  </button>
-
-                  <button
-                    onClick={() => scanPath('tests/golden/test_bidirectional')}
-                    className="w-full p-2.5 rounded-md bg-studio-card hover:bg-studio-cardHover border border-studio-border text-left transition flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="font-medium text-slate-200">Bi-directional Relationship Test</div>
-                      <div className="text-[10px] font-mono text-studio-subtle">Golden Fixture · TMSL Model</div>
+                      <div className="font-medium text-slate-200">world is going bananas.pbip</div>
+                      <div className="text-[10px] font-mono text-studio-subtle">15 tables · TMDL Semantic Model</div>
                     </div>
                     <ArrowRight className="w-3.5 h-3.5 text-studio-subtle" />
                   </button>
@@ -339,7 +344,7 @@ export const App: React.FC = () => {
         </main>
       </div>
 
-      {/* In-App File Browser Modal Fallback */}
+      {/* In-App Explorer Modal */}
       <FileBrowserModal
         isOpen={isBrowserOpen}
         onClose={() => setIsBrowserOpen(false)}
