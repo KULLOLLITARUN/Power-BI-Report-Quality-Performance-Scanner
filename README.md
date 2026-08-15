@@ -62,11 +62,16 @@ $$\text{Evidence} \longrightarrow \text{Architectural Impact} \longrightarrow \t
 ## Installation
 
 ```bash
-# Core CLI and HTML Reporter
-pip install pbiscan
+# Install directly from GitHub
+pip install "git+https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner.git"
 
 # With Interactive Web Studio workbench
-pip install "pbiscan[studio]"
+pip install "pbiscan[studio] @ git+https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner.git"
+
+# Or clone and install locally for development
+git clone https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner.git
+cd Power-BI-Report-Quality-Performance-Scanner
+pip install -e ".[studio,dev]"
 ```
 
 ---
