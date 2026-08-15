@@ -30,3 +30,6 @@ Thumbs.db
 *.html
 *.log
 scratch/
+
+# Internal documentation / build notes
+docs/
