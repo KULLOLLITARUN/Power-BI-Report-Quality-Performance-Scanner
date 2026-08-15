@@ -6,76 +6,93 @@ A static analysis and quality linter for Power BI Projects (`.pbip`).
 
 ---
 
-## Overview
+## Why pbiscan?
 
-Modern Power BI development uses Git and PBIP format, but reviewing raw TMDL and report JSON during pull requests is error-prone. `pbiscan` automates these checks in local development and CI/CD pipelines without requiring an active Power BI Desktop session or XMLA/Analysis Services connection.
+Traditional BI linters provide pass/fail checklists that assume you already know VertiPaq internals and DAX filter propagation mechanics. 
 
-### Key Capabilities
-- **Format Support**: Parses both modern TMDL schemas (`definition/tables/*.tmdl`) and classic TMSL (`model.bim`), as well as PBIR page/visual definitions.
-- **Evidence-Backed Reports**: Every finding contains the specific table, column, or measure formula location, technical impact, and remediation guidance.
-- **Self-Contained HTML Audits**: Produces standalone, zero-dependency HTML audit reports with interactive category filters and health scoring.
-- **CI/CD Ready**: Runs headlessly in GitHub Actions or Azure DevOps with JSON output and non-zero exit code thresholds.
+`pbiscan` provides an **explainable 4-part diagnostic contract**:
+
+$$\text{Evidence} \longrightarrow \text{Architectural Impact} \longrightarrow \text{Remediation Guidance} \longrightarrow \text{Confidence Score}$$
+
+- **Hedged Confidence**: Rules explicitly state confidence percentages (e.g. 60% for heuristic joins, 100% for bidirectional links) to eliminate false-alarm panic.
+- **Explainable Diagnostics**: Junior developers and cross-functional teams learn *why* a pattern is problematic and *how* to resolve it.
+- **Multi-Platform & Pure Python**: Runs headlessly in Linux/macOS/Windows CI/CD pipelines with zero external binary or .NET framework prerequisites.
 
 ---
 
-## Built-in Rules
+## Comparison
 
-### Model Architecture
-| Code | Rule | Severity | Rationale |
-|---|---|---|---|
-| `M001` | Bi-directional relationship | `WARNING` | Bidirectional filters introduce ambiguous filter paths, unexpected context propagation, and performance degradation on large dimensions. |
-| `M002` | Many-to-many relationship | `WARNING` | M:M cardinality can yield non-additive totals and requires bridge table evaluation. |
-| `M003` | Missing date dimension | `WARNING` | Identifies models lacking a designated date dimension, which prevents optimized time-intelligence calculations. |
-| `M004` | High-cardinality text column | `ADVISORY` | Unique text columns not participating in relationships increase VertiPaq dictionary size without adding analytic value. |
-| `M005` | Fact-to-fact relationship | `ADVISORY` | Direct relationships between fact tables violate star-schema principles and should be mediated by shared dimensions. |
+| Dimension | Rule Checklists (e.g. Tabular Editor BPA) | `pbiscan` Static Audit Engine |
+| :--- | :--- | :--- |
+| **Primary Audience** | Experienced Tabular/DAX Model Architects | Cross-functional Teams, Analytics Engineers & BI Devs |
+| **Output Contract** | Object violation checklist (Pass / Fail) | 4-Part Diagnostic Contract (`Evidence → Impact → Remediation → Confidence`) |
+| **Severity Model** | Fixed rule priority | Context-hedged language (`WARNING`, `ADVISORY`, % Confidence) |
+| **Runtime Requirements** | Requires Tabular Editor (.NET / Windows binary) | Pure Python (`pip install`), cross-platform on Linux, macOS, Windows |
+| **Interactive Studio** | Desktop application | Local web workbench with Model Map graph & DAX Inspector |
 
-### DAX & Calculations
-| Code | Rule | Severity | Rationale |
-|---|---|---|---|
-| `D001` | Suspicious DAX patterns | `ADVISORY` | Flags patterns such as `FILTER(ALL(...))` and nested `CALCULATE()` transitions that often warrant optimization. |
-| `D002` | Excessive calculated columns | `MEDIUM` | Calculated columns consume uncompressed memory and increase refresh time; prefers measures or upstream ETL computation. |
-| `D003` | Duplicate measure logic | `MEDIUM` | Identifies identical normalized DAX expressions across different measure names to eliminate redundant business logic. |
-| `D004` | Unused measures | `ADVISORY` | Two-signal scan flagging measures that are neither placed in report visuals nor referenced by downstream measures. |
+---
 
-### Report Layout & Density
-| Code | Rule | Severity | Rationale |
-|---|---|---|---|
-| `R001` | Visual bloat (>15 visuals) | `MEDIUM` | Pages with excessive visuals trigger concurrent DAX queries that increase visual load times and capacity utilization. |
-| `R002` | Slicer bloat (>6 slicers) | `MEDIUM` | Excessive slicers generate redundant query overhead on initial page render and cross-filtering events. |
+## Built-in Rules (Locked v1 Matrix)
+
+### Model Architecture (5 Rules)
+| Code | Rule ID | Severity | Confidence | Rationale |
+|---|---|---|---|---|
+| `M001` | `MODEL_BIDIRECTIONAL` | `WARNING` | 100% | Bidirectional filters introduce ambiguous filter paths, unexpected context propagation, and memory overhead. |
+| `M002` | `MODEL_MANY_TO_MANY` | `WARNING` | 100% | M:M cardinality can yield non-additive totals and requires bridge table evaluation. |
+| `M003` | `MODEL_NO_DATE_TABLE` | `WARNING` | 70% | Identifies models lacking a designated date dimension, preventing optimized time-intelligence calculations. |
+| `M004` | `MODEL_HIGH_CARDINALITY` | `ADVISORY` | 87% | Unique text columns not participating in relationships increase dictionary size without adding analytic value. |
+| `M005` | `MODEL_FACT_TO_FACT` | `ADVISORY` | 60% | Direct relationships between fact tables violate star-schema principles and should be mediated by shared dimensions. |
+
+### DAX & Calculations (4 Rules)
+| Code | Rule ID | Severity | Confidence | Rationale |
+|---|---|---|---|---|
+| `D001` | `DAX_SUSPICIOUS_PATTERN` | `ADVISORY` | ≤65% | Flags patterns such as `FILTER(ALL(...))` and `EARLIER()` that often warrant optimization. |
+| `D002` | `DAX_EXCESSIVE_CALC_COLUMNS` | `MEDIUM` | 100% | Calculated columns consume uncompressed memory and increase refresh time; prefers measures or upstream ETL. |
+| `D003` | `DAX_DUPLICATE_MEASURE` | `MEDIUM` | 90% | Identifies identical normalized DAX expressions across different measure names to eliminate redundant logic. |
+| `D004` | `DAX_UNUSED_MEASURE` | `ADVISORY` | 95% | Deep reference scan flagging measures that are neither placed in report visuals nor referenced by downstream measures. |
+
+### Report Layout & Density (2 Rules)
+| Code | Rule ID | Severity | Confidence | Rationale |
+|---|---|---|---|---|
+| `R001` | `REPORT_VISUAL_BLOAT` | `MEDIUM` | 100% | Pages with >15 visuals trigger concurrent DAX queries that increase visual load times and capacity utilization. |
+| `R002` | `REPORT_SLICER_BLOAT` | `MEDIUM` | 100% | Pages with >6 slicers generate redundant query overhead on initial page render and cross-filtering events. |
 
 ---
 
 ## Installation
 
 ```bash
-git clone https://github.com/KULLOLLITARUN/pbiscan.git
-cd pbiscan
-pip install -e .
+# Core CLI and HTML Reporter
+pip install pbiscan
+
+# With Interactive Web Studio workbench
+pip install "pbiscan[studio]"
 ```
 
 ---
 
 ## Usage
 
-### Basic CLI Scan
+### 1. Launch Interactive Studio Workbench
+```bash
+pbiscan studio
+```
+Opens the local developer workbench at `http://127.0.0.1:8000` with the **Model Map architecture graph**, **DAX Inspector**, and **Diagnostic Findings stream**.
+
+### 2. Basic CLI Scan
 ```bash
 pbiscan scan "path/to/SalesAnalytics.pbip"
 ```
 
-### Generate Standalone HTML Audit
+### 3. Generate Standalone HTML Audit Report
 ```bash
 pbiscan scan "path/to/SalesAnalytics.pbip" --out "audit_report.html"
 ```
 
-### Export Machine-Readable JSON for CI/CD
+### 4. CI/CD Pipeline Automation
 ```bash
-pbiscan scan "path/to/SalesAnalytics.pbip" --out "results.json" --format json
-```
-
-### Custom Configuration
-Adjust deductions, category weights, and rule thresholds via `rules.config.json`:
-```bash
-pbiscan scan "path/to/SalesAnalytics.pbip" --config "rules.config.json"
+# Enforce a quality threshold (exits with non-zero code if score < 85)
+pbiscan scan "path/to/SalesAnalytics.pbip" --fail-under 85 --format json --out "results.json"
 ```
 
 ---
@@ -101,23 +118,20 @@ PBIP Project (.pbip / TMDL / TMSL / PBIR)
                   │
                   ▼
          Scoring & Reporting (engine/scoring.py, render/)
-              ┌───┴───┐
-              ▼       ▼
-         CLI Output  HTML / JSON
+              ┌───┴────────────────┐
+              ▼                    ▼
+         CLI Output       HTML / JSON / Studio UI
 ```
 
 ---
 
-## Development & Testing
+## Testing
 
-The test suite includes unit tests for every contract, integration tests for full pipeline execution, and isolated golden fixtures for each quality check.
+The test suite includes unit tests for every contract, integration tests for the FastAPI Studio server, and golden fixtures for TMDL and TMSL models.
 
 ```bash
-# Run full test suite
-pytest
-
-# Run tests with coverage
-pytest --cov=pbiscan
+# Run full test suite (117 tests)
+pytest -v
 ```
 
 ---
