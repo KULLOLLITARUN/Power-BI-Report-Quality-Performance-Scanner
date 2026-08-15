@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Node / Frontend dependencies & builds
+node_modules/
+.npm/
+
 # Distribution / packaging
 dist/
 build/
