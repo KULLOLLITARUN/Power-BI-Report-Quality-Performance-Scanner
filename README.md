@@ -1,12 +1,13 @@
 # PBIP Sentinel (pbiscan)
 
-[![Live Demo](https://img.shields.io/badge/Live_Workbench-pbipsentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbipsentinel.netlify.app/)
+[![Live Demo](https://img.shields.io/badge/Live_Workbench-pbip--sentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbip-sentinel.netlify.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Tests: Passing](https://img.shields.io/badge/Tests-118%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 
 **PBIP Sentinel** is a static analysis diagnostic engine and quality linter for Power BI Projects (`.pbip`).
 
-👉 **Try the Live In-Browser Workbench:** **[https://pbipsentinel.netlify.app/](https://pbipsentinel.netlify.app/)** *(100% In-Browser & Private — zero files uploaded to any server)*
+👉 **Try the Live In-Browser Workbench:** **[https://pbip-sentinel.netlify.app/](https://pbip-sentinel.netlify.app/)**  
+*(100% In-Browser & Private — drag & drop any `.pbip` folder locally in memory, zero files uploaded to any server)*
 
 `pbiscan` scans semantic model definitions (TMDL / TMSL) and report layout metadata (PBIR / JSON) to detect anti-patterns, performance risks, and DAX duplication before reports are published to production.
 
@@ -34,7 +35,7 @@ $$\text{Evidence} \longrightarrow \text{Architectural Impact} \longrightarrow \t
 | **Output Contract** | Object violation checklist (Pass / Fail) | 4-Part Diagnostic Contract (`Evidence → Impact → Remediation → Confidence`) |
 | **Severity Model** | Fixed rule priority | Context-hedged language (`WARNING`, `ADVISORY`, % Confidence) |
 | **Runtime Requirements** | Requires Tabular Editor (.NET / Windows binary) | Pure Python (`pip install`), cross-platform on Linux, macOS, Windows |
-| **Interactive Studio** | Desktop application | Local web workbench with Model Map graph & DAX Inspector |
+| **Interactive Studio** | Desktop application | Local & Web workbench with Model Map graph & DAX Inspector |
 
 ---
 
@@ -44,10 +45,10 @@ $$\text{Evidence} \longrightarrow \text{Architectural Impact} \longrightarrow \t
 | Code | Rule ID | Severity | Confidence | Rationale |
 |---|---|---|---|---|
 | `M001` | `MODEL_BIDIRECTIONAL` | `WARNING` | 100% | Bidirectional filters introduce ambiguous filter paths, unexpected context propagation, and memory overhead. |
-| `M002` | `MODEL_MANY_TO_MANY` | `WARNING` | 100% | M:M cardinality can yield non-additive totals and requires bridge table evaluation. |
-| `M003` | `MODEL_NO_DATE_TABLE` | `WARNING` | 70% | Identifies models lacking a designated date dimension, preventing optimized time-intelligence calculations. |
-| `M004` | `MODEL_HIGH_CARDINALITY` | `ADVISORY` | 87% | Unique text columns not participating in relationships increase dictionary size without adding analytic value. |
-| `M005` | `MODEL_FACT_TO_FACT` | `ADVISORY` | 60% | Direct relationships between fact tables violate star-schema principles and should be mediated by shared dimensions. |
+| `M002` | `MODEL_MANY_TO_MANY` | `HIGH` | 100% | Many-to-many relationships bypass standard index structures and increase query evaluation latency. |
+| `M003` | `MODEL_INACTIVE_RELATIONSHIP` | `ADVISORY` | 100% | Inactive relationships require `USERELATIONSHIP` to activate; unreferenced inactive links create cognitive clutter. |
+| `M004` | `MODEL_AUTO_DATE_TIME` | `WARNING` | 100% | Built-in Auto Date/Time generates hidden tables per date column, significantly bloating memory footprint. |
+| `M005` | `MODEL_NO_RELATIONSHIPS` | `ADVISORY` | 100% | Multiple independent tables with zero relationships often signal unmodeled dimensional structures. |
 
 ### DAX & Calculations (4 Rules)
 | Code | Rule ID | Severity | Confidence | Rationale |
@@ -84,25 +85,32 @@ pip install -e ".[studio,dev]"
 
 ## Usage
 
-### 1. Launch Interactive Studio Workbench
+### 1. Web Version (Zero Install)
+Open **[https://pbip-sentinel.netlify.app/](https://pbip-sentinel.netlify.app/)** to drag & drop your `.pbip` project directory directly in the browser or explore interactive sample reports.
+
+### 2. Launch Local Interactive Studio Workbench
 ```bash
+# Using CLI:
 pbiscan studio
+
+# Or double-click the 1-click Windows launcher:
+run_studio.bat
 ```
 Opens the local developer workbench at `http://127.0.0.1:8000` with the **Model Map architecture graph**, **DAX Inspector**, and **Diagnostic Findings stream**.
 
-### 2. Basic CLI Scan
+### 3. Basic CLI Scan
 ```bash
 pbiscan scan "path/to/SalesAnalytics.pbip"
 ```
 
-### 3. Generate Standalone HTML Audit Report
+### 4. Generate Standalone HTML Audit Report
 ```bash
 pbiscan scan "path/to/SalesAnalytics.pbip" --out "audit_report.html"
 ```
 
-### 4. CI/CD Pipeline Automation
+### 5. CI/CD Pipeline Automation Gate
 ```bash
-# Enforce a quality threshold (exits with non-zero code if score < 85)
+# Enforce a quality threshold (exits with exit code 1 if score < 85)
 pbiscan scan "path/to/SalesAnalytics.pbip" --fail-under 85 --format json --out "results.json"
 ```
 
@@ -138,15 +146,14 @@ PBIP Project (.pbip / TMDL / TMSL / PBIR)
 
 ## Testing
 
-The test suite includes unit tests for every contract, integration tests for the FastAPI Studio server, and golden fixtures for TMDL and TMSL models.
+Run the automated test suite across all 118 unit, integration, and golden fixture tests:
 
 ```bash
-# Run full test suite (117 tests)
-pytest -v
+pytest tests/ -v
 ```
 
 ---
 
 ## License
 
-Distributed under the [MIT License](LICENSE). Copyright (c) 2025-2026 Tarun Kullolli.
+MIT License — Copyright (c) 2026 Tarun Kulloolli
