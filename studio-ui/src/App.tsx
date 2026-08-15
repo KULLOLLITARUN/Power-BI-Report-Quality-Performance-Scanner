@@ -134,10 +134,6 @@ export const App: React.FC = () => {
       {/* Top Header */}
       <Header
         scanResult={scanResult}
-        currentPath={currentPath}
-        onPathChange={setCurrentPath}
-        loading={loading}
-        onRunScan={(p) => scanPath(p)}
         onNativeBrowse={() => handleNativeBrowse('file')}
         onResetToHome={() => {
           setScanResult(null);
