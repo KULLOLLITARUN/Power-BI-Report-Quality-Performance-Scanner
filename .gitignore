@@ -31,7 +31,9 @@ htmlcov/
 Thumbs.db
 
 # Output & temporary files
-*.html
+!studio-ui/index.html
+scan_report*.html
+output*.html
 *.log
 scratch/
 
