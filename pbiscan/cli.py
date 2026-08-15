@@ -303,7 +303,7 @@ def studio(path: str | None, port: int, host: str, no_browser: bool) -> None:
     if path:
         url += f"?path={Path(path).resolve()}"
 
-    click.echo(f"\n{_colour('⚡ pbiscan Studio', _BOLD)} — Starting visual workspace...")
+    click.echo(f"\n{_colour('pbiscan Studio', _BOLD)} - Starting visual workspace...")
     click.echo(f"  Local Server: {_colour(url, _CYAN)}")
     click.echo(f"  Press {_colour('Ctrl+C', _BOLD)} to stop.\n")
 
