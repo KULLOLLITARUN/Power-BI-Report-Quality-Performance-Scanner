@@ -16,14 +16,15 @@
 | 4 | **Services Profitability (Challenge Variant)** | Financials (TMDL + Expressions + Calc Groups/Params) | 5 | 1 | 51 | 18 | **86.4** | **42** | 132.55 ms | 263.0 KB | **42** | **0** | **0** | **0** |
 | 5 | **AC Sales Dashboard (Ajay S)** | Enterprise Sales (TMDL + PBIR + 13 Pages + 106 Visuals) | 10 | 6 | 64 | 106 | **96.9** | **7** | 761.19 ms | 967.1 KB | **7** | **0** | **0** | **0** |
 | 6 | **Zepto Quick Commerce Operations** | Quick Commerce (TMDL + Disconnected Tables + No Date Table) | 9 | 4 | 10 | 24 | **97.8** | **4** | 79.03 ms | 149.5 KB | **4** | **0** | **0** | **0** |
+| 7 | **Spotify Top Tracks 2023 Dashboard** | Media & Streaming (TMDL + PBIR + Dynamic KPIs) | 3 | 1 | 9 | 21 | **98.4** | **2** | 35.45 ms | 167.4 KB | **2** | **0** | **0** | **0** |
 
 ---
 
-## Cumulative Observation Statistics across External Models (6 Projects)
+## Cumulative Observation Statistics across External Models (7 Projects)
 
-- **Total External Projects Scanned**: `6`
-- **Total Diagnostic Findings Evaluated in v1.3**: `94`
-- **Post-v1.3 True Positives (TP)**: **`94` (100% Observed Precision)**
+- **Total External Projects Scanned**: `7`
+- **Total Diagnostic Findings Evaluated in v1.3**: `96`
+- **Post-v1.3 True Positives (TP)**: **`96` (100% Observed Precision)**
 - **Post-v1.3 False Positives (FP)**: **`0`**
 - **Ambiguous (AMB)**: `0`
 - **Suspected False Negatives (FN)**: `0`
@@ -41,6 +42,30 @@
 ---
 
 ## Detailed Log Entries
+
+### Project Audit Entry 07: `Spotify Top Tracks 2023 Dashboard`
+
+- **Date**: `2026-08-16`
+- **File**: `C:\Users\TARUN\Downloads\test7\Spotify_Dashboard.pbip`
+- **Model Classification**: Media & Streaming Analytics (TMDL Semantic Model + PBIR Report Layout with Card & Ranking DAX Measures)
+- **Size / Footprint**: 3 Tables, 1 Relationship, 9 DAX Measures, 13 Calc Columns, 1 Page, 21 Visuals
+- **External Consumption Known?**: No
+- **Reviewer**: Antigravity Pair Audit
+
+#### Metrics & Performance
+- **Scan Latency**: `35.45 ms`
+- **Peak Memory**: `167.38 KB`
+- **Overall Health Score**: `98.4`
+- **Category Breakdown**: Model: `100` | DAX: `99` | Report: `95`
+
+#### Finding Breakdown by Rule
+| Rule ID | Emitted Findings | TP | FP | AMB | FN Suspected | Reviewer Notes / Context |
+|:---|:---:|:---:|:---:|:---:|:---:|---|
+| `REPORT_VISUAL_BLOAT` (`R001`) | **1** | **1** | **0** | **0** | 0 | `Page: Page 1` contains 21 visuals (threshold: 15). Heavy visual container density (**TP**, 100% conf). |
+| `DAX_UNUSED_MEASURE` (`D004`) | **1** | **1** | **0** | **0** | 0 | `Track` measure in `spotify-2023` is unreferenced by any visual or measure (**TP**, 95% conf). All other 8 rendered DAX measures recognized cleanly. |
+| `Other Rules` | **0** | - | - | - | 0 | Auto Date/Time local table relationship. |
+
+---
 
 ### Project Audit Entry 06: `Zepto Quick Commerce Operations`
 
