@@ -10,6 +10,7 @@ Each function:
 """
 from __future__ import annotations
 
+import re
 from pbiscan.canonical.model import CanonicalReport, Table
 from pbiscan.engine.issue import RuleFinding
 
@@ -200,6 +201,70 @@ def check_fact_to_fact(report: CanonicalReport) -> list[RuleFinding]:
 
 
 # ---------------------------------------------------------------------------
+# M006 — Hardcoded local data source in Power Query (M) partition
+# ---------------------------------------------------------------------------
+
+_LOCAL_USER_PATH_PATTERN = re.compile(
+    r'["\'](?:[a-zA-Z]:[\\/](?:users|documents|desktop|downloads|temp|tmp)[^"\']*|(?:/users/|/home/)[^"\']*)["\']',
+    re.IGNORECASE,
+)
+
+def check_hardcoded_data_sources(report: CanonicalReport) -> list[RuleFinding]:
+    """M006 — Detect hardcoded local developer workstation file paths in M partition sources."""
+    findings: list[RuleFinding] = []
+
+    for table in report.model.tables:
+        source_expr = table.partition_source or ""
+        if not source_expr:
+            continue
+
+        matches = _LOCAL_USER_PATH_PATTERN.findall(source_expr)
+        if matches:
+            cleaned_paths = [m.strip('\'"') for m in matches]
+            findings.append(RuleFinding(
+                rule_id="M_HARDCODED_DATA_SOURCE",
+                category="model",
+                severity="HIGH",
+                confidence=95,
+                evidence=(
+                    f"Table '{table.name}' contains hardcoded local workstation file path(s): "
+                    f"{', '.join(cleaned_paths)}"
+                ),
+                location=f"Table: {table.name}",
+            ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# M007 — Auto Date/Time bloat
+# ---------------------------------------------------------------------------
+
+def check_auto_datetime_bloat(report: CanonicalReport) -> list[RuleFinding]:
+    """M007 — Detect auto-generated LocalDateTable_* tables created by Power BI's Auto Date/Time feature."""
+    findings: list[RuleFinding] = []
+    local_date_tables = [t.name for t in report.model.tables if t.name.startswith("LocalDateTable_")]
+
+    if local_date_tables:
+        count = len(local_date_tables)
+        sample = local_date_tables[:5]
+        more_str = f" and {count - 5} more" if count > 5 else ""
+        findings.append(RuleFinding(
+            rule_id="MODEL_AUTO_DATETIME_BLOAT",
+            category="model",
+            severity="MEDIUM",
+            confidence=100,
+            evidence=(
+                f"Model contains {count} auto-generated local date table(s) due to enabled Auto Date/Time: "
+                f"{', '.join(sample)}{more_str}."
+            ),
+            location="Model",
+        ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # Rule registry — used by the pipeline
 # ---------------------------------------------------------------------------
 
@@ -209,4 +274,6 @@ MODEL_RULES = [
     check_no_date_table,
     check_high_cardinality,
     check_fact_to_fact,
+    check_hardcoded_data_sources,
+    check_auto_datetime_bloat,
 ]

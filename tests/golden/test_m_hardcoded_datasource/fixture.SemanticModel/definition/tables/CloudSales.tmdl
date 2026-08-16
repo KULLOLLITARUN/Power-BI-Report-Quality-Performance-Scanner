@@ -1,0 +1,12 @@
+table CloudSales
+	column Amount = 100
+		dataType: int64
+
+	partition CloudSales-Partition = m
+		mode: import
+		source =
+			let
+				Source = SharePoint.Files("https://myorg.sharepoint.com/sites/bi", [ApiVersion = 15]),
+				Filtered = Table.SelectRows(Source, each ([Name] = "Sales.xlsx"))
+			in
+				Filtered

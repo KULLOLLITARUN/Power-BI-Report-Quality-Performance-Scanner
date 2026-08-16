@@ -1,0 +1,8 @@
+model Model
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+
+ref table LocalOrders
+ref table DownloadsCustomers
+ref table CloudSales
+ref table SqlDatabase

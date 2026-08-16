@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "artifacts": [
+    {
+      "report": {
+        "path": "fixture.Report"
+      }
+    },
+    {
+      "semanticModel": {
+        "path": "fixture.SemanticModel"
+      }
+    }
+  ]
+}

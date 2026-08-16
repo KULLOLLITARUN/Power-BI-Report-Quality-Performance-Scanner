@@ -1,0 +1,7 @@
+table DateTableTemplate_99999999
+	isHidden
+	isPrivate
+
+	column Date = "2024-01-01"
+		dataType: dateTime
+		isHidden

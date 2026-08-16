@@ -35,6 +35,7 @@ class Table:
     hidden: bool = False
     columns: list[Column] = field(default_factory=list)
     is_date_table: bool = False        # True if marked as a Date Table in the model
+    partition_source: str = ""         # Raw M-expression or DAX source query
 
 
 @dataclass

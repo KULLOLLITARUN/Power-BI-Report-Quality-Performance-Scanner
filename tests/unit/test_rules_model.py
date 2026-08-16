@@ -7,7 +7,8 @@ from pbiscan.canonical.model import (
 )
 from pbiscan.rules.model import (
     check_bidirectional, check_many_to_many, check_no_date_table,
-    check_high_cardinality, check_fact_to_fact, MODEL_RULES,
+    check_high_cardinality, check_fact_to_fact, check_hardcoded_data_sources,
+    check_auto_datetime_bloat, MODEL_RULES,
 )
 
 
@@ -204,7 +205,92 @@ class TestCheckFactToFact:
 
 
 # ---------------------------------------------------------------------------
+# M006 — TestCheckHardcodedDataSources
+# ---------------------------------------------------------------------------
+class TestCheckHardcodedDataSources:
+    def test_detects_local_windows_desktop_path(self):
+        r = _make_report(
+            tables=[
+                Table(
+                    name="Orders",
+                    columns=[Column(name="ID", table="Orders")],
+                    partition_source='File.Contents("C:\\Users\\User\\Desktop\\Orders.xlsx")',
+                )
+            ]
+        )
+        findings = check_hardcoded_data_sources(r)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "M_HARDCODED_DATA_SOURCE"
+        assert findings[0].location == "Table: Orders"
+        assert "Desktop" in findings[0].evidence
+
+    def test_detects_downloads_folder_path(self):
+        r = _make_report(
+            tables=[
+                Table(
+                    name="Customers",
+                    columns=[Column(name="ID", table="Customers")],
+                    partition_source='Csv.Document(File.Contents("C:/Users/Dev/Downloads/Data.csv"))',
+                )
+            ]
+        )
+        findings = check_hardcoded_data_sources(r)
+        assert len(findings) == 1
+        assert "Downloads" in findings[0].evidence
+
+    def test_no_finding_for_cloud_and_database_sources(self):
+        r = _make_report(
+            tables=[
+                Table(
+                    name="SharePointFiles",
+                    columns=[Column(name="ID", table="SharePointFiles")],
+                    partition_source='SharePoint.Files("https://company.sharepoint.com/sites/bi")',
+                ),
+                Table(
+                    name="SqlDb",
+                    columns=[Column(name="ID", table="SqlDb")],
+                    partition_source='Sql.Database(#"ServerName", #"DbName")',
+                ),
+            ]
+        )
+        findings = check_hardcoded_data_sources(r)
+        assert findings == []
+
+
+# ---------------------------------------------------------------------------
+# M007 — TestCheckAutoDateTimeBloat
+# ---------------------------------------------------------------------------
+class TestCheckAutoDateTimeBloat:
+    def test_detects_local_date_tables(self):
+        r = _make_report(
+            tables=[
+                Table(name="Sales"),
+                Table(name="LocalDateTable_1111"),
+                Table(name="LocalDateTable_2222"),
+                Table(name="DateTableTemplate_9999"),
+            ]
+        )
+        findings = check_auto_datetime_bloat(r)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "MODEL_AUTO_DATETIME_BLOAT"
+        assert "2 auto-generated" in findings[0].evidence
+        assert "LocalDateTable_1111" in findings[0].evidence
+
+    def test_no_finding_for_clean_model(self):
+        r = _make_report(
+            tables=[
+                Table(name="Sales"),
+                Table(name="Calendar", is_date_table=True),
+            ]
+        )
+        findings = check_auto_datetime_bloat(r)
+        assert findings == []
+
+
+# ---------------------------------------------------------------------------
 # Registry test
 # ---------------------------------------------------------------------------
 def test_model_rules_registry():
-    assert len(MODEL_RULES) == 5
+    assert len(MODEL_RULES) == 7
+    assert check_hardcoded_data_sources in MODEL_RULES
+    assert check_auto_datetime_bloat in MODEL_RULES

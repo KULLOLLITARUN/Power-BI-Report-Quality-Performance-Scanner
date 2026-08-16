@@ -193,6 +193,7 @@ class CanonicalBuilder:
                 hidden=raw.hidden,
                 columns=columns,
                 is_date_table=raw.is_date_table or self._is_date_table_by_name(raw.name),
+                partition_source=raw.partition_source,
             ))
         return result
 
