@@ -1,0 +1,12 @@
+{
+  "id": "test-isolated-table-neg-report",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Overview",
+      "ordinal": 0,
+      "visibility": 0,
+      "visualContainers": []
+    }
+  ]
+}

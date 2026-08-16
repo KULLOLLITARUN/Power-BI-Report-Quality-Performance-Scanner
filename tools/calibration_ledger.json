@@ -1,0 +1,43 @@
+{
+  "milestone": "v1.2",
+  "calibration_decisions": {
+    "M005": {
+      "rule_id": "MODEL_FACT_TO_FACT",
+      "disposition": "CALIBRATE",
+      "reason": "1 ambiguous fact-to-fact finding in audit (valid transaction return link)",
+      "action": "Update remediation prose to discuss conforming dimension bridge tables; retain 60% confidence rating without changing detection logic."
+    },
+    "D001": {
+      "rule_id": "DAX_SUSPICIOUS_PATTERN",
+      "disposition": "CALIBRATE",
+      "reason": "4 TP findings at 65% confidence cap; evaluate additional iterator patterns (e.g. nested SUMX)",
+      "action": "Retain 65% confidence cap; formulate candidate pattern backlog before altering regex triggers."
+    },
+    "D004": {
+      "rule_id": "DAX_UNUSED_MEASURE",
+      "disposition": "CALIBRATE",
+      "reason": "17 findings across 12 projects; static analysis cannot confirm external XMLA/Excel PivotTable consumption",
+      "action": "Refine recommendation text to explicitly state 'Unused within this PBIP artifact (verify if consumed externally via XMLA or Excel before removing)'; retain 95% confidence rating."
+    }
+  },
+  "candidate_rules": {
+    "M006": {
+      "rule_id": "MODEL_ISOLATED_TABLE",
+      "title": "Disconnected or isolated model table",
+      "category": "model",
+      "intended_severity": "ADVISORY",
+      "intended_confidence": 100,
+      "disposition": "DEFER_PENDING_FIXTURES",
+      "criteria": "Detects tables with zero relationships; must acknowledge intentional disconnected What-If parameter tables as advisory rather than defects."
+    },
+    "M007": {
+      "rule_id": "MODEL_AMBIGUOUS_PATH",
+      "title": "Ambiguous relationship path between tables",
+      "category": "model",
+      "intended_severity": "WARNING",
+      "intended_confidence": 90,
+      "disposition": "DEFER_PENDING_FIXTURES",
+      "criteria": "Detects pairs of tables connected by 2 or more distinct active relationship paths; must remain strictly cycle-safe."
+    }
+  }
+}

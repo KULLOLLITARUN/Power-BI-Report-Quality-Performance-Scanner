@@ -1,0 +1,74 @@
+{
+  "_comment": "M007 POSITIVE FIXTURE: Two distinct active paths between Customer and Region: Customer -> Sales -> Region, and Customer -> Store -> Region.",
+  "model": {
+    "tables": [
+      {
+        "name": "Customer",
+        "columns": [
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "StoreID", "dataType": "int64", "sourceColumn": "StoreID"}
+        ],
+        "partitions": [{"name": "Customer", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "Sales",
+        "columns": [
+          {"name": "SaleID", "dataType": "int64", "sourceColumn": "SaleID"},
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "RegionID", "dataType": "int64", "sourceColumn": "RegionID"}
+        ],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "Store",
+        "columns": [
+          {"name": "StoreID", "dataType": "int64", "sourceColumn": "StoreID"},
+          {"name": "RegionID", "dataType": "int64", "sourceColumn": "RegionID"}
+        ],
+        "partitions": [{"name": "Store", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "Region",
+        "columns": [
+          {"name": "RegionID", "dataType": "int64", "sourceColumn": "RegionID"},
+          {"name": "RegionName", "dataType": "string", "sourceColumn": "RegionName"}
+        ],
+        "partitions": [{"name": "Region", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "rel_cust_sales",
+        "fromTable": "Sales",
+        "fromColumn": "CustID",
+        "toTable": "Customer",
+        "toColumn": "CustID",
+        "isActive": true
+      },
+      {
+        "name": "rel_sales_region",
+        "fromTable": "Sales",
+        "fromColumn": "RegionID",
+        "toTable": "Region",
+        "toColumn": "RegionID",
+        "isActive": true
+      },
+      {
+        "name": "rel_cust_store",
+        "fromTable": "Customer",
+        "fromColumn": "StoreID",
+        "toTable": "Store",
+        "toColumn": "StoreID",
+        "isActive": true
+      },
+      {
+        "name": "rel_store_region",
+        "fromTable": "Store",
+        "fromColumn": "RegionID",
+        "toTable": "Region",
+        "toColumn": "RegionID",
+        "isActive": true
+      }
+    ]
+  }
+}

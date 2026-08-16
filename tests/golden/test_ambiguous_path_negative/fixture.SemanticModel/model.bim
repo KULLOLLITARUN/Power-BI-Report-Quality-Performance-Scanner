@@ -1,0 +1,50 @@
+{
+  "_comment": "M007 NEGATIVE FIXTURE: Clean single-path star schema. Exactly 1 path between any connected pair.",
+  "model": {
+    "tables": [
+      {
+        "name": "FactSales",
+        "columns": [
+          {"name": "SaleID", "dataType": "int64", "sourceColumn": "SaleID"},
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "ProductID", "dataType": "int64", "sourceColumn": "ProductID"}
+        ],
+        "partitions": [{"name": "FactSales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimCustomer",
+        "columns": [
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "Name", "dataType": "string", "sourceColumn": "Name"}
+        ],
+        "partitions": [{"name": "DimCustomer", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimProduct",
+        "columns": [
+          {"name": "ProductID", "dataType": "int64", "sourceColumn": "ProductID"},
+          {"name": "ProductName", "dataType": "string", "sourceColumn": "ProductName"}
+        ],
+        "partitions": [{"name": "DimProduct", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "rel_cust_sales",
+        "fromTable": "FactSales",
+        "fromColumn": "CustID",
+        "toTable": "DimCustomer",
+        "toColumn": "CustID",
+        "isActive": true
+      },
+      {
+        "name": "rel_prod_sales",
+        "fromTable": "FactSales",
+        "fromColumn": "ProductID",
+        "toTable": "DimProduct",
+        "toColumn": "ProductID",
+        "isActive": true
+      }
+    ]
+  }
+}
