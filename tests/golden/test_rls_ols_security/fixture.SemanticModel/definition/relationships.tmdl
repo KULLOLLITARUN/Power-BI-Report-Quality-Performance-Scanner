@@ -1,0 +1,7 @@
+relationship Rel_Sales_Calendar
+	fromColumn: Sales.OrderDate
+	toColumn: Calendar.Date
+
+relationship Rel_Sales_DimUser
+	fromColumn: Sales.ManagerEmail
+	toColumn: DimUser.Email

@@ -1,0 +1,6 @@
+role RegionalManagerRole
+	modelPermission: read
+
+	tablePermission Sales = [SalesRegionSecurityMeasure] == 1
+
+	tablePermission DimUser = [Email] == USERPRINCIPALNAME()

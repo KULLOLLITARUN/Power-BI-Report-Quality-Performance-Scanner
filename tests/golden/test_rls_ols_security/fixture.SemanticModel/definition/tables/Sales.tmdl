@@ -1,0 +1,16 @@
+table Sales
+	column Amount = 100
+		dataType: int64
+
+	column Region = "East"
+		dataType: string
+
+	column ManagerEmail = "manager@company.com"
+		dataType: string
+
+	column OrderDate = "2024-01-01"
+		dataType: dateTime
+
+	measure TotalSales = SUM(Sales[Amount])
+	measure SalesRegionSecurityMeasure = IF(USERPRINCIPALNAME() = "admin@company.com" || USEROBJECTID() = "0000-0000", 1, 0)
+	measure UnusedKPI = 999

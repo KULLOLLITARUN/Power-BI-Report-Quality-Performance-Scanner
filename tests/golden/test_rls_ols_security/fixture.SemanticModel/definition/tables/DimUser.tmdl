@@ -1,0 +1,7 @@
+table DimUser
+	column Email = "user@company.com"
+		dataType: string
+		isKey
+
+	column Region = "East"
+		dataType: string

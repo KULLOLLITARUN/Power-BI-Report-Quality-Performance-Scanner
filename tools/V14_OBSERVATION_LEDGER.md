@@ -47,6 +47,7 @@ v1.4 Promotion Viability: [High / Medium / Low / Deferred]
 | **11** | **HR Analysis Dashboard** (`HR_Analysis_Dashboard.pbip`) | `DOM-06` (22 Visuals Layout Density) | **1** | **1** | **0** | **0** | **0** | None (All diagnostics TP) |
 | **12** | **Adversarial Calc Group Fixture** (`test_calc_groups_selectedmeasure`) | `DOM-01` (Calc Groups & Deep DAX) | **2** | **1** | **1** | **0** | **0** | `V14-CAND-01` (Calc Group `SELECTEDMEASURE()`) |
 | **13** | **Field Parameters Usage Fixture** (`test_field_parameters_usage`) | `DOM-02` (Field Parameters `NAMEOF()`) | **4** | **2** | **2** | **0** | **0** | `V14-CAND-02` (Field Parameter `NAMEOF()`) |
+| **14** | **Row-Level Security Fixture** (`test_rls_ols_security`) | `DOM-03` (RLS Role Table Permissions) | **2** | **1** | **1** | **0** | **0** | `V14-CAND-03` (RLS `tablePermission` DAX) |
 
 ---
 
@@ -58,7 +59,7 @@ v1.4 Promotion Viability: [High / Medium / Low / Deferred]
 CANDIDATE ID: V14-CAND-01
 Domain: DOM-01 (Calculation Groups & Calculation Items)
 Fixture Target: tests/golden/test_calc_groups_selectedmeasure/
-Contract Tests: tests/golden/test_calc_group_fixtures.py
+Contract Tests: tests/golden/test_calc_group_fixtures.py (3 tests)
 Architecture: TMDL Semantic Model (calculationGroup + calculationItems + PBIR Matrix Column Selector)
 Observed Engine Behavior (v1.3.0 Baseline):
   - Flags 'Raw Margin' as DAX_UNUSED_MEASURE at 95% confidence.
@@ -83,7 +84,7 @@ Status: EMPIRICALLY CONFIRMED & LOCKED
 CANDIDATE ID: V14-CAND-02
 Domain: DOM-02 (Field Parameters & NAMEOF() Dynamic Projections)
 Fixture Target: tests/golden/test_field_parameters_usage/
-Contract Tests: tests/golden/test_field_parameter_fixtures.py
+Contract Tests: tests/golden/test_field_parameter_fixtures.py (1 test)
 Architecture: TMDL Semantic Model (Calculated Table with NAMEOF('Sales'[Measure]) + PBIR Visual Projection)
 Observed Engine Behavior (v1.3.0 Baseline):
   - Flags 'ParameterMeasureA' and 'ParameterMeasureB' as DAX_UNUSED_MEASURE at 95% confidence.
@@ -103,9 +104,36 @@ Status: EMPIRICALLY CONFIRMED & LOCKED
 
 ---
 
+### Candidate Record: `V14-CAND-03`
+
+```text
+CANDIDATE ID: V14-CAND-03
+Domain: DOM-03 (Row-Level Security & Role Table Permissions)
+Fixture Target: tests/golden/test_rls_ols_security/
+Contract Tests: tests/golden/test_rls_security_fixtures.py (2 tests)
+Architecture: TMDL Semantic Model (roles/RoleName.tmdl tablePermission DAX Filter + PBIR Visual)
+Observed Engine Behavior (v1.3.0 Baseline):
+  - Flags 'SalesRegionSecurityMeasure' as DAX_UNUSED_MEASURE at 95% confidence.
+  - Correctly identifies 'UnusedKPI' as DAX_UNUSED_MEASURE (1 TP).
+  - Correctly validates security table relationships without spurious model findings.
+Expected Behavior:
+  - Role 'RegionalManagerRole' enforces tablePermission Sales = [SalesRegionSecurityMeasure] == 1.
+  - Security measure is actively consumed on the server by the Power BI Engine during role evaluation.
+  - Emitting an unused measure warning on measures referenced in active RLS role expressions represents a confirmed False Positive.
+Classification: CONFIRMED FALSE POSITIVE (Capability Gap in Role Definition Extraction)
+Root Cause / AST Location:
+  - PBIPReader parses tables/, relationships/, and pages/, but does not parse roles/ definitions in TMDL or model.bim roles.
+  - Measures referenced exclusively in security filter expressions are omitted from root visual/system references.
+Reproducibility: 100% REPRODUCED (Locked in test_rls_security_fixtures.py)
+Status: EMPIRICALLY CONFIRMED & LOCKED
+```
+
+---
+
 ## 5. Candidate Backlog & Ranking Matrix
 
 | Candidate ID | Domain | Summary | Frequency | Diagnostic Value | FP Risk | Testability | Status |
 |---|---|---|:---:|:---:|:---:|:---:|:---:|
 | **`V14-CAND-01`** | **`DOM-01`** | Calculation Group `SELECTEDMEASURE()` false positive on dynamically invoked measures | High | High | Very High | High | **REPRODUCED & LOCKED** |
 | **`V14-CAND-02`** | **`DOM-02`** | Field Parameter `NAMEOF()` false positive on dynamically switched measures | High | High | Very High | High | **REPRODUCED & LOCKED** |
+| **`V14-CAND-03`** | **`DOM-03`** | RLS `tablePermission` filter expression false positive on security measures | Medium | High | High | High | **REPRODUCED & LOCKED** |
