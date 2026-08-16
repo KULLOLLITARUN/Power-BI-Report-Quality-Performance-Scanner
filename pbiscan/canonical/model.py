@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
+from pbiscan.canonical.dax_graph import DaxDependencyGraph
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +169,7 @@ class CanonicalReport:
     """
     model: ModelGraph = field(default_factory=ModelGraph)
     dax: DaxDictionary = field(default_factory=DaxDictionary)
+    dax_graph: DaxDependencyGraph = field(default_factory=DaxDependencyGraph)
     report: ReportDOM = field(default_factory=ReportDOM)
     source_path: str = ""
     report_name: str = ""
