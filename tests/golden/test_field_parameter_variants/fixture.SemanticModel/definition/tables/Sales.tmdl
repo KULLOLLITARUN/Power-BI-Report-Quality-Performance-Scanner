@@ -1,0 +1,27 @@
+table Sales
+	column ProductID
+		dataType: string
+		sourceColumn: ProductID
+
+	column Revenue
+		dataType: int64
+		sourceColumn: Revenue
+
+	column Units
+		dataType: int64
+		sourceColumn: Units
+
+	measure BaseRevenue = SUM(Sales[Revenue])
+	measure NetRevenue = [BaseRevenue] * 0.9
+	measure UnitsSold = SUM(Sales[Units])
+	measure ProfitMargin = DIVIDE([NetRevenue], [BaseRevenue])
+	measure SlicerActivatedMetric = 500
+	measure UnusedKPI = 9999
+
+	partition Sales = m
+		mode: import
+		source =
+			let
+			    Source = #table({"ProductID", "Revenue", "Units"}, {})
+			in
+			    Source

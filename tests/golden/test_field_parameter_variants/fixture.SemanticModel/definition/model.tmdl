@@ -1,0 +1,5 @@
+model Model
+	ref table Sales
+	ref table DimProduct
+	ref table DynamicMetrics
+	ref table GroupedSelector

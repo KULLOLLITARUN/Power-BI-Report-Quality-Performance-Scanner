@@ -1,0 +1,17 @@
+table DimProduct
+	column ProductID
+		dataType: string
+		sourceColumn: ProductID
+		isKey
+
+	column Category
+		dataType: string
+		sourceColumn: Category
+
+	partition DimProduct = m
+		mode: import
+		source =
+			let
+			    Source = #table({"ProductID", "Category"}, {})
+			in
+			    Source

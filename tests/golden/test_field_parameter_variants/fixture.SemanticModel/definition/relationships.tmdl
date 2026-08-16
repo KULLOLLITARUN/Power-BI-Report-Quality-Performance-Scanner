@@ -1,0 +1,3 @@
+relationship Rel_Product_Sales
+	fromColumn: Sales.ProductID
+	toColumn: DimProduct.ProductID

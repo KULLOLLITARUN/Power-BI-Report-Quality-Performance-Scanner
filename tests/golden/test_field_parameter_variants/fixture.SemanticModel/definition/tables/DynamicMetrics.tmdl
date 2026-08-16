@@ -1,0 +1,23 @@
+table DynamicMetrics
+	lineageTag: 11111111-2222-3333-4444-555555555555
+
+	column DynamicMetrics
+		dataType: string
+		sourceColumn: [Value1]
+
+	column 'DynamicMetrics Fields'
+		dataType: string
+		sourceColumn: [Value2]
+
+	column 'DynamicMetrics Order'
+		dataType: int64
+		sourceColumn: [Value3]
+
+	partition DynamicMetrics = calculated
+		mode: import
+		source =
+			{
+			    ("Net Revenue", NAMEOF('Sales'[NetRevenue]), 0),
+			    ("Units", NAMEOF('Sales'[UnitsSold]), 1),
+			    ("Product Category", NAMEOF('DimProduct'[Category]), 2)
+			}
