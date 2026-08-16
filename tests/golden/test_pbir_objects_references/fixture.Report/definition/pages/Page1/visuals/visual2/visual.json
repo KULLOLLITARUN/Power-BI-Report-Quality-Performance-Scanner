@@ -1,0 +1,98 @@
+{
+  "name": "visual2",
+  "visual": {
+    "visualType": "barChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": { "SourceRef": { "Entity": "Sales" } },
+                  "Property": "ID"
+                }
+              },
+              "queryRef": "Sales.ID"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": { "SourceRef": { "Entity": "Sales" } },
+                  "Property": "TotalSales"
+                }
+              },
+              "queryRef": "Sales.TotalSales"
+            }
+          ]
+        }
+      }
+    },
+    "objects": {
+      "title": [
+        {
+          "properties": {
+            "text": {
+              "expr": {
+                "Measure": {
+                  "Expression": { "SourceRef": { "Entity": "Sales" } },
+                  "Property": "DynamicTitleMetric"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "subTitle": [
+        {
+          "properties": {
+            "text": {
+              "expr": {
+                "Measure": {
+                  "Expression": { "SourceRef": { "Entity": "Sales" } },
+                  "Property": "DynamicSubTitleMetric"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "dataPoint": [
+        {
+          "properties": {
+            "fill": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Measure": {
+                      "Expression": { "SourceRef": { "Entity": "Sales" } },
+                      "Property": "ColorFormatMetric"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "valueAxis": [
+        {
+          "properties": {
+            "max": {
+              "expr": {
+                "Measure": {
+                  "Expression": { "SourceRef": { "Entity": "Sales" } },
+                  "Property": "DynamicAxisMetric"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
