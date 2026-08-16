@@ -1,5 +1,7 @@
 [build]
-  publish = "pbiscan/studio/dist"
+  base = "studio-ui"
+  publish = "dist"
+  command = "node -e \"const fs=require('fs'); fs.cpSync('../pbiscan/studio/dist', 'dist', {recursive: true});\""
 
 [[redirects]]
   from = "/*"
