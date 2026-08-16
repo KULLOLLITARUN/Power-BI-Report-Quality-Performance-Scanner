@@ -1,0 +1,19 @@
+table Calendar
+	dataCategory: Time
+
+	column Date
+		dataType: dateTime
+		sourceColumn: Date
+		isKey
+
+	column Year
+		dataType: int64
+		sourceColumn: Year
+
+	partition Calendar = m
+		mode: import
+		source =
+			let
+			    Source = #table({"Date", "Year"}, {})
+			in
+			    Source
