@@ -54,9 +54,13 @@ def extract_calc_group_references(
     references: list[SemanticReference] = []
 
     for item in calc_items:
-        item_name = item.get("name", "UnknownItem")
-        item_dax = item.get("expression", "") or ""
-        format_dax = item.get("format_string", "") or item.get("format_string_definition", "") or ""
+        if not isinstance(item, dict):
+            continue
+        item_name = str(item.get("name") or "UnknownItem")
+        raw_expr = item.get("expression")
+        item_dax = str(raw_expr) if raw_expr is not None else ""
+        raw_fmt = item.get("format_string") or item.get("format_string_definition")
+        format_dax = str(raw_fmt) if raw_fmt is not None else ""
         source_obj = f"{table_name}['{item_name}']"
 
         # 1. Check ISSELECTEDMEASURE([Measure]) predicates
