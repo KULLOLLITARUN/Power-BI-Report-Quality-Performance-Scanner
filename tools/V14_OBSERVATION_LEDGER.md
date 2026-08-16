@@ -43,7 +43,8 @@ v1.4 Promotion Viability: [High / Medium / Low / Deferred]
 
 | Entry | Project Name | Target Domain | Findings | TP | FP | AMB | FN | Candidate IDs Logged |
 |:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| *Awaiting incoming targeted models...* | | | | | | | | |
+| **10** | **Financial Report** (`Financial_Report.pbip`) | `DOM-05` (DAX Measures + Date Links) | **1** | **1** | **0** | **0** | **0** | None (All diagnostics TP) |
+| **11** | **HR Analysis Dashboard** (`HR_Analysis_Dashboard.pbip`) | `DOM-06` (22 Visuals Layout Density) | **1** | **1** | **0** | **0** | **0** | None (All diagnostics TP) |
 
 ---
 
