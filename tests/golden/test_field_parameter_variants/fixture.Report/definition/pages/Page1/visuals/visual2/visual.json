@@ -1,0 +1,24 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.2.0/schema.json",
+  "name": "groupSlicer",
+  "visual": {
+    "visualType": "slicer",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "queryRef": "GroupedSelector.GroupedSelector",
+              "field": {
+                "Column": {
+                  "Expression": {"SourceRef": {"Entity": "GroupedSelector"}},
+                  "Property": "GroupedSelector"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

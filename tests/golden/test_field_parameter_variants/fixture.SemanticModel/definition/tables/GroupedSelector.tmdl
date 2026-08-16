@@ -1,0 +1,26 @@
+table GroupedSelector
+	lineageTag: 22222222-3333-4444-5555-666666666666
+
+	column GroupedSelector
+		dataType: string
+		sourceColumn: [Value1]
+
+	column 'GroupedSelector Fields'
+		dataType: string
+		sourceColumn: [Value2]
+
+	column 'GroupedSelector Order'
+		dataType: int64
+		sourceColumn: [Value3]
+
+	column 'GroupedSelector Group'
+		dataType: string
+		sourceColumn: [Value4]
+
+	partition GroupedSelector = calculated
+		mode: import
+		source =
+			{
+			    ("Profitability", NAMEOF('Sales'[ProfitMargin]), 0, "Finance"),
+			    ("Operations", NAMEOF('Sales'[SlicerActivatedMetric]), 1, "Logistics")
+			}
