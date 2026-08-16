@@ -101,11 +101,19 @@ def extract_rls_bim_references(
     references: list[SemanticReference] = []
 
     for role in roles:
-        role_name = role.get("name", "UnknownRole")
-        table_perms = role.get("tablePermissions", [])
+        if not isinstance(role, dict):
+            continue
+        role_name = str(role.get("name") or "UnknownRole")
+        table_perms = role.get("tablePermissions") or []
+        if not isinstance(table_perms, list):
+            continue
+
         for perm in table_perms:
-            perm_table = perm.get("name", "UnknownTable")
-            dax_expr = perm.get("filterExpression", "") or ""
+            if not isinstance(perm, dict):
+                continue
+            perm_table = str(perm.get("name") or "UnknownTable")
+            raw_expr = perm.get("filterExpression")
+            dax_expr = str(raw_expr) if raw_expr is not None else ""
 
             for ref_match in _BRACKET_REF_PATTERN.finditer(dax_expr):
                 tbl_quoted, tbl_unquoted, entity_name = ref_match.groups()
