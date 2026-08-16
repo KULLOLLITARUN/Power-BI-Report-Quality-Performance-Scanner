@@ -1,0 +1,3 @@
+model Model
+	ref table Sales
+	ref table MeasureSelector

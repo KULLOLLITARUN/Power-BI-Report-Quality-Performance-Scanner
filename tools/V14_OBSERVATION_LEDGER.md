@@ -46,6 +46,7 @@ v1.4 Promotion Viability: [High / Medium / Low / Deferred]
 | **10** | **Financial Report** (`Financial_Report.pbip`) | `DOM-05` (DAX Measures + Date Links) | **1** | **1** | **0** | **0** | **0** | None (All diagnostics TP) |
 | **11** | **HR Analysis Dashboard** (`HR_Analysis_Dashboard.pbip`) | `DOM-06` (22 Visuals Layout Density) | **1** | **1** | **0** | **0** | **0** | None (All diagnostics TP) |
 | **12** | **Adversarial Calc Group Fixture** (`test_calc_groups_selectedmeasure`) | `DOM-01` (Calc Groups & Deep DAX) | **2** | **1** | **1** | **0** | **0** | `V14-CAND-01` (Calc Group `SELECTEDMEASURE()`) |
+| **13** | **Field Parameters Usage Fixture** (`test_field_parameters_usage`) | `DOM-02` (Field Parameters `NAMEOF()`) | **4** | **2** | **2** | **0** | **0** | `V14-CAND-02` (Field Parameter `NAMEOF()`) |
 
 ---
 
@@ -71,13 +72,40 @@ Root Cause / AST Location:
   - Calculation items defer measure evaluation to runtime via SELECTEDMEASURE().
   - Static text-bracket [MeasureName] parser cannot see implicit runtime measure binding without calculation-group-aware dependency analysis.
 Reproducibility: 100% REPRODUCED (Locked in test_calc_group_fixtures.py)
-v1.4 Promotion Viability: HIGH
+Status: EMPIRICALLY CONFIRMED & LOCKED
+```
+
+---
+
+### Candidate Record: `V14-CAND-02`
+
+```text
+CANDIDATE ID: V14-CAND-02
+Domain: DOM-02 (Field Parameters & NAMEOF() Dynamic Projections)
+Fixture Target: tests/golden/test_field_parameters_usage/
+Contract Tests: tests/golden/test_field_parameter_fixtures.py
+Architecture: TMDL Semantic Model (Calculated Table with NAMEOF('Sales'[Measure]) + PBIR Visual Projection)
+Observed Engine Behavior (v1.3.0 Baseline):
+  - Flags 'ParameterMeasureA' and 'ParameterMeasureB' as DAX_UNUSED_MEASURE at 95% confidence.
+  - Correctly identifies 'UnusedKPI' as DAX_UNUSED_MEASURE (1 TP).
+  - Correctly identifies MODEL_NO_DATE_TABLE (1 TP).
+Expected Behavior:
+  - Visual binds to MeasureSelector[MeasureSelector Fields] column.
+  - MeasureSelector table defines dynamic lineage to 'ParameterMeasureA' and 'ParameterMeasureB' via NAMEOF().
+  - Emitting unused measure warnings on measures projected through Field Parameters represents a confirmed False Positive.
+Classification: CONFIRMED FALSE POSITIVE (Capability Gap in Calculated Table NAMEOF() Lineage)
+Root Cause / AST Location:
+  - Visual projects the Field Parameter column name (e.g. MeasureSelector[MeasureSelector Fields]).
+  - Extractor / DAX graph does not trace table partition source expressions containing NAMEOF('Table'[Measure]) back to the underlying measure references.
+Reproducibility: 100% REPRODUCED (Locked in test_field_parameter_fixtures.py)
+Status: EMPIRICALLY CONFIRMED & LOCKED
 ```
 
 ---
 
 ## 5. Candidate Backlog & Ranking Matrix
 
-| Candidate ID | Domain | Summary | Frequency | Diagnostic Value | FP Risk | Testability | Ranking Score | Status |
-|---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **`V14-CAND-01`** | **`DOM-01`** | Calculation Group `SELECTEDMEASURE()` false positive on dynamically invoked measures | High | High | Very High | High | **9.2 / 10** | **REPRODUCED & LOCKED** |
+| Candidate ID | Domain | Summary | Frequency | Diagnostic Value | FP Risk | Testability | Status |
+|---|---|---|:---:|:---:|:---:|:---:|:---:|
+| **`V14-CAND-01`** | **`DOM-01`** | Calculation Group `SELECTEDMEASURE()` false positive on dynamically invoked measures | High | High | Very High | High | **REPRODUCED & LOCKED** |
+| **`V14-CAND-02`** | **`DOM-02`** | Field Parameter `NAMEOF()` false positive on dynamically switched measures | High | High | Very High | High | **REPRODUCED & LOCKED** |

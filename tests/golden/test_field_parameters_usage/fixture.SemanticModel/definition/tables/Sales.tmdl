@@ -1,0 +1,13 @@
+table Sales
+	column Category = "Electronics"
+		dataType: string
+
+	column Revenue = 100
+		dataType: int64
+
+	column Units = 5
+		dataType: int64
+
+	measure 'ParameterMeasureA' = SUM(Sales[Revenue])
+	measure 'ParameterMeasureB' = SUM(Sales[Units])
+	measure 'UnusedKPI' = 999

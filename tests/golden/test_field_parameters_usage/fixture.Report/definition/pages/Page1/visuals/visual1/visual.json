@@ -1,0 +1,37 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.2.0/schema.json",
+  "name": "fieldParamVisual",
+  "visual": {
+    "visualType": "clusteredBarChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "queryRef": "Sales.Category",
+              "field": {
+                "Column": {
+                  "Expression": {"SourceRef": {"Entity": "Sales"}},
+                  "Property": "Category"
+                }
+              }
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "queryRef": "MeasureSelector.MeasureSelector Fields",
+              "field": {
+                "Column": {
+                  "Expression": {"SourceRef": {"Entity": "MeasureSelector"}},
+                  "Property": "MeasureSelector Fields"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
