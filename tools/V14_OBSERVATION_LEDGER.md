@@ -49,6 +49,7 @@ v1.4 Promotion Viability: [High / Medium / Low / Deferred]
 | **13** | **Field Parameters Usage Fixture** (`test_field_parameters_usage`) | `DOM-02` (Field Parameters `NAMEOF()`) | **4** | **2** | **2** | **0** | **0** | `V14-CAND-02` (Field Parameter `NAMEOF()`) |
 | **14** | **Row-Level Security Fixture** (`test_rls_ols_security`) | `DOM-03` (RLS Role Table Permissions) | **2** | **1** | **1** | **0** | **0** | `V14-CAND-03` (RLS `tablePermission` DAX) |
 | **15** | **DirectQuery Composite Fixture** (`test_directquery_composite_storage`) | `DOM-04` (Mixed Storage Modes) | **1** | **1** | **0** | **0** | **0** | **CLEAN PASS** (No defect candidate required) |
+| **16** | **10-Level Deep DAX Tree Fixture** (`test_deep_dax_dependency_tree`) | `DOM-05` (Deep Lineage & Multi-Tier Orphans) | **4** | **4** | **0** | **0** | **0** | **CLEAN PASS** (No defect candidate required) |
 
 ---
 

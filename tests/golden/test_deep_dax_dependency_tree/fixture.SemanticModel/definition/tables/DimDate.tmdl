@@ -1,0 +1,9 @@
+table DimDate
+	dataCategory: Time
+
+	column Date = "2024-01-01"
+		dataType: dateTime
+		isKey
+
+	column Year = 2024
+		dataType: int64
