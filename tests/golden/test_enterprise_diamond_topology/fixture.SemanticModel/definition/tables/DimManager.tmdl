@@ -1,0 +1,21 @@
+table DimManager
+	column ManagerID
+		dataType: string
+		sourceColumn: ManagerID
+		isKey
+
+	column ManagerName
+		dataType: string
+		sourceColumn: ManagerName
+
+	column Tier
+		dataType: string
+		sourceColumn: Tier
+
+	partition DimManager = m
+		mode: import
+		source =
+			let
+			    Source = #table({"ManagerID", "ManagerName", "Tier"}, {})
+			in
+			    Source

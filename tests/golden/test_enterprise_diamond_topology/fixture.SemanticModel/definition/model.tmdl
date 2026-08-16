@@ -1,0 +1,9 @@
+model Model
+	ref table FactSales
+	ref table FactReturns
+	ref table BridgeCustomer
+	ref table DimCustomer
+	ref table DimRegion
+	ref table DimManager
+	ref table DimDate
+	ref table DisconnectedConfig

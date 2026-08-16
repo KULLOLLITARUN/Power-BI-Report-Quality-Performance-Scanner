@@ -1,0 +1,16 @@
+table DisconnectedConfig
+	column SettingKey
+		dataType: string
+		sourceColumn: SettingKey
+
+	column SettingValue
+		dataType: string
+		sourceColumn: SettingValue
+
+	partition DisconnectedConfig = m
+		mode: import
+		source =
+			let
+			    Source = #table({"SettingKey", "SettingValue"}, {})
+			in
+			    Source

@@ -1,0 +1,17 @@
+table DimCustomer
+	column CustomerID
+		dataType: string
+		sourceColumn: CustomerID
+		isKey
+
+	column ManagerID
+		dataType: string
+		sourceColumn: ManagerID
+
+	partition DimCustomer = m
+		mode: import
+		source =
+			let
+			    Source = #table({"CustomerID", "ManagerID"}, {})
+			in
+			    Source

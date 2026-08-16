@@ -1,0 +1,36 @@
+relationship Rel_Date_Sales_Order
+	fromColumn: FactSales.OrderDate
+	toColumn: DimDate.Date
+
+relationship Rel_Date_Sales_Ship
+	isActive: false
+	fromColumn: FactSales.ShipDate
+	toColumn: DimDate.Date
+
+relationship Rel_Date_Returns
+	fromColumn: FactReturns.ReturnDate
+	toColumn: DimDate.Date
+
+relationship Rel_Bridge_Sales
+	fromColumn: FactSales.CustomerID
+	toColumn: BridgeCustomer.CustomerID
+
+relationship Rel_Bridge_Returns
+	fromColumn: FactReturns.CustomerID
+	toColumn: BridgeCustomer.CustomerID
+
+relationship Rel_DimCustomer_Bridge
+	fromColumn: BridgeCustomer.CustomerID
+	toColumn: DimCustomer.CustomerID
+
+relationship Rel_DimRegion_Bridge
+	fromColumn: BridgeCustomer.RegionID
+	toColumn: DimRegion.RegionID
+
+relationship Rel_Manager_Customer
+	fromColumn: DimCustomer.ManagerID
+	toColumn: DimManager.ManagerID
+
+relationship Rel_Manager_Region
+	fromColumn: DimRegion.ManagerID
+	toColumn: DimManager.ManagerID
