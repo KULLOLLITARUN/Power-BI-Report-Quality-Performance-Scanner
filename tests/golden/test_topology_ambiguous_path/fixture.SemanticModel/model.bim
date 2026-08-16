@@ -1,0 +1,103 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_topology_ambiguous_path — Two active paths between FactSales and DimRegion (Direct + via DimStore). Single path between FactSales and DimCity (via DimCustomer).",
+  "model": {
+    "tables": [
+      {
+        "name": "FactSales",
+        "columns": [
+          {"name": "SaleID", "dataType": "int64", "sourceColumn": "SaleID"},
+          {"name": "StoreID", "dataType": "int64", "sourceColumn": "StoreID"},
+          {"name": "RegionID", "dataType": "int64", "sourceColumn": "RegionID"},
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"}
+        ],
+        "measures": [
+          {"name": "Total Sales", "expression": "SUM(FactSales[Amount])"}
+        ],
+        "partitions": [{"name": "FactSales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimStore",
+        "columns": [
+          {"name": "StoreID", "dataType": "int64", "sourceColumn": "StoreID"},
+          {"name": "RegionID", "dataType": "int64", "sourceColumn": "RegionID"},
+          {"name": "StoreName", "dataType": "string", "sourceColumn": "StoreName"}
+        ],
+        "partitions": [{"name": "DimStore", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimRegion",
+        "columns": [
+          {"name": "RegionID", "dataType": "int64", "sourceColumn": "RegionID"},
+          {"name": "RegionName", "dataType": "string", "sourceColumn": "RegionName"}
+        ],
+        "partitions": [{"name": "DimRegion", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimCustomer",
+        "columns": [
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "CityID", "dataType": "int64", "sourceColumn": "CityID"},
+          {"name": "CustName", "dataType": "string", "sourceColumn": "CustName"}
+        ],
+        "partitions": [{"name": "DimCustomer", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimCity",
+        "columns": [
+          {"name": "CityID", "dataType": "int64", "sourceColumn": "CityID"},
+          {"name": "CityName", "dataType": "string", "sourceColumn": "CityName"}
+        ],
+        "partitions": [{"name": "DimCity", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "rel_sales_store",
+        "fromTable": "FactSales",
+        "fromColumn": "StoreID",
+        "toTable": "DimStore",
+        "toColumn": "StoreID",
+        "isActive": true
+      },
+      {
+        "name": "rel_store_region",
+        "fromTable": "DimStore",
+        "fromColumn": "RegionID",
+        "toTable": "DimRegion",
+        "toColumn": "RegionID",
+        "isActive": true
+      },
+      {
+        "name": "rel_sales_region_direct",
+        "fromTable": "FactSales",
+        "fromColumn": "RegionID",
+        "toTable": "DimRegion",
+        "toColumn": "RegionID",
+        "isActive": true
+      },
+      {
+        "name": "rel_sales_customer",
+        "fromTable": "FactSales",
+        "fromColumn": "CustID",
+        "toTable": "DimCustomer",
+        "toColumn": "CustID",
+        "isActive": true
+      },
+      {
+        "name": "rel_customer_city",
+        "fromTable": "DimCustomer",
+        "fromColumn": "CityID",
+        "toTable": "DimCity",
+        "toColumn": "CityID",
+        "isActive": true
+      }
+    ]
+  }
+}

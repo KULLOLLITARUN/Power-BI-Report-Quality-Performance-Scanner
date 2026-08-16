@@ -1,0 +1,51 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_suppression_scoring — 3 findings: MODEL_BIDIRECTIONAL (WARNING=3), DAX_SUSPICIOUS_PATTERN (ADVISORY=1), DAX_UNUSED_MEASURE (ADVISORY=1). One is suppressed.",
+  "model": {
+    "tables": [
+      {
+        "name": "FactSales",
+        "columns": [
+          {"name": "SaleID", "dataType": "int64", "sourceColumn": "SaleID"},
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"}
+        ],
+        "measures": [
+          {
+            "name": "Suspicious Total",
+            "expression": "CALCULATE(SUM(FactSales[Amount]), FILTER(ALL(FactSales), FactSales[Amount] > 0))"
+          },
+          {
+            "name": "Unused Measure",
+            "expression": "AVERAGE(FactSales[Amount])"
+          }
+        ],
+        "partitions": [{"name": "FactSales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimCustomer",
+        "columns": [
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "CustName", "dataType": "string", "sourceColumn": "CustName"}
+        ],
+        "partitions": [{"name": "DimCustomer", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "rel_sales_cust_bidi",
+        "fromTable": "FactSales",
+        "fromColumn": "CustID",
+        "toTable": "DimCustomer",
+        "toColumn": "CustID",
+        "crossFilteringBehavior": "BothDirections",
+        "isActive": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "_comment": "No visuals placed - Unused Measure will fire.",
+  "id": "test-suppression-absent-report",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Executive Overview",
+      "ordinal": 0,
+      "visibility": 0,
+      "visualContainers": []
+    }
+  ]
+}

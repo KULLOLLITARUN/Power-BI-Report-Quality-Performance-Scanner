@@ -1,0 +1,109 @@
+"""v1.1 Golden Fixture tests — establishing expected baseline contracts for v1.1.
+
+Fixtures created per v1.1_ARCHITECTURE.md Section 6:
+  - test_dax_graph_multihop: 3+ measure chain (C -> B -> A). Visual only contains C.
+  - test_dax_graph_cycle: Two measures referencing each other in a loop.
+  - test_topology_disconnected: Table with 0 relationships (isolated table).
+  - test_topology_ambiguous_path: Two tables connected by 2 distinct active paths (+ single-path negative baseline).
+  - test_suppression_scoring: 3 findings, 1 suppressed via pbiscan.suppressions.json.
+  - test_suppression_absent_file: Same 3 findings, no pbiscan.suppressions.json.
+"""
+from __future__ import annotations
+from pathlib import Path
+import pytest
+from pbiscan.extraction.pbip_reader import PBIPReader
+from pbiscan.canonical.builder import CanonicalBuilder
+from tests.integration.test_pipeline import run_pipeline
+
+
+GOLDEN_DIR = Path(__file__).parent
+
+
+V11_FIXTURE_NAMES = [
+    "test_dax_graph_multihop",
+    "test_dax_graph_cycle",
+    "test_topology_disconnected",
+    "test_topology_ambiguous_path",
+    "test_suppression_scoring",
+    "test_suppression_absent_file",
+]
+
+
+@pytest.mark.parametrize("fixture_name", V11_FIXTURE_NAMES)
+def test_v11_fixtures_parse_without_error(fixture_name: str):
+    """Smoke test: all v1.1 golden fixtures must parse without raising exceptions."""
+    reader = PBIPReader()
+    raw = reader.read(GOLDEN_DIR / fixture_name)
+    assert raw is not None, f"{fixture_name}: raw is None"
+
+    builder = CanonicalBuilder()
+    report = builder.build(raw)
+    assert report is not None, f"{fixture_name}: canonical report is None"
+    assert report.model is not None, f"{fixture_name}: model is None"
+    assert report.dax is not None, f"{fixture_name}: dax is None"
+    assert report.report is not None, f"{fixture_name}: report is None"
+
+
+def test_dax_graph_multihop_raw_contract():
+    """Verify raw measures in multihop fixture."""
+    reader = PBIPReader()
+    raw = reader.read(GOLDEN_DIR / "test_dax_graph_multihop")
+    builder = CanonicalBuilder()
+    report = builder.build(raw)
+
+    measure_names = {m.name for m in report.dax.measures}
+    assert measure_names == {"Base Profit", "Net Margin", "Final KPI"}
+
+    # Base Profit is referenced by Net Margin, which is referenced by Final KPI
+    # Final KPI is bound to the visual
+    visual_measure_refs = set()
+    for p in report.report.pages:
+        for v in p.visuals:
+            for ref in v.measure_refs:
+                visual_measure_refs.add(ref)
+
+    assert "Final KPI" in visual_measure_refs
+
+
+def test_dax_graph_cycle_raw_contract():
+    """Verify raw measures in cycle fixture."""
+    reader = PBIPReader()
+    raw = reader.read(GOLDEN_DIR / "test_dax_graph_cycle")
+    builder = CanonicalBuilder()
+    report = builder.build(raw)
+
+    measure_names = {m.name for m in report.dax.measures}
+    assert measure_names == {"Cycle Measure A", "Cycle Measure B"}
+
+
+def test_topology_disconnected_raw_contract():
+    """Verify tables and relationships in disconnected topology fixture."""
+    reader = PBIPReader()
+    raw = reader.read(GOLDEN_DIR / "test_topology_disconnected")
+    builder = CanonicalBuilder()
+    report = builder.build(raw)
+
+    table_names = {t.name for t in report.model.tables}
+    assert table_names == {"FactSales", "DimCustomer", "DimDate", "IsolatedAuditLog"}
+    assert len(report.model.relationships) == 2
+
+
+def test_topology_ambiguous_path_raw_contract():
+    """Verify tables and relationships in ambiguous path topology fixture."""
+    reader = PBIPReader()
+    raw = reader.read(GOLDEN_DIR / "test_topology_ambiguous_path")
+    builder = CanonicalBuilder()
+    report = builder.build(raw)
+
+    table_names = {t.name for t in report.model.tables}
+    assert table_names == {"FactSales", "DimStore", "DimRegion", "DimCustomer", "DimCity", "DimDate"}
+    assert len(report.model.relationships) == 5
+
+
+def test_suppression_scoring_fixture_contract():
+    """Verify suppression fixture files exist and parse cleanly."""
+    suppressions_path = GOLDEN_DIR / "test_suppression_scoring" / "pbiscan.suppressions.json"
+    assert suppressions_path.exists(), "pbiscan.suppressions.json must exist in test_suppression_scoring"
+
+    absent_path = GOLDEN_DIR / "test_suppression_absent_file" / "pbiscan.suppressions.json"
+    assert not absent_path.exists(), "pbiscan.suppressions.json must NOT exist in test_suppression_absent_file"

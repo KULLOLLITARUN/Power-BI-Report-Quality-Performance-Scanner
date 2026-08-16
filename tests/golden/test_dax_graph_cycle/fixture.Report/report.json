@@ -1,0 +1,13 @@
+{
+  "_comment": "Visual empty for cycle test fixture.",
+  "id": "test-cycle-report",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Overview",
+      "ordinal": 0,
+      "visibility": 0,
+      "visualContainers": []
+    }
+  ]
+}

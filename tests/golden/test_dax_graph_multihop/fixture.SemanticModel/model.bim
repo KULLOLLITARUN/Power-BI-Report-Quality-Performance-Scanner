@@ -1,0 +1,36 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_dax_graph_multihop — 3-hop measure dependency chain: C -> B -> A. Visual only contains C.",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"},
+          {"name": "Cost", "dataType": "decimal", "sourceColumn": "Cost"}
+        ],
+        "measures": [
+          {
+            "name": "Base Profit",
+            "expression": "SUM(Sales[Amount]) - SUM(Sales[Cost])"
+          },
+          {
+            "name": "Net Margin",
+            "expression": "[Base Profit] * 0.8"
+          },
+          {
+            "name": "Final KPI",
+            "expression": "DIVIDE([Net Margin], 100)"
+          }
+        ],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": []
+  }
+}

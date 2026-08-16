@@ -1,0 +1,11 @@
+{
+  "suppressions": [
+    {
+      "rule_id": "MODEL_BIDIRECTIONAL",
+      "location": "FactSales[CustID] <-> DimCustomer[CustID]",
+      "reason": "Intentional - required for cross-filtering returns dashboard.",
+      "added_by": "tarun",
+      "added_at": "2026-08-16"
+    }
+  ]
+}
