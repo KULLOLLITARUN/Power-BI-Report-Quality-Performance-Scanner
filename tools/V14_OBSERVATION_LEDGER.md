@@ -10,16 +10,21 @@
 
 | Domain Code | Architectural Surface | Description / Potential Blind Spot | Status |
 |:---:|---|---|:---:|
-| **`DOM-01`** | **Calculation Groups & Calculation Items** | `SELECTEDMEASURE()`, `SELECTEDMEASUREFORMATSTRING()`, dynamic measure replacement | Queued |
-| **`DOM-02`** | **Field Parameters** | Dynamic dimension & measure switching tables in PBIR visual fields | Queued |
-| **`DOM-03`** | **Row-Level Security (RLS) / OLS** | Table filter DAX expressions & role definitions | Queued |
-| **`DOM-04`** | **Composite & DirectQuery Models** | Mixed storage modes (`DirectQuery`, `Dual`, `Import`), remote partitions | Queued |
-| **`DOM-05`** | **Complex DAX Dependency Chains** | Deeply nested iterator trees, multi-hop variable tables, window functions | Queued |
-| **`DOM-06`** | **Large Enterprise Topologies** | Fact-to-fact diamond schemas, active/inactive relationship chains | Queued |
+| **`DOM-01`** | **Calculation Groups & Calculation Items** | `SELECTEDMEASURE()`, `ISSELECTEDMEASURE`, calc item DAX | **Phase 2A Locked (V14-CAND-01)** |
+| **`DOM-02`** | **Field Parameters** | `NAMEOF()` measure/column switching tables in visual projections | **Phase 2A Locked (V14-CAND-02)** |
+| **`DOM-03`** | **Row-Level Security (RLS) / OLS** | Multi-role `tablePermission` DAX filters and cascading measures | **Phase 2A Locked (V14-CAND-03)** |
+| **`DOM-04`** | **Composite & DirectQuery Models** | Mixed storage modes (`DirectQuery`, `Dual`, `Import`), remote partitions | **Clean Pass (Closed)** |
+| **`DOM-05`** | **Complex DAX Dependency Chains** | Deeply nested iterator trees, multi-hop variable tables, window functions | **Clean Pass (Closed)** |
+| **`DOM-06`** | **Large Enterprise Topologies** | Fact-to-fact diamond schemas, active/inactive relationship chains | **Clean Pass (Closed)** |
 
 ---
 
-## 2. v1.4 Candidate Observation Record Template
+## 2. Phase 2 Governance & Architecture Milestones
+
+- **Phase 1 Observation**: Completed across 6 domains (3 Clean Passes, 3 Candidates).
+- **Phase 2A Variant Scoping**: Completed across 16 structural variants (181/181 passing tests, zero production code edits).
+- **Phase 2B Semantic Specification**: Locked in [`docs/V14_SEMANTIC_REFERENCE_SPEC.md`](file:///d:/Projects/Powerbi/Power_BI_Report_Quality_&_Performance_Scanner/docs/V14_SEMANTIC_REFERENCE_SPEC.md).
+- **Phase 2C Implementation Plan**: TDD Reference Extraction Layer & Unified Semantic Reference Index.
 
 Each observed gap, FP, or FN candidate is recorded using this formal schema:
 
