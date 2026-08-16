@@ -12,6 +12,9 @@ dist/
 build/
 *.egg-info/
 .eggs/
+# Allow the compiled Studio UI dist to be tracked (required for pip install)
+!pbiscan/studio/dist/
+!pbiscan/studio/dist/**
 
 # Virtual environments
 venv/
