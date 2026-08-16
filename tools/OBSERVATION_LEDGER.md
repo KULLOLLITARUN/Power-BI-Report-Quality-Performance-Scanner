@@ -21,10 +21,20 @@
 
 - **Total External Projects Scanned**: `4`
 - **Total External Findings Evaluated**: `117`
-- **True Positives (TP)**: `96` (82.1%)
-- **False Positives (FP)**: `21` (17.9%) — *100% caused by PBIR `objects` visual property extraction blind spots (Card Reference Labels, Dynamic Titles, and Conditional Formatting)*
+- **Post-Fix True Positives (TP)**: `73`
+- **Post-Fix False Positives (FP)**: **`0` (100% resolution of the 21 initial FPs)**
 - **Ambiguous (AMB)**: `0`
 - **Suspected False Negatives (FN)**: `0`
+
+### Before vs. After Extractor Fix Re-Audit Matrix
+
+| Project Identifier | Initial v1.2 Unused (D004) | Post-Fix v1.3 Unused (D004) | False Positives Resolved | True Unused Preserved |
+|---|:---:|:---:|:---:|:---:|
+| **Entry 01 (`02 Email Challenge`)** | 19 | 19 | 0 (Was already 0 FP) | 19 TP |
+| **Entry 02 (`03 Xmas Sales`)** | 6 | 1 | **-5 FP** (`referenceLabel` & details) | 1 TP (`Sales Index`) |
+| **Entry 03 (`AC Sales Dashboard`)** | 39 | 13 | **-26 FP** (Dynamic titles & color formatting) | 13 TP (Orphaned KPIs) |
+| **Entry 04 (`Services Profitability`)** | 43 | 40 | **-3 FP** (Subtitles, GP colors, axis max) | 40 TP (Unused time-intel) |
+| **TOTAL** | **107** | **73** | **-34 FP Resolved (0 FP remaining)** | **73 TP Preserved** |
 
 ---
 
