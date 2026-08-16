@@ -1,0 +1,31 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_dax_graph_cycle — Cycle between Measure A and Measure B. Scanner must detect cycle safely without infinite recursion.",
+  "model": {
+    "tables": [
+      {
+        "name": "Financials",
+        "columns": [
+          {"name": "Val", "dataType": "int64", "sourceColumn": "Val"}
+        ],
+        "measures": [
+          {
+            "name": "Cycle Measure A",
+            "expression": "[Cycle Measure B] + 1"
+          },
+          {
+            "name": "Cycle Measure B",
+            "expression": "[Cycle Measure A] - 1"
+          }
+        ],
+        "partitions": [{"name": "Financials", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": []
+  }
+}

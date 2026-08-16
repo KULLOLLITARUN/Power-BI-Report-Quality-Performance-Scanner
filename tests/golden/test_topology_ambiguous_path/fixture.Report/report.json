@@ -1,0 +1,13 @@
+{
+  "_comment": "Topology ambiguous path report.",
+  "id": "test-ambiguous-path-report",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Regional Sales",
+      "ordinal": 0,
+      "visibility": 0,
+      "visualContainers": []
+    }
+  ]
+}

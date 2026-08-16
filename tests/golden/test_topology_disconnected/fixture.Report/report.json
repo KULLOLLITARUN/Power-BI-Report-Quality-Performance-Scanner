@@ -1,0 +1,13 @@
+{
+  "_comment": "Visual containers for disconnected topology fixture.",
+  "id": "test-disconnected-report",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Sales Overview",
+      "ordinal": 0,
+      "visibility": 0,
+      "visualContainers": []
+    }
+  ]
+}

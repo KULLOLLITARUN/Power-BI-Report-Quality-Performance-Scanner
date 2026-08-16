@@ -1,0 +1,15 @@
+{
+  "_comment": "Final KPI is bound to the visual. Net Margin and Base Profit are referenced transitively. D004 must fire 0 times.",
+  "id": "test-multihop-report",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Executive Summary",
+      "ordinal": 0,
+      "visibility": 0,
+      "visualContainers": [
+        {"x": 0, "y": 0, "z": 1, "width": 400, "height": 300, "config": "{\"name\":\"v1\",\"singleVisual\":{\"visualType\":\"card\",\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"s\",\"Entity\":\"Sales\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"s\"}},\"Property\":\"Final KPI\"},\"Name\":\"Sales.Final KPI\"}]}}}"}
+      ]
+    }
+  ]
+}
