@@ -68,3 +68,42 @@ class TestStudioServerApi:
         assert "PBIP Sentinel Studio" in response.text
         assert "Overview" in response.text
         assert "Semantic References" in response.text
+
+    def test_export_endpoints(self, client):
+        fixture_path = str(GOLDEN_DIR / "test_calc_group_variants")
+        
+        # Test HTML export
+        resp_html = client.post("/api/export", json={"project_path": fixture_path, "format": "html"})
+        assert resp_html.status_code == 200
+        assert "<!DOCTYPE html>" in resp_html.json()["content"]
+
+        # Test SARIF export
+        resp_sarif = client.post("/api/export", json={"project_path": fixture_path, "format": "sarif"})
+        assert resp_sarif.status_code == 200
+        assert "2.1.0" in resp_sarif.json()["content"]
+
+        # Test JUnit export
+        resp_junit = client.post("/api/export", json={"project_path": fixture_path, "format": "junit"})
+        assert resp_junit.status_code == 200
+        assert "<testsuites" in resp_junit.json()["content"]
+
+        # Test JSON export
+        resp_json = client.post("/api/export", json={"project_path": fixture_path, "format": "json"})
+        assert resp_json.status_code == 200
+        assert "scores" in resp_json.json()["content"]
+
+    def test_suppress_endpoint(self, client, tmp_path):
+        fixture_path = GOLDEN_DIR / "test_calc_group_variants"
+        resp = client.post("/api/suppress", json={
+            "project_path": str(fixture_path),
+            "rule_id": "TEST_RULE",
+            "location": "Sales[Amount]",
+            "reason": "Test studio suppression"
+        })
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
+        
+        # Clean up created .pbiscanignore
+        ignore_file = fixture_path / ".pbiscanignore"
+        if ignore_file.exists():
+            ignore_file.unlink()

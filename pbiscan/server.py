@@ -19,6 +19,9 @@ from pbiscan.engine.issue import IssueGenerator
 from pbiscan.engine.scoring import calculate_scores, load_config
 from pbiscan.engine.suppressions import load_suppressions, apply_suppressions
 from pbiscan.extraction.pbip_reader import PBIPReader, PBIScanError
+from pbiscan.render.html_report import HtmlRenderer
+from pbiscan.render.sarif_report import SarifRenderer
+from pbiscan.render.junit_report import JUnitRenderer
 from pbiscan.rules.dax import DAX_RULES
 from pbiscan.rules.model import MODEL_RULES
 from pbiscan.rules.report import REPORT_RULES
@@ -53,6 +56,19 @@ class ScanRequest(BaseModel):
 
 class BrowseRequest(BaseModel):
     path: Optional[str] = None
+
+
+class SuppressRequest(BaseModel):
+    project_path: str
+    rule_id: str
+    location: str
+    reason: Optional[str] = "Suppressed via Studio"
+
+
+class ExportRequest(BaseModel):
+    project_path: str
+    format: str  # "html", "json", "sarif", "junit"
+    config_path: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +121,21 @@ async def open_native_dialog(req: Optional[DialogRequest] = None):
     return await asyncio.to_thread(_show_dialog_sync, mode)
 
 
+def _get_config(config_path: Optional[str] = None) -> dict:
+    """Helper to load config or return default weights/deductions."""
+    cfg_file = config_path or "rules.config.json"
+    if Path(cfg_file).exists():
+        try:
+            return load_config(cfg_file)
+        except Exception:
+            pass
+    return {
+        "weights": {"model": 0.35, "dax": 0.25, "report": 0.20, "security": 0.20},
+        "deductions": {"CRITICAL": 15, "HIGH": 10, "MEDIUM": 5, "WARNING": 3, "ADVISORY": 1, "LOW": 2},
+        "thresholds": {"maxVisualsPerPage": 15, "maxSlicersPerPage": 6, "maxCalculatedColumnsPerTable": 4},
+    }
+
+
 @app.post("/api/scan")
 async def scan_project(req: ScanRequest):
     """Scan a PBIP project and return structured quality audit data."""
@@ -114,18 +145,7 @@ async def scan_project(req: ScanRequest):
         raise HTTPException(status_code=404, detail=f"Path does not exist: {req.path}")
 
     # Load configuration
-    cfg_file = req.config_path or "rules.config.json"
-    if Path(cfg_file).exists():
-        try:
-            config = load_config(cfg_file)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Config error: {exc}")
-    else:
-        config = {
-            "weights": {"model": 0.35, "dax": 0.25, "report": 0.20, "security": 0.20},
-            "deductions": {"CRITICAL": 15, "HIGH": 10, "MEDIUM": 5, "WARNING": 3, "ADVISORY": 1, "LOW": 2},
-            "thresholds": {"maxVisualsPerPage": 15, "maxSlicersPerPage": 6, "maxCalculatedColumnsPerTable": 4},
-        }
+    config = _get_config(req.config_path)
 
     # Step 1: Extract
     try:
@@ -377,6 +397,91 @@ async def browse_filesystem(req: BrowseRequest):
         "directories": sorted(directories, key=lambda x: x["name"].lower()),
         "pbip_projects": sorted(pbip_projects, key=lambda x: x["name"].lower()),
     }
+
+
+@app.post("/api/suppress")
+async def add_suppression(req: SuppressRequest):
+    """Add a suppression rule to the project's .pbiscanignore file."""
+    proj_path = Path(req.project_path)
+    if not proj_path.exists():
+        raise HTTPException(status_code=404, detail="Project path does not exist")
+
+    ignore_file = proj_path if proj_path.is_file() else proj_path / ".pbiscanignore"
+    if ignore_file.suffix == ".pbip":
+        ignore_file = ignore_file.parent / ".pbiscanignore"
+
+    line = f"{req.rule_id} {req.location}  # {req.reason}\n"
+    with open(ignore_file, "a", encoding="utf-8") as f:
+        f.write(line)
+
+    return {"status": "ok", "message": f"Added suppression to {ignore_file.name}", "line": line.strip()}
+
+
+@app.post("/api/export")
+async def export_audit(req: ExportRequest):
+    """Generate export content in specified format (html, json, sarif, junit)."""
+    proj_path = Path(req.project_path)
+    if not proj_path.exists():
+        raise HTTPException(status_code=404, detail="Project path does not exist")
+
+    reader = PBIPReader()
+    raw = reader.read(proj_path)
+    builder = CanonicalBuilder()
+    report = builder.build(raw)
+
+    findings = []
+    for r in MODEL_RULES:
+        findings.extend(r(report))
+    findings.extend(DAX_RULES[0](report))
+    findings.extend(DAX_RULES[1](report))
+    findings.extend(DAX_RULES[2](report))
+    findings.extend(DAX_RULES[3](report))
+    findings.extend(REPORT_RULES[0](report))
+    findings.extend(REPORT_RULES[1](report))
+
+    gen = IssueGenerator()
+    issues = gen.generate(findings)
+    suppressions = load_suppressions(proj_path)
+    issues = apply_suppressions(issues, suppressions)
+    scores = calculate_scores(issues, _get_config(req.config_path))
+
+    fmt = req.format.lower()
+    if fmt == "json":
+        import json
+        data = {
+            "report_name": report.report_name,
+            "scanner_version": __version__,
+            "scores": scores,
+            "findings": [
+                {
+                    "rule_id": i.rule_id,
+                    "category": i.category,
+                    "severity": i.severity,
+                    "title": i.title,
+                    "evidence": i.evidence,
+                    "impact": i.impact,
+                    "recommendation": i.recommendation,
+                    "confidence": i.confidence,
+                    "location": i.location,
+                    "suppressed": i.suppressed,
+                }
+                for i in issues
+            ],
+        }
+        return {"content": json.dumps(data, indent=2), "mime": "application/json", "filename": f"{report.report_name}-audit.json"}
+    elif fmt == "sarif":
+        sarif_text = SarifRenderer().render(issues=issues, report_path=req.project_path)
+        return {"content": sarif_text, "mime": "application/json", "filename": f"{report.report_name}.sarif"}
+    elif fmt == "junit":
+        junit_text = JUnitRenderer().render(issues=issues, scores=scores, report_name=report.report_name)
+        return {"content": junit_text, "mime": "application/xml", "filename": f"{report.report_name}-junit.xml"}
+    else:
+        html_text = HtmlRenderer().render(
+            issues=issues,
+            scores=scores,
+            meta={"report_name": report.report_name, "scanner_version": __version__, "source_path": req.project_path, "scan_timestamp": ""},
+        )
+        return {"content": html_text, "mime": "text/html", "filename": f"{report.report_name}-audit.html"}
 
 
 # ---------------------------------------------------------------------------
