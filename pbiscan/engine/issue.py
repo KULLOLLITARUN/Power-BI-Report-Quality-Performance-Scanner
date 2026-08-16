@@ -79,6 +79,12 @@ class AuditIssue:
     recommendation: str
     confidence: int
     location: Optional[str] = None
+    suppressed: bool = False
+    suppression_reason: Optional[str] = None
+
+
+# Alias for canonical engine contract
+Issue = AuditIssue
 
 
 # ---------------------------------------------------------------------------

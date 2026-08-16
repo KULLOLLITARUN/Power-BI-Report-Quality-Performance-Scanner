@@ -17,6 +17,7 @@ from pbiscan import __version__
 from pbiscan.canonical.builder import CanonicalBuilder
 from pbiscan.engine.issue import IssueGenerator
 from pbiscan.engine.scoring import calculate_scores, load_config
+from pbiscan.engine.suppressions import load_suppressions, apply_suppressions
 from pbiscan.extraction.pbip_reader import PBIPReader, PBIScanError
 from pbiscan.rules.dax import DAX_RULES
 from pbiscan.rules.model import MODEL_RULES
@@ -164,6 +165,10 @@ async def scan_project(req: ScanRequest):
     gen = IssueGenerator()
     issues = gen.generate(findings)
 
+    # Step 4.5: Apply Suppressions
+    suppressions = load_suppressions(project_path)
+    issues = apply_suppressions(issues, suppressions)
+
     # Step 5: Scoring
     scores = calculate_scores(issues, config)
 
@@ -246,6 +251,8 @@ async def scan_project(req: ScanRequest):
             "recommendation": i.recommendation,
             "confidence": i.confidence,
             "location": i.location,
+            "suppressed": i.suppressed,
+            "suppression_reason": i.suppression_reason,
         }
         for i in issues
     ]

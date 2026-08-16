@@ -1,5 +1,5 @@
 {
-  "_comment": "No visuals placed - Unused Measure will fire.",
+  "_comment": "Suspicious Total is bound to visual (fires D001 only). Unused Measure is not bound to visual (fires D004). MODEL_BIDIRECTIONAL fires on rel. Total = 3 findings.",
   "id": "test-suppression-report",
   "sections": [
     {
@@ -7,7 +7,9 @@
       "displayName": "Executive Overview",
       "ordinal": 0,
       "visibility": 0,
-      "visualContainers": []
+      "visualContainers": [
+        {"x": 0, "y": 0, "z": 1, "width": 400, "height": 300, "config": "{\"name\":\"v1\",\"singleVisual\":{\"visualType\":\"card\",\"prototypeQuery\":{\"Version\":2,\"From\":[{\"Name\":\"f\",\"Entity\":\"FactSales\",\"Type\":0}],\"Select\":[{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"f\"}},\"Property\":\"Suspicious Total\"},\"Name\":\"FactSales.Suspicious Total\"}]}}}"}
+      ]
     }
   ]
 }

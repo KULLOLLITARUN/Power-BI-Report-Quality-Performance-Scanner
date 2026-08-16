@@ -7,6 +7,7 @@ from pbiscan.extraction.pbip_reader import PBIPReader
 from pbiscan.canonical.builder import CanonicalBuilder
 from pbiscan.engine.issue import IssueGenerator
 from pbiscan.engine.scoring import calculate_scores
+from pbiscan.engine.suppressions import load_suppressions, apply_suppressions
 from pbiscan.rules.model import MODEL_RULES
 from pbiscan.rules.dax import DAX_RULES
 from pbiscan.rules.report import REPORT_RULES
@@ -45,6 +46,9 @@ def run_pipeline(fixture_name: str, config: dict | None = None) -> dict:
 
     gen = IssueGenerator()
     issues = gen.generate(findings)
+
+    suppressions = load_suppressions(fixture_path)
+    issues = apply_suppressions(issues, suppressions)
 
     scores = calculate_scores(issues, config)
 

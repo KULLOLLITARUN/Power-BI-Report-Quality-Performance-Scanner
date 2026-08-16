@@ -128,6 +128,47 @@ def test_suppression_scoring_fixture_contract():
     assert not absent_path.exists(), "pbiscan.suppressions.json must NOT exist in test_suppression_absent_file"
 
 
+def test_suppression_scoring_pipeline_integration():
+    """Pipeline integration: 3 findings, 1 suppressed.
+    
+    Expected:
+      - 3 issues generated (transparency)
+      - Exactly 1 issue marked suppressed=True with reason populated
+      - Model category score is 100 (suppressed finding excluded from deductions)
+    """
+    result = run_pipeline("test_suppression_scoring")
+    issues = result["issues"]
+    scores = result["scores"]
+
+    assert len(issues) == 3, f"Expected 3 issues, got {len(issues)}"
+    suppressed_issues = [i for i in issues if i.suppressed]
+    assert len(suppressed_issues) == 1
+    assert suppressed_issues[0].rule_id == "MODEL_BIDIRECTIONAL"
+    assert "cross-filtering" in suppressed_issues[0].suppression_reason
+
+    # Model score must be 100 because the only model finding is suppressed
+    assert scores["category_scores"]["model"] == 100
+
+
+def test_suppression_absent_file_pipeline_integration():
+    """Pipeline integration: Same 3 findings, no suppressions.json file.
+    
+    Expected:
+      - 3 issues generated, 0 suppressed
+      - Model category score is 97 (100 - 3 points for MODEL_BIDIRECTIONAL warning)
+    """
+    result = run_pipeline("test_suppression_absent_file")
+    issues = result["issues"]
+    scores = result["scores"]
+
+    assert len(issues) == 3
+    suppressed_issues = [i for i in issues if i.suppressed]
+    assert len(suppressed_issues) == 0
+
+    # Model score must reflect the deduction (100 - 3 = 97)
+    assert scores["category_scores"]["model"] == 97
+
+
 def test_dax_graph_multihop_pipeline_regression():
     """Pipeline integration: Final KPI in visual -> Base Profit & Net Margin transitively reachable -> D004 == 0."""
     result = run_pipeline("test_dax_graph_multihop")
