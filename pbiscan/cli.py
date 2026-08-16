@@ -228,12 +228,19 @@ def scan(
     if not quiet:
         click.echo("")
         score_col = _score_colour(overall)
-        click.echo(f"  {_colour('Overall Health:', _BOLD)}  {_colour(str(int(overall)), score_col)}")
+        score_disp = f"{int(overall)}" if overall == int(overall) else f"{overall:.1f}"
+        click.echo(f"  {_colour('Overall Health:', _BOLD)}  {_colour(score_disp, score_col)}")
         click.echo("")
+        m_s = cat_scores.get('model', 100)
+        d_s = cat_scores.get('dax', 100)
+        r_s = cat_scores.get('report', 100)
+        m_disp = f"{int(m_s)}" if m_s == int(m_s) else f"{m_s:.1f}"
+        d_disp = f"{int(d_s)}" if d_s == int(d_s) else f"{d_s:.1f}"
+        r_disp = f"{int(r_s)}" if r_s == int(r_s) else f"{r_s:.1f}"
         click.echo(
-            f"  Model: {_colour(str(cat_scores.get('model',100)), _score_colour(cat_scores.get('model',100)))}  "
-            f"DAX: {_colour(str(cat_scores.get('dax',100)), _score_colour(cat_scores.get('dax',100)))}  "
-            f"Report: {_colour(str(cat_scores.get('report',100)), _score_colour(cat_scores.get('report',100)))}"
+            f"  Model: {_colour(m_disp, _score_colour(m_s))}  "
+            f"DAX: {_colour(d_disp, _score_colour(d_s))}  "
+            f"Report: {_colour(r_disp, _score_colour(r_s))}"
         )
         click.echo("")
 
