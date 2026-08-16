@@ -32,22 +32,37 @@ class TestFieldParameterVariants:
         unused_findings = check_unused_measures(report)
         return report, unused_findings
 
-    def test_field_parameter_variants_and_cascading_dependencies_flagged_in_v13(self, report_and_findings):
-        """Documents baseline gap where all 5 field parameter measures cascade to unused in v1.3.
+    def test_field_parameter_variants_and_cascading_dependencies_resolved_in_v14(self, report_and_findings):
+        """Validates that all field parameter measures and cascading dependencies are resolved in v1.4.
 
-        In v1.3.0 control baseline:
-        - NetRevenue, UnitsSold (Variant 1 pure measure targets) are flagged (False Positives).
-        - ProfitMargin, SlicerActivatedMetric (Variant 3 & 4 grouped/slicer targets) are flagged (False Positives).
-        - BaseRevenue (Variant 5 transitive base measure) cascades to flagged (Cascading False Positive).
-        - UnusedKPI is correctly flagged (True Positive).
+        In v1.4 resolution:
+        - NetRevenue, UnitsSold (Variant 1 pure measure targets) are active (0 FP).
+        - ProfitMargin, SlicerActivatedMetric (Variant 3 & 4 grouped/slicer targets) are active (0 FP).
+        - BaseRevenue (Variant 5 transitive base measure) is reachable and active (0 FP).
+        - UnusedKPI is correctly flagged as orphan (True Positive).
         """
-        _, unused_findings = report_and_findings
+        report, unused_findings = report_and_findings
         flagged_locations = {f.location for f in unused_findings}
 
-        assert "Measure: NetRevenue" in flagged_locations
-        assert "Measure: UnitsSold" in flagged_locations
-        assert "Measure: ProfitMargin" in flagged_locations
-        assert "Measure: SlicerActivatedMetric" in flagged_locations
-        assert "Measure: BaseRevenue" in flagged_locations
+        assert "Measure: NetRevenue" not in flagged_locations
+        assert "Measure: UnitsSold" not in flagged_locations
+        assert "Measure: ProfitMargin" not in flagged_locations
+        assert "Measure: SlicerActivatedMetric" not in flagged_locations
+        assert "Measure: BaseRevenue" not in flagged_locations
         assert "Measure: UnusedKPI" in flagged_locations
-        assert len(unused_findings) == 6
+        assert len(unused_findings) == 1
+
+    def test_entity_discrimination_and_provenance(self, report_and_findings):
+        """Validates entity discrimination (column vs measure) and provenance."""
+        report, _ = report_and_findings
+        # Column reference inside field param should be classified as column and NOT activate root
+        cat_refs = report.semantic_references.find_by_target("Category")
+        assert len(cat_refs) == 1
+        assert cat_refs[0].target_type == "column"
+        assert cat_refs[0].activates_root is False
+
+        # Grouped parameter should record field_parameter_grouped
+        margin_refs = report.semantic_references.find_by_target("ProfitMargin")
+        assert len(margin_refs) == 1
+        assert margin_refs[0].source_type == "field_parameter_grouped"
+        assert margin_refs[0].source_object == "GroupedSelector"

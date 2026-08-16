@@ -248,6 +248,9 @@ class ReportDOM:
 # Root canonical object
 # ---------------------------------------------------------------------------
 
+from pbiscan.canonical.references import SemanticReferenceIndex
+
+
 @dataclass
 class CanonicalReport:
     """The single object consumed by all pbiscan rules.
@@ -259,5 +262,7 @@ class CanonicalReport:
     dax: DaxDictionary = field(default_factory=DaxDictionary)
     dax_graph: DaxDependencyGraph = field(default_factory=DaxDependencyGraph)
     report: ReportDOM = field(default_factory=ReportDOM)
+    semantic_references: SemanticReferenceIndex = field(default_factory=SemanticReferenceIndex)
     source_path: str = ""
     report_name: str = ""
+

@@ -224,20 +224,23 @@ def check_unused_measures(report: CanonicalReport) -> list[RuleFinding]:
     """
     findings: list[RuleFinding] = []
 
-    # Collect all measure names referenced by report visuals
-    visual_measure_refs: set[str] = set()
+    # Collect all measure names referenced by report visuals and semantic reference index
+    active_root_measures: set[str] = set()
     for page in report.report.pages:
         for visual in page.visuals:
             for ref in visual.measure_refs:
-                visual_measure_refs.add(ref)
+                active_root_measures.add(ref)
+
+    if hasattr(report, "semantic_references") and report.semantic_references:
+        active_root_measures = active_root_measures | report.semantic_references.active_root_measure_names()
 
     dax_graph = getattr(report, "dax_graph", None)
 
     for measure in report.dax.measures:
         if dax_graph and hasattr(dax_graph, "is_reachable_from_visual") and dax_graph.nodes:
-            is_used = dax_graph.is_reachable_from_visual(measure.name, visual_measure_refs)
+            is_used = dax_graph.is_reachable_from_visual(measure.name, active_root_measures)
         else:
-            in_visual = measure.name.lower() in {r.lower() for r in visual_measure_refs}
+            in_visual = measure.name.lower() in {r.lower() for r in active_root_measures}
             referenced_by = _build_cross_measure_reference_map(report)
             in_measure = bool(referenced_by.get(measure.name))
             is_used = in_visual or in_measure

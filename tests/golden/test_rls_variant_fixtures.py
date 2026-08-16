@@ -39,20 +39,35 @@ class TestRlsStructuralVariants:
         flagged_locations = {f.location for f in unused_findings}
         assert "Measure: TotalSales" not in flagged_locations
 
-    def test_rls_filter_measures_and_cascading_dependencies_flagged_in_v13(self, report_and_findings):
-        """Documents baseline gap where RLS role filter measures cascade to unused in v1.3.
+    def test_rls_filter_measures_and_cascading_dependencies_resolved_in_v14(self, report_and_findings):
+        """Validates that RLS role filter measures and cascading dependencies are resolved in v1.4.
 
-        In v1.3.0 control baseline:
-        - IsUserAuthorizedRegion, ComplianceFlagMeasure (Direct RLS measures) are flagged (False Positives).
-        - CurrentUserRegion, UserSecurityHash (Transitive RLS measures) cascade to flagged (Cascading False Positives).
-        - UnusedKPI is correctly flagged (True Positive).
+        In v1.4 resolution:
+        - IsUserAuthorizedRegion, ComplianceFlagMeasure (Direct RLS measures) are active (0 FP).
+        - CurrentUserRegion, UserSecurityHash (Transitive RLS measures) are reachable and active (0 FP).
+        - UnusedKPI is correctly flagged as orphan (True Positive).
         """
-        _, unused_findings = report_and_findings
+        report, unused_findings = report_and_findings
         flagged_locations = {f.location for f in unused_findings}
 
-        assert "Measure: IsUserAuthorizedRegion" in flagged_locations
-        assert "Measure: ComplianceFlagMeasure" in flagged_locations
-        assert "Measure: CurrentUserRegion" in flagged_locations
-        assert "Measure: UserSecurityHash" in flagged_locations
+        assert "Measure: IsUserAuthorizedRegion" not in flagged_locations
+        assert "Measure: ComplianceFlagMeasure" not in flagged_locations
+        assert "Measure: CurrentUserRegion" not in flagged_locations
+        assert "Measure: UserSecurityHash" not in flagged_locations
         assert "Measure: UnusedKPI" in flagged_locations
-        assert len(unused_findings) == 5
+        assert len(unused_findings) == 1
+
+    def test_multi_role_provenance_metadata(self, report_and_findings):
+        """Validates multi-role provenance recorded in SemanticReferenceIndex."""
+        report, _ = report_and_findings
+        # RegionalManagerRole reference
+        reg_refs = report.semantic_references.find_by_target("IsUserAuthorizedRegion")
+        assert len(reg_refs) == 1
+        assert reg_refs[0].source_type == "rls_table_permission"
+        assert reg_refs[0].source_object == "RegionalManagerRole.tablePermission['Sales']"
+
+        # ComplianceOfficerRole reference
+        comp_refs = report.semantic_references.find_by_target("ComplianceFlagMeasure")
+        assert len(comp_refs) == 1
+        assert comp_refs[0].source_type == "rls_table_permission"
+        assert comp_refs[0].source_object == "ComplianceOfficerRole.tablePermission['Sales']"
