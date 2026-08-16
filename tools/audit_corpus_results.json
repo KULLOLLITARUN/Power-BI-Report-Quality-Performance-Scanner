@@ -1,0 +1,884 @@
+{
+  "scan_timestamp": "2026-08-16T03:50:11Z",
+  "total_projects": 19,
+  "successful_scans": 19,
+  "avg_latency_ms": 4.26,
+  "peak_memory_kb": 387.12,
+  "rule_stats": {
+    "DAX_DUPLICATE_MEASURE": {
+      "total_findings": 3,
+      "projects_affected": 3,
+      "avg_confidence": 90.0
+    },
+    "DAX_UNUSED_MEASURE": {
+      "total_findings": 17,
+      "projects_affected": 12,
+      "avg_confidence": 95.0
+    },
+    "MODEL_BIDIRECTIONAL": {
+      "total_findings": 4,
+      "projects_affected": 4,
+      "avg_confidence": 100.0
+    },
+    "MODEL_FACT_TO_FACT": {
+      "total_findings": 2,
+      "projects_affected": 2,
+      "avg_confidence": 60.0
+    },
+    "DAX_SUSPICIOUS_PATTERN": {
+      "total_findings": 4,
+      "projects_affected": 4,
+      "avg_confidence": 65.0
+    },
+    "MODEL_HIGH_CARDINALITY": {
+      "total_findings": 1,
+      "projects_affected": 1,
+      "avg_confidence": 87.0
+    },
+    "MODEL_MANY_TO_MANY": {
+      "total_findings": 1,
+      "projects_affected": 1,
+      "avg_confidence": 100.0
+    },
+    "MODEL_NO_DATE_TABLE": {
+      "total_findings": 1,
+      "projects_affected": 1,
+      "avg_confidence": 70.0
+    },
+    "REPORT_SLICER_BLOAT": {
+      "total_findings": 1,
+      "projects_affected": 1,
+      "avg_confidence": 100.0
+    },
+    "REPORT_VISUAL_BLOAT": {
+      "total_findings": 1,
+      "projects_affected": 1,
+      "avg_confidence": 100.0
+    }
+  },
+  "projects": [
+    {
+      "project_name": "world is going bananas",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\pbip_project\\world is going bananas.pbip",
+      "latency_ms": 44.85,
+      "peak_kb": 387.12,
+      "stats": {
+        "tables": 15,
+        "relationships": 9,
+        "measures": 6,
+        "calculated_columns": 13,
+        "pages": 5,
+        "visuals": 8
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 93,
+          "report": 100
+        },
+        "overall": 97.8
+      },
+      "findings_count": 3,
+      "findings": [
+        {
+          "rule_id": "DAX_DUPLICATE_MEASURE",
+          "category": "dax",
+          "severity": "MEDIUM",
+          "confidence": 90,
+          "location": "Banana Exports[Primary Value (M)], Banana Exports[Total Value]",
+          "evidence": "Measures with identical normalised expressions: ['Banana Exports[Primary Value (M)]', 'Banana Exports[Total Value]']",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Total Value (Display)",
+          "evidence": "Measure 'Total Value (Display)' [Banana Exports]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Avg Starch Label",
+          "evidence": "Measure 'Avg Starch Label' [Ripening Changes]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_bidirectional",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_bidirectional\\fixture.pbip",
+      "latency_ms": 1.74,
+      "peak_kb": 21.65,
+      "stats": {
+        "tables": 3,
+        "relationships": 1,
+        "measures": 1,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 1
+      },
+      "scores": {
+        "category_scores": {
+          "model": 97,
+          "dax": 100,
+          "report": 100
+        },
+        "overall": 98.7
+      },
+      "findings_count": 1,
+      "findings": [
+        {
+          "rule_id": "MODEL_BIDIRECTIONAL",
+          "category": "model",
+          "severity": "WARNING",
+          "confidence": 100,
+          "location": "Sales[CustomerID] \u2194 Customer[CustomerID]",
+          "evidence": "Sales[CustomerID] \u2194 Customer[CustomerID], crossFilterDirection=both",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_dax_graph_cycle",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_dax_graph_cycle\\fixture.pbip",
+      "latency_ms": 1.65,
+      "peak_kb": 17.99,
+      "stats": {
+        "tables": 2,
+        "relationships": 0,
+        "measures": 2,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 0
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 98,
+          "report": 100
+        },
+        "overall": 99.4
+      },
+      "findings_count": 2,
+      "findings": [
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Cycle Measure A",
+          "evidence": "Measure 'Cycle Measure A' [Financials]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Cycle Measure B",
+          "evidence": "Measure 'Cycle Measure B' [Financials]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_dax_graph_multihop",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_dax_graph_multihop\\fixture.pbip",
+      "latency_ms": 2.98,
+      "peak_kb": 18.57,
+      "stats": {
+        "tables": 2,
+        "relationships": 0,
+        "measures": 3,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 1
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 100,
+          "report": 100
+        },
+        "overall": 100.0
+      },
+      "findings_count": 0,
+      "findings": []
+    },
+    {
+      "project_name": "test_duplicatedax",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_duplicatedax\\fixture.pbip",
+      "latency_ms": 1.76,
+      "peak_kb": 17.68,
+      "stats": {
+        "tables": 2,
+        "relationships": 0,
+        "measures": 2,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 1
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 95,
+          "report": 100
+        },
+        "overall": 98.4
+      },
+      "findings_count": 1,
+      "findings": [
+        {
+          "rule_id": "DAX_DUPLICATE_MEASURE",
+          "category": "dax",
+          "severity": "MEDIUM",
+          "confidence": 90,
+          "location": "Sales[Total Revenue], Sales[Revenue Total]",
+          "evidence": "Measures with identical normalised expressions: ['Sales[Total Revenue]', 'Sales[Revenue Total]']",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_enterprise_stress",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_enterprise_stress\\fixture.pbip",
+      "latency_ms": 5.51,
+      "peak_kb": 42.06,
+      "stats": {
+        "tables": 5,
+        "relationships": 6,
+        "measures": 10,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 5
+      },
+      "scores": {
+        "category_scores": {
+          "model": 96,
+          "dax": 91,
+          "report": 100
+        },
+        "overall": 95.4
+      },
+      "findings_count": 7,
+      "findings": [
+        {
+          "rule_id": "MODEL_BIDIRECTIONAL",
+          "category": "model",
+          "severity": "WARNING",
+          "confidence": 100,
+          "location": "Sales[ProductID] \u2194 Inventory[ProductID]",
+          "evidence": "Sales[ProductID] \u2194 Inventory[ProductID], crossFilterDirection=both",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "MODEL_FACT_TO_FACT",
+          "category": "model",
+          "severity": "ADVISORY",
+          "confidence": 60,
+          "location": "Sales \u2192 Inventory",
+          "evidence": "Sales \u2192 Inventory: both tables contain measures and neither matches a dimension naming pattern.",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_SUSPICIOUS_PATTERN",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 65,
+          "location": "Measure: Expensive Sales Filter",
+          "evidence": "Measure 'Expensive Sales Filter' [Sales]: FILTER(ALL(...)) \u2014 consider CALCULATE with filter arguments",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_DUPLICATE_MEASURE",
+          "category": "dax",
+          "severity": "MEDIUM",
+          "confidence": 90,
+          "location": "Sales[Net Sales], Sales[Duplicate Net Sales]",
+          "evidence": "Measures with identical normalised expressions: ['Sales[Net Sales]', 'Sales[Duplicate Net Sales]']",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Expensive Sales Filter",
+          "evidence": "Measure 'Expensive Sales Filter' [Sales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Duplicate Net Sales",
+          "evidence": "Measure 'Duplicate Net Sales' [Sales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Orphaned Tax Calc",
+          "evidence": "Measure 'Orphaned Tax Calc' [Sales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_expensive_dax",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_expensive_dax\\fixture.pbip",
+      "latency_ms": 1.53,
+      "peak_kb": 18.87,
+      "stats": {
+        "tables": 2,
+        "relationships": 0,
+        "measures": 2,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 1
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 99,
+          "report": 100
+        },
+        "overall": 99.7
+      },
+      "findings_count": 1,
+      "findings": [
+        {
+          "rule_id": "DAX_SUSPICIOUS_PATTERN",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 65,
+          "location": "Measure: Revenue Filtered",
+          "evidence": "Measure 'Revenue Filtered' [Sales]: FILTER(ALL(...)) \u2014 consider CALCULATE with filter arguments",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_facttofact",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_facttofact\\fixture.pbip",
+      "latency_ms": 1.41,
+      "peak_kb": 21.57,
+      "stats": {
+        "tables": 3,
+        "relationships": 1,
+        "measures": 2,
+        "calculated_columns": 0,
+        "pages": 0,
+        "visuals": 0
+      },
+      "scores": {
+        "category_scores": {
+          "model": 99,
+          "dax": 98,
+          "report": 100
+        },
+        "overall": 98.9
+      },
+      "findings_count": 3,
+      "findings": [
+        {
+          "rule_id": "MODEL_FACT_TO_FACT",
+          "category": "model",
+          "severity": "ADVISORY",
+          "confidence": 60,
+          "location": "Orders \u2192 Returns",
+          "evidence": "Orders \u2192 Returns: both tables contain measures and neither matches a dimension naming pattern.",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Total Orders",
+          "evidence": "Measure 'Total Orders' [Orders]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Total Returns",
+          "evidence": "Measure 'Total Returns' [Returns]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_highcardinality",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_highcardinality\\fixture.pbip",
+      "latency_ms": 1.4,
+      "peak_kb": 21.81,
+      "stats": {
+        "tables": 3,
+        "relationships": 1,
+        "measures": 1,
+        "calculated_columns": 0,
+        "pages": 0,
+        "visuals": 0
+      },
+      "scores": {
+        "category_scores": {
+          "model": 99,
+          "dax": 99,
+          "report": 100
+        },
+        "overall": 99.2
+      },
+      "findings_count": 2,
+      "findings": [
+        {
+          "rule_id": "MODEL_HIGH_CARDINALITY",
+          "category": "model",
+          "severity": "ADVISORY",
+          "confidence": 87,
+          "location": "Sales[TransactionCode]",
+          "evidence": "Sales[TransactionCode]: dataType=string, isUnique=True, inRelationship=False",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Total Revenue",
+          "evidence": "Measure 'Total Revenue' [Sales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_manytomany",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_manytomany\\fixture.pbip",
+      "latency_ms": 1.48,
+      "peak_kb": 20.94,
+      "stats": {
+        "tables": 3,
+        "relationships": 1,
+        "measures": 1,
+        "calculated_columns": 0,
+        "pages": 0,
+        "visuals": 0
+      },
+      "scores": {
+        "category_scores": {
+          "model": 97,
+          "dax": 99,
+          "report": 100
+        },
+        "overall": 98.4
+      },
+      "findings_count": 2,
+      "findings": [
+        {
+          "rule_id": "MODEL_MANY_TO_MANY",
+          "category": "model",
+          "severity": "WARNING",
+          "confidence": 100,
+          "location": "Sales[ProductID] \u2192 Product[ProductID]",
+          "evidence": "Sales[ProductID] \u2192 Product[ProductID], cardinality=manyToMany",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Total Revenue",
+          "evidence": "Measure 'Total Revenue' [Sales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_measure_referenced_by_another",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_measure_referenced_by_another\\fixture.pbip",
+      "latency_ms": 2.47,
+      "peak_kb": 18.8,
+      "stats": {
+        "tables": 2,
+        "relationships": 0,
+        "measures": 2,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 1
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 100,
+          "report": 100
+        },
+        "overall": 100.0
+      },
+      "findings_count": 0,
+      "findings": []
+    },
+    {
+      "project_name": "test_nodatetable",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_nodatetable\\fixture.pbip",
+      "latency_ms": 1.65,
+      "peak_kb": 19.59,
+      "stats": {
+        "tables": 2,
+        "relationships": 1,
+        "measures": 1,
+        "calculated_columns": 0,
+        "pages": 0,
+        "visuals": 0
+      },
+      "scores": {
+        "category_scores": {
+          "model": 97,
+          "dax": 99,
+          "report": 100
+        },
+        "overall": 98.4
+      },
+      "findings_count": 2,
+      "findings": [
+        {
+          "rule_id": "MODEL_NO_DATE_TABLE",
+          "category": "model",
+          "severity": "WARNING",
+          "confidence": 70,
+          "location": "",
+          "evidence": "No table is marked as a Date Table and no table matches date-dimension naming or data-category signals. Tables found: ['Sales', 'Customer']",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Total Revenue",
+          "evidence": "Measure 'Total Revenue' [Sales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_slicerbloat",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_slicerbloat\\fixture.pbip",
+      "latency_ms": 1.93,
+      "peak_kb": 25.38,
+      "stats": {
+        "tables": 2,
+        "relationships": 0,
+        "measures": 1,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 8
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 100,
+          "report": 95
+        },
+        "overall": 98.8
+      },
+      "findings_count": 1,
+      "findings": [
+        {
+          "rule_id": "REPORT_SLICER_BLOAT",
+          "category": "report",
+          "severity": "MEDIUM",
+          "confidence": 100,
+          "location": "Page: Filtered View",
+          "evidence": "Page 'Filtered View' has 7 slicers (threshold: 6).",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_suppression_absent_file",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_suppression_absent_file\\fixture.pbip",
+      "latency_ms": 1.58,
+      "peak_kb": 21.73,
+      "stats": {
+        "tables": 3,
+        "relationships": 1,
+        "measures": 2,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 1
+      },
+      "scores": {
+        "category_scores": {
+          "model": 97,
+          "dax": 98,
+          "report": 100
+        },
+        "overall": 98.1
+      },
+      "findings_count": 3,
+      "findings": [
+        {
+          "rule_id": "MODEL_BIDIRECTIONAL",
+          "category": "model",
+          "severity": "WARNING",
+          "confidence": 100,
+          "location": "FactSales[CustID] \u2194 DimCustomer[CustID]",
+          "evidence": "FactSales[CustID] \u2194 DimCustomer[CustID], crossFilterDirection=both",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_SUSPICIOUS_PATTERN",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 65,
+          "location": "Measure: Suspicious Total",
+          "evidence": "Measure 'Suspicious Total' [FactSales]: FILTER(ALL(...)) \u2014 consider CALCULATE with filter arguments",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Unused Measure",
+          "evidence": "Measure 'Unused Measure' [FactSales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_suppression_scoring",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_suppression_scoring\\fixture.pbip",
+      "latency_ms": 1.77,
+      "peak_kb": 23.73,
+      "stats": {
+        "tables": 3,
+        "relationships": 1,
+        "measures": 2,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 1
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 98,
+          "report": 100
+        },
+        "overall": 99.4
+      },
+      "findings_count": 3,
+      "findings": [
+        {
+          "rule_id": "MODEL_BIDIRECTIONAL",
+          "category": "model",
+          "severity": "WARNING",
+          "confidence": 100,
+          "location": "FactSales[CustID] \u2194 DimCustomer[CustID]",
+          "evidence": "FactSales[CustID] \u2194 DimCustomer[CustID], crossFilterDirection=both",
+          "suppressed": true,
+          "suppression_reason": "Intentional - required for cross-filtering returns dashboard."
+        },
+        {
+          "rule_id": "DAX_SUSPICIOUS_PATTERN",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 65,
+          "location": "Measure: Suspicious Total",
+          "evidence": "Measure 'Suspicious Total' [FactSales]: FILTER(ALL(...)) \u2014 consider CALCULATE with filter arguments",
+          "suppressed": false,
+          "suppression_reason": null
+        },
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Unused Measure",
+          "evidence": "Measure 'Unused Measure' [FactSales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_topology_ambiguous_path",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_topology_ambiguous_path\\fixture.pbip",
+      "latency_ms": 1.84,
+      "peak_kb": 31.57,
+      "stats": {
+        "tables": 6,
+        "relationships": 5,
+        "measures": 1,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 0
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 99,
+          "report": 100
+        },
+        "overall": 99.7
+      },
+      "findings_count": 1,
+      "findings": [
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Total Sales",
+          "evidence": "Measure 'Total Sales' [FactSales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_topology_disconnected",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_topology_disconnected\\fixture.pbip",
+      "latency_ms": 1.53,
+      "peak_kb": 23.55,
+      "stats": {
+        "tables": 4,
+        "relationships": 2,
+        "measures": 1,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 0
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 99,
+          "report": 100
+        },
+        "overall": 99.7
+      },
+      "findings_count": 1,
+      "findings": [
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Total Sales",
+          "evidence": "Measure 'Total Sales' [FactSales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_unusedmeasure",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_unusedmeasure\\fixture.pbip",
+      "latency_ms": 1.44,
+      "peak_kb": 17.65,
+      "stats": {
+        "tables": 2,
+        "relationships": 0,
+        "measures": 2,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 1
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 99,
+          "report": 100
+        },
+        "overall": 99.7
+      },
+      "findings_count": 1,
+      "findings": [
+        {
+          "rule_id": "DAX_UNUSED_MEASURE",
+          "category": "dax",
+          "severity": "ADVISORY",
+          "confidence": 95,
+          "location": "Measure: Unused Measure",
+          "evidence": "Measure 'Unused Measure' [Sales]: not referenced by any report visual and not referenced by any other measure.",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    },
+    {
+      "project_name": "test_visualbloat",
+      "path": "D:\\Projects\\Powerbi\\Power_BI_Report_Quality_&_Performance_Scanner\\tests\\golden\\test_visualbloat\\fixture.pbip",
+      "latency_ms": 2.39,
+      "peak_kb": 38.59,
+      "stats": {
+        "tables": 2,
+        "relationships": 0,
+        "measures": 1,
+        "calculated_columns": 0,
+        "pages": 1,
+        "visuals": 16
+      },
+      "scores": {
+        "category_scores": {
+          "model": 100,
+          "dax": 100,
+          "report": 95
+        },
+        "overall": 98.8
+      },
+      "findings_count": 1,
+      "findings": [
+        {
+          "rule_id": "REPORT_VISUAL_BLOAT",
+          "category": "report",
+          "severity": "MEDIUM",
+          "confidence": 100,
+          "location": "Page: Dashboard",
+          "evidence": "Page 'Dashboard' has 16 visuals (threshold: 15).",
+          "suppressed": false,
+          "suppression_reason": null
+        }
+      ]
+    }
+  ]
+}
