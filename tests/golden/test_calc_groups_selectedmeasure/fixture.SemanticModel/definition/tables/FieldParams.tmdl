@@ -1,0 +1,8 @@
+table FieldParams
+	lineageTag: 11111111-2222-3333-4444-555555555555
+
+	column Parameter = NAMEOF(Sales[Amount])
+		dataType: string
+
+	column ParameterOrder = 0
+		dataType: int64

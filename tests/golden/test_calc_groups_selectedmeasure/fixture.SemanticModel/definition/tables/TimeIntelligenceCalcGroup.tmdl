@@ -1,0 +1,14 @@
+table TimeIntelligenceCalcGroup
+	calculationGroup
+
+	column CalculationItem
+		dataType: string
+		sourceColumn: [Name]
+
+	calculationItem 'Current View' = SELECTEDMEASURE()
+
+	calculationItem 'Margin View' =
+		CALCULATE(
+			SELECTEDMEASURE(),
+			Sales[Amount] > 0
+		)
