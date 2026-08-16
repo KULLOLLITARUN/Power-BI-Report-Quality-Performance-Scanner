@@ -1,0 +1,8 @@
+relationship Auto_Rel_Active
+	fromColumn: Sales.OrderDate
+	toColumn: Calendar.Date
+
+relationship Auto_Rel_Inactive
+	isActive: false
+	fromColumn: Sales.ShipDate
+	toColumn: Calendar.Date

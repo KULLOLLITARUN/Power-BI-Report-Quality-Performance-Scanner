@@ -1,0 +1,20 @@
+table Sales
+	column Amount = 100
+		dataType: int64
+
+	column Cost = 60
+		dataType: int64
+
+	column OrderDate = "2024-01-01"
+		dataType: dateTime
+
+	column ShipDate = "2024-01-05"
+		dataType: dateTime
+
+	measure 'Base Amount' = SUM(Sales[Amount])
+	measure 'Net Amount' = [Base Amount] * 0.9
+	measure 'Net Amount YTD' = TOTALYTD([Net Amount], 'Calendar'[Date])
+	measure 'Net Amount YTD (Ship Date)' = CALCULATE([Net Amount YTD], USERELATIONSHIP('Calendar'[Date], Sales[ShipDate]))
+	measure 'Growth vs Prior Ship-Date YTD %' = DIVIDE([Net Amount YTD (Ship Date)], CALCULATE([Net Amount YTD (Ship Date)], SAMEPERIODLASTYEAR('Calendar'[Date])))
+	measure 'Raw Margin' = SUM(Sales[Amount]) - SUM(Sales[Cost])
+	measure 'UnusedKPI' = 1234

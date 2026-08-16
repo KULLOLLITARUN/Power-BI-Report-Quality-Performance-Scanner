@@ -1,0 +1,5 @@
+model Model
+	ref table Sales
+	ref table Calendar
+	ref table TimeIntelligenceCalcGroup
+	ref table FieldParams

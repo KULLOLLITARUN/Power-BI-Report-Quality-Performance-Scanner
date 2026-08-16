@@ -1,0 +1,50 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.2.0/schema.json",
+  "name": "matrixVisual",
+  "visual": {
+    "visualType": "matrix",
+    "query": {
+      "queryState": {
+        "Rows": {
+          "projections": [
+            {
+              "queryRef": "Calendar.Year",
+              "field": {
+                "Column": {
+                  "Expression": {"SourceRef": {"Entity": "Calendar"}},
+                  "Property": "Year"
+                }
+              }
+            }
+          ]
+        },
+        "Columns": {
+          "projections": [
+            {
+              "queryRef": "TimeIntelligenceCalcGroup.CalculationItem",
+              "field": {
+                "Column": {
+                  "Expression": {"SourceRef": {"Entity": "TimeIntelligenceCalcGroup"}},
+                  "Property": "CalculationItem"
+                }
+              }
+            }
+          ]
+        },
+        "Values": {
+          "projections": [
+            {
+              "queryRef": "Sales.Growth vs Prior Ship-Date YTD %",
+              "field": {
+                "Measure": {
+                  "Expression": {"SourceRef": {"Entity": "Sales"}},
+                  "Property": "Growth vs Prior Ship-Date YTD %"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
