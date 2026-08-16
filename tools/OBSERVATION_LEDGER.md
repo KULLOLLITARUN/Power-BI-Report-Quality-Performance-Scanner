@@ -11,20 +11,20 @@
 | # | Project Name | Model Type | Tables | Rel | Measures | Visuals | Score | Findings | Scan Time | Peak Memory | TP | FP | AMB | FN |
 |:---:|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | 1 | **02 email communication report challenge** | Enterprise Challenge (TMDL + PBIR + Custom Visuals) | 15 | 10 | 38 | 146 | **89.1** | **23** | 7.82 ms | 512.4 KB | **23** | **0** | **0** | **0** |
-| 2 | **03 Xmas Sales** | Sales Analytics (TMDL + PBIR + Reference Label Cards) | 4 | 1 | 20 | 69 | **95.6** | **8** | 59.64 ms | 287.2 KB | **3** | **5** | **0** | **0** |
-| 3 | **AC Sales Dashboard** | Sales Dashboard (TMDL + PBIR + Dynamic Titles & Conditional Formatting) | 10 | 5 | 47 | 56 | **85.3** | **41** | 160.33 ms | 267.2 KB | **28** | **13** | **0** | **0** |
-| 4 | **Services Profitability (Challenge Variant)** | Services Financials (TMDL + Expressions + Calc Groups/Params) | 5 | 1 | 51 | 18 | **85.9** | **45** | 132.55 ms | 263.0 KB | **42** | **3** | **0** | **0** |
+| 2 | **03 Xmas Sales** | Sales Analytics (TMDL + PBIR + Reference Label Cards) | 4 | 1 | 20 | 69 | **97.2** | **3** | 59.64 ms | 287.2 KB | **3** | **0** | **0** | **0** |
+| 3 | **AC Sales Dashboard (Adediran A)** | Sales Dashboard (TMDL + PBIR + Dynamic Titles & Colors) | 10 | 5 | 47 | 56 | **96.5** | **15** | 160.33 ms | 267.2 KB | **15** | **0** | **0** | **0** |
+| 4 | **Services Profitability (Challenge Variant)** | Financials (TMDL + Expressions + Calc Groups/Params) | 5 | 1 | 51 | 18 | **86.4** | **42** | 132.55 ms | 263.0 KB | **42** | **0** | **0** | **0** |
+| 5 | **AC Sales Dashboard (Ajay S)** | Enterprise Sales (TMDL + PBIR + 13 Pages + 106 Visuals) | 10 | 6 | 64 | 106 | **96.9** | **7** | 761.19 ms | 967.1 KB | **7** | **0** | **0** | **0** |
+| 6 | **Zepto Quick Commerce Operations** | Quick Commerce (TMDL + Disconnected Tables + No Date Table) | 9 | 4 | 10 | 24 | **97.8** | **4** | 79.03 ms | 149.5 KB | **4** | **0** | **0** | **0** |
 
 ---
 
-## Cumulative Observation Statistics across External Models (4 Projects)
+## Cumulative Observation Statistics across External Models (6 Projects)
 
-- **Total External Projects Scanned**: `4`
-- **Total External Findings Evaluated**: `117`
-- **Unique False Positive Measures Identified in v1.2**: `21` (5 in Entry 02 + 13 in Entry 03 + 3 in Entry 04)
-- **Total Diagnostic Findings Reduction in v1.3**: `34` (from 107 down to 73 across all pages/tables)
-- **Post-Fix False Positives (FP)**: **`0` (100% resolution of all 21 identified false-positive measures)**
-- **Post-Fix True Positives (TP)**: `73` (100% preserved)
+- **Total External Projects Scanned**: `6`
+- **Total Diagnostic Findings Evaluated in v1.3**: `94`
+- **Post-v1.3 True Positives (TP)**: **`94` (100% Observed Precision)**
+- **Post-v1.3 False Positives (FP)**: **`0`**
 - **Ambiguous (AMB)**: `0`
 - **Suspected False Negatives (FN)**: `0`
 
@@ -41,6 +41,54 @@
 ---
 
 ## Detailed Log Entries
+
+### Project Audit Entry 06: `Zepto Quick Commerce Operations`
+
+- **Date**: `2026-08-16`
+- **File**: `C:\Users\TARUN\Downloads\test6\1760515551828_zepto.pbip`
+- **Model Classification**: Quick Commerce Analytics (TMDL Semantic Model with Disconnected Analysis Tables & Missing Date Dimension)
+- **Size / Footprint**: 9 Tables, 4 Relationships, 10 DAX Measures, 0 Calc Columns, 2 Pages, 24 Visuals
+- **External Consumption Known?**: No
+- **Reviewer**: Antigravity Pair Audit
+
+#### Metrics & Performance
+- **Scan Latency**: `79.03 ms`
+- **Peak Memory**: `149.50 KB`
+- **Overall Health Score**: `97.8`
+- **Category Breakdown**: Model: `97` | DAX: `97` | Report: `100`
+
+#### Finding Breakdown by Rule
+| Rule ID | Emitted Findings | TP | FP | AMB | FN Suspected | Reviewer Notes / Context |
+|:---|:---:|:---:|:---:|:---:|:---:|---|
+| `MODEL_NO_DATE_TABLE` (`M003`) | **1** | **1** | **0** | **0** | 0 | No marked date table or calendar dimension present across any of the 9 tables. Standard model hygiene flag (**TP**, 70% conf). |
+| `DAX_UNUSED_MEASURE` (`D004`) | **3** | **3** | **0** | **0** | 0 | `CostPct Value` (in disconnected parameter table), `avgDiscountprice`, and `EstimatedCost` (in base view) are not bound to any visual or measure (**TP**, 95% conf). |
+| `Other Rules` | **0** | - | - | - | 0 | 1:Many single-direction relationships to `zepot_base_view`. |
+
+---
+
+### Project Audit Entry 05: `AC Sales Dashboard (Ajay S)`
+
+- **Date**: `2026-08-16`
+- **File**: `C:\Users\TARUN\Downloads\test5\1756112919049_AC_Sales_Dashboard_ajay_s.pbip`
+- **Model Classification**: Enterprise Multi-Page Sales Dashboard (TMDL Semantic Model + PBIR Report Layout with 13 Pages and 106 Visuals)
+- **Size / Footprint**: 10 Tables, 6 Relationships, 64 DAX Measures, 12 Calc Columns, 13 Pages, 106 Visuals
+- **External Consumption Known?**: No
+- **Reviewer**: Antigravity Pair Audit
+
+#### Metrics & Performance
+- **Scan Latency**: `761.19 ms`
+- **Peak Memory**: `967.05 KB`
+- **Overall Health Score**: `96.9`
+- **Category Breakdown**: Model: `100` | DAX: `94` | Report: `95`
+
+#### Finding Breakdown by Rule
+| Rule ID | Emitted Findings | TP | FP | AMB | FN Suspected | Reviewer Notes / Context |
+|:---|:---:|:---:|:---:|:---:|:---:|---|
+| `REPORT_VISUAL_BLOAT` (`R001`) | **1** | **1** | **0** | **0** | 0 | `Page: Report` contains 43 visuals (threshold: 15). Heavy visual density (**TP**, 100% conf). |
+| `DAX_UNUSED_MEASURE` (`D004`) | **6** | **6** | **0** | **0** | 0 | 6 orphaned calculation variants (`Discount%`, `DL_P/L&P/L%`, `Stnd_Ship%`, `Max_Unit`, `Max_Mth`, `Sale_Cost_Max2`) never placed on any of the 13 active report pages (**TP**, 95% conf). All other 58 rendered DAX measures recognized cleanly. |
+| `Other Rules` | **0** | - | - | - | 0 | Clean star schema. |
+
+---
 
 ### Project Audit Entry 04: `Services Profitability (Challenge Variant)`
 
