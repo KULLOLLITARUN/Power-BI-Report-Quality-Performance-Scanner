@@ -1,0 +1,6 @@
+model Model
+	ref table Sales
+	ref table DimUser
+	ref table Calendar
+
+	ref role RegionalManagerRole
