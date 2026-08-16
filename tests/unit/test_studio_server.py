@@ -61,3 +61,10 @@ class TestStudioServerApi:
         assert "current_path" in data
         assert "pbip_projects" in data
         assert len(data["pbip_projects"]) >= 1
+
+    def test_serve_spa_index_page(self, client):
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "PBIP Sentinel Studio" in response.text
+        assert "Overview" in response.text
+        assert "Semantic References" in response.text
