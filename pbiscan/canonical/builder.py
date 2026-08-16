@@ -26,6 +26,9 @@ from pbiscan.canonical.model import (
 from pbiscan.extraction.pbip_reader import RawExtraction, RawTable, RawRelationship
 
 
+from pbiscan.canonical.dax_graph import build_dax_graph
+
+
 # Cardinality string normalisation: model.bim values → canonical strings
 _CARDINALITY_MAP: dict[str, str] = {
     "manytomany":  "manyToMany",
@@ -68,6 +71,7 @@ class CanonicalBuilder:
 
         measures, calc_cols = self._build_dax(raw.tables)
         dax = DaxDictionary(measures=measures, calculated_columns=calc_cols)
+        dax_graph = build_dax_graph(dax)
 
         pages = self._build_pages(raw)
         report_dom = ReportDOM(pages=pages)
@@ -75,6 +79,7 @@ class CanonicalBuilder:
         return CanonicalReport(
             model=model,
             dax=dax,
+            dax_graph=dax_graph,
             report=report_dom,
             source_path=raw.source_path,
             report_name=raw.report_name,

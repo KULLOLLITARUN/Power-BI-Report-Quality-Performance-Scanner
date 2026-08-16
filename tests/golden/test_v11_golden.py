@@ -107,3 +107,20 @@ def test_suppression_scoring_fixture_contract():
 
     absent_path = GOLDEN_DIR / "test_suppression_absent_file" / "pbiscan.suppressions.json"
     assert not absent_path.exists(), "pbiscan.suppressions.json must NOT exist in test_suppression_absent_file"
+
+
+def test_dax_graph_multihop_pipeline_regression():
+    """Pipeline integration: Final KPI in visual -> Base Profit & Net Margin transitively reachable -> D004 == 0."""
+    result = run_pipeline("test_dax_graph_multihop")
+    unused_count = result["rule_counts"].get("DAX_UNUSED_MEASURE", 0)
+    assert unused_count == 0, (
+        f"Transitive regression failure: DAX_UNUSED_MEASURE fired {unused_count} times on multihop fixture. "
+        "Base Profit and Net Margin must be recognized as used via Final KPI."
+    )
+
+
+def test_dax_graph_cycle_pipeline_safety():
+    """Pipeline integration: Circular references must terminate cleanly without infinite loop or crash."""
+    result = run_pipeline("test_dax_graph_cycle")
+    assert result["report"] is not None
+    assert result["scores"] is not None

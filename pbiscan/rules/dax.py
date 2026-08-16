@@ -215,7 +215,7 @@ def check_unused_measures(report: CanonicalReport) -> list[RuleFinding]:
 
     A measure is considered unused ONLY when BOTH conditions are true:
       1. NOT directly used by any report visual (not in any measure_refs)
-      2. NOT referenced by any other measure (shallow cross-measure scan)
+      2. NOT referenced (directly or transitively) by any measure used in visuals
 
     This prevents false positives for base measures that are building blocks
     for higher-level measures but not directly bound to visuals.
@@ -229,16 +229,20 @@ def check_unused_measures(report: CanonicalReport) -> list[RuleFinding]:
     for page in report.report.pages:
         for visual in page.visuals:
             for ref in visual.measure_refs:
-                visual_measure_refs.add(ref.lower())
+                visual_measure_refs.add(ref)
 
-    # Build cross-measure reference map
-    referenced_by = _build_cross_measure_reference_map(report)
+    dax_graph = getattr(report, "dax_graph", None)
 
     for measure in report.dax.measures:
-        in_visual = measure.name.lower() in visual_measure_refs
-        in_measure = bool(referenced_by.get(measure.name))
+        if dax_graph and hasattr(dax_graph, "is_reachable_from_visual") and dax_graph.nodes:
+            is_used = dax_graph.is_reachable_from_visual(measure.name, visual_measure_refs)
+        else:
+            in_visual = measure.name.lower() in {r.lower() for r in visual_measure_refs}
+            referenced_by = _build_cross_measure_reference_map(report)
+            in_measure = bool(referenced_by.get(measure.name))
+            is_used = in_visual or in_measure
 
-        if not in_visual and not in_measure:
+        if not is_used:
             findings.append(RuleFinding(
                 rule_id="DAX_UNUSED_MEASURE",
                 category="dax",
