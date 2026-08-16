@@ -1,0 +1,22 @@
+table MeasureSelector
+	lineageTag: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+
+	column MeasureSelector
+		dataType: string
+		sourceColumn: [Value1]
+
+	column 'MeasureSelector Fields'
+		dataType: string
+		sourceColumn: [Value2]
+
+	column 'MeasureSelector Order'
+		dataType: int64
+		sourceColumn: [Value3]
+
+	partition MeasureSelector = calculated
+		mode: import
+		source =
+			{
+			    ("Revenue", NAMEOF('Sales'[ParameterMeasureA]), 0),
+			    ("Units", NAMEOF('Sales'[ParameterMeasureB]), 1)
+			}
