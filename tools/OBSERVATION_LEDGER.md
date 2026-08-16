@@ -26,10 +26,12 @@
 
 - **Total External Projects Scanned**: `9`
 - **Total Diagnostic Findings Evaluated in v1.3**: `97`
-- **Post-v1.3 True Positives (TP)**: **`97` (100% Observed Precision)**
+- **Post-v1.3 True Positives (TP)**: **`97` (100% Observed Empirical Precision)**
 - **Post-v1.3 False Positives (FP)**: **`0`**
 - **Ambiguous (AMB)**: `0`
 - **Suspected False Negatives (FN)**: `0`
+
+> *Note on Precision Scope: 97/97 TP represents 100% observed precision on the specific findings manually audited across these 9 external real-world models. It demonstrates that emitted findings are accurate, while negative coverage across all 10 PBIR visual surfaces is separately enforced via adversarial automated contract tests (`test_adversarial_extraction_surfaces.py`).*
 
 ### Before vs. After Extractor Fix Re-Audit Matrix
 
