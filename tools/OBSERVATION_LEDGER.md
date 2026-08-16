@@ -18,12 +18,13 @@
 | 6 | **Zepto Quick Commerce Operations** | Quick Commerce (TMDL + Disconnected Tables + No Date Table) | 9 | 4 | 10 | 24 | **97.8** | **4** | 79.03 ms | 149.5 KB | **4** | **0** | **0** | **0** |
 | 7 | **Spotify Top Tracks 2023 Dashboard** | Media & Streaming (TMDL + PBIR + Dynamic KPIs) | 3 | 1 | 9 | 21 | **98.4** | **2** | 35.45 ms | 167.4 KB | **2** | **0** | **0** | **0** |
 | 8 | **TermAid SAP Operational Report** | Operational Reporting (Legacy BIM + report.json + Flat SAP Qry) | 2 | 0 | 0 | 3 | **98.7** | **1** | 25.13 ms | 100.5 KB | **1** | **0** | **0** | **0** |
+| 9 | **Sales Analysis Migrated Dashboard** | Sales Operational (Legacy BIM + report.json + 100% Clean) | 4 | 2 | 0 | 4 | **100.0** | **0** | 25.45 ms | 141.8 KB | **0** | **0** | **0** | **0** |
 
 ---
 
-## Cumulative Observation Statistics across External Models (8 Projects)
+## Cumulative Observation Statistics across External Models (9 Projects)
 
-- **Total External Projects Scanned**: `8`
+- **Total External Projects Scanned**: `9`
 - **Total Diagnostic Findings Evaluated in v1.3**: `97`
 - **Post-v1.3 True Positives (TP)**: **`97` (100% Observed Precision)**
 - **Post-v1.3 False Positives (FP)**: **`0`**
@@ -43,6 +44,28 @@
 ---
 
 ## Detailed Log Entries
+
+### Project Audit Entry 09: `Sales Analysis Migrated Dashboard`
+
+- **Date**: `2026-08-16`
+- **File**: `C:\Users\TARUN\Downloads\sales analysis - mirgrated\sales_analysis.pbip`
+- **Model Classification**: Clean Operational Sales Reporting (Legacy `model.bim` TMSL Semantic Model + Legacy `report.json` Layout with Star Schema Orders + Date Links)
+- **Size / Footprint**: 4 Tables, 2 Relationships, 0 DAX Measures, 21 Calc Columns, 1 Page, 4 Visuals
+- **External Consumption Known?**: No
+- **Reviewer**: Antigravity Pair Audit
+
+#### Metrics & Performance
+- **Scan Latency**: `25.45 ms`
+- **Peak Memory**: `141.82 KB`
+- **Overall Health Score**: `100.0`
+- **Category Breakdown**: Model: `100` | DAX: `100` | Report: `100`
+
+#### Finding Breakdown by Rule
+| Rule ID | Emitted Findings | TP | FP | AMB | FN Suspected | Reviewer Notes / Context |
+|:---|:---:|:---:|:---:|:---:|:---:|---|
+| *All 11 Production Rules* | **0** | **0** | **0** | **0** | 0 | Clean report baseline. Relationships are single-direction star-schema links between `Orders` and local date tables. Visual density is low (4 visuals). Zero false alarms emitted (**True Negative** across all rules). |
+
+---
 
 ### Project Audit Entry 08: `TermAid SAP Operational Report`
 

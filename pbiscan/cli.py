@@ -163,12 +163,12 @@ def scan(
 
     # Banner
     if not quiet:
-        click.echo(f"\n{_colour('pbiscan', _BOLD)} {_colour(f'v{__version__}', _DIM)} — Power BI Report Quality & Performance Scanner\n")
+        click.echo(f"\n{_colour('pbiscan', _BOLD)} {_colour(f'v{__version__}', _DIM)} - Power BI Report Quality & Performance Scanner\n")
 
     # Resolve config
     config_path = config or _find_default_config()
     if not config_path:
-        click.echo("⚠  No rules.config.json found. Using built-in defaults.", err=True)
+        click.echo("WARNING: No rules.config.json found. Using built-in defaults.", err=True)
         cfg = {
             "weights": {"model": 0.35, "dax": 0.25, "report": 0.20, "security": 0.20},
             "deductions": {"CRITICAL": 15, "HIGH": 10, "MEDIUM": 5, "WARNING": 3, "ADVISORY": 1, "LOW": 2},
@@ -180,7 +180,7 @@ def scan(
             if verbose:
                 click.echo(f"  Config: {config_path}")
         except Exception as exc:
-            click.echo(f"✗ Config error: {exc}", err=True)
+            click.echo(f"[ERROR] Config error: {exc}", err=True)
             sys.exit(1)
 
     # Step 1 — Extract
@@ -191,21 +191,26 @@ def scan(
         raw = reader.read(path)
         for w in raw.warnings:
             if not quiet:
-                click.echo(f"  {_colour('⚠', _BOLD)}  {w}")
+                click.echo(f"  {_colour('[WARN]', _BOLD)}  {w}")
     except PBIScanError as exc:
-        click.echo(f"✗ {exc.error_type}: {exc}", err=True)
-        sys.exit(1)
+        click.echo(f"[ERROR] Extraction failed: {exc}", err=True)
+        sys.exit(2)
 
     # Step 2 — Build canonical model
-    builder = CanonicalBuilder()
-    report = builder.build(raw)
+    try:
+        builder = CanonicalBuilder()
+        report = builder.build(raw)
+    except PBIScanError as exc:
+        click.echo(f"[ERROR] Canonical model build failed: {exc}", err=True)
+        sys.exit(2)
 
     if not quiet:
-        n_tables = len(report.model.tables)
-        n_rels   = len(report.model.relationships)
-        n_meas   = len(report.dax.measures)
-        n_pages  = len(report.report.pages)
-        click.echo(f"  Tables: {n_tables}  Relationships: {n_rels}  Measures: {n_meas}  Pages: {n_pages}")
+        click.echo(
+            f"  Tables: {_colour(str(len(report.model.tables)), _CYAN)}  "
+            f"Relationships: {_colour(str(len(report.model.relationships)), _CYAN)}  "
+            f"Measures: {_colour(str(len(report.dax.measures)), _CYAN)}  "
+            f"Pages: {_colour(str(len(report.report.pages)), _CYAN)}"
+        )
 
     # Step 3 — Run rules
     findings = _run_rules(report, cfg)
@@ -258,7 +263,7 @@ def scan(
                 supp_str = f"  {_colour('(suppressed)', _DIM)}" if issue.suppressed else ""
                 click.echo(f"  {sev_str}{issue.rule_id}{loc_str}{supp_str}")
         else:
-            click.echo(f"  {_colour('✓ No findings', _GREEN)} — this report looks clean!")
+            click.echo(f"  {_colour('[PASS] No findings', _GREEN)} - this report looks clean!")
 
     # Step 7 — Write output file
     if out:
