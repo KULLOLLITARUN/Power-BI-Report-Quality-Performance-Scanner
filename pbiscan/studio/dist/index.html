@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,53 +8,100 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg-base: #0a0e17;
-      --bg-surface: #111827;
-      --bg-card: #1a2234;
-      --bg-card-hover: #222d44;
-      --bg-input: #0e1626;
-      --border-subtle: #243048;
-      --border-focus: #3b82f6;
-      --text-primary: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
-      --accent-gold: #f59e0b;
-      --accent-blue: #38bdf8;
-      --accent-purple: #a855f7;
-      --accent-emerald: #10b981;
-      --sev-critical: #ef4444;
-      --sev-high: #f97316;
-      --sev-medium: #eab308;
-      --sev-warning: #f59e0b;
-      --sev-advisory: #06b6d4;
-      --sev-low: #64748b;
+    /* ═════════════════════════════════════════════════════════════════════════════
+       pbiscan Studio — Dual-Theme Design Tokens (Burnt Amber / Technical Palette)
+       ═════════════════════════════════════════════════════════════════════════════ */
+    :root,
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg-canvas: #14161C;          /* Warm-shifted charcoal */
+      --bg-surface: #1B1E27;         /* Card/panel surface */
+      --bg-surface-raised: #232733;  /* Modals, menus, dropdowns */
+      --bg-code: #111318;            /* High-density code containers */
+      --border-hairline: #2C303C;    /* Crisp 1px structural lines */
+      --border-strong: #3A3F4D;      /* Emphasized boundaries */
+      --border-focus: #C88B3A;       /* Focus ring / active outline */
+      --text-primary: #E8E6E0;       /* Warm off-white */
+      --text-secondary: #A8A6A0;     /* Supporting technical text */
+      --text-muted: #6E6C68;         /* Captions, line numbers */
+      --accent: #C88B3A;             /* Burnt amber / copper */
+      --accent-muted: rgba(200, 139, 58, 0.15);
+      --accent-text: #E8B470;
+      --severity-critical: #B5453F;  /* Muted brick red */
+      --severity-critical-bg: rgba(181, 69, 63, 0.14);
+      --severity-critical-border: rgba(181, 69, 63, 0.35);
+      --severity-high: #C0623A;      /* Burnt coral */
+      --severity-high-bg: rgba(192, 98, 58, 0.14);
+      --severity-high-border: rgba(192, 98, 58, 0.35);
+      --severity-medium: #B58A3E;    /* Dark ochre */
+      --severity-medium-bg: rgba(181, 138, 62, 0.14);
+      --severity-medium-border: rgba(181, 138, 62, 0.35);
+      --severity-warning: #9C8244;   /* Muted olive-amber */
+      --severity-warning-bg: rgba(156, 130, 68, 0.14);
+      --severity-warning-border: rgba(156, 130, 68, 0.35);
+      --severity-advisory: #8A8880;  /* Neutral warm gray */
+      --severity-advisory-bg: rgba(138, 136, 128, 0.14);
+      --severity-advisory-border: rgba(138, 136, 128, 0.30);
+      --shadow-raised: 0 8px 30px rgba(0, 0, 0, 0.55);
       --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
     }
 
+    [data-theme="light"] {
+      color-scheme: light;
+      --bg-canvas: #FAF8F4;          /* Warm off-white */
+      --bg-surface: #FFFFFF;         /* Crisp panel surface */
+      --bg-surface-raised: #FFFFFF;  /* Elevated elements with subtle shadow */
+      --bg-code: #F4F1EA;            /* High-density code containers */
+      --border-hairline: #E5E2DA;    /* Crisp 1px structural lines */
+      --border-strong: #D3CFC5;      /* Emphasized boundaries */
+      --border-focus: #A8672A;       /* Focus ring / active outline */
+      --text-primary: #1E1C18;       /* Warm near-black */
+      --text-secondary: #5C5A54;     /* Supporting technical text */
+      --text-muted: #96938B;         /* Captions, line numbers */
+      --accent: #A8672A;             /* Darker copper for contrast */
+      --accent-muted: rgba(168, 103, 42, 0.12);
+      --accent-text: #8A4E1B;
+      --severity-critical: #A03E38;
+      --severity-critical-bg: rgba(160, 62, 56, 0.08);
+      --severity-critical-border: rgba(160, 62, 56, 0.25);
+      --severity-high: #A8552F;
+      --severity-high-bg: rgba(168, 85, 47, 0.08);
+      --severity-high-border: rgba(168, 85, 47, 0.25);
+      --severity-medium: #8F6B2E;
+      --severity-medium-bg: rgba(143, 107, 46, 0.08);
+      --severity-medium-border: rgba(143, 107, 46, 0.25);
+      --severity-warning: #7A6636;
+      --severity-warning-bg: rgba(122, 102, 54, 0.08);
+      --severity-warning-border: rgba(122, 102, 54, 0.25);
+      --severity-advisory: #6B6862;
+      --severity-advisory-bg: rgba(107, 104, 98, 0.08);
+      --severity-advisory-border: rgba(107, 104, 98, 0.20);
+      --shadow-raised: 0 6px 24px rgba(30, 28, 24, 0.08);
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: var(--bg-base);
+      background: var(--bg-canvas);
       color: var(--text-primary);
       font-family: var(--font-sans);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       overflow-x: hidden;
+      transition: background-color 0.15s ease, color 0.15s ease;
     }
 
     /* Scrollbars */
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: var(--bg-base); }
-    ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 4px; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-canvas); }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
     /* Header */
     header {
-      background: rgba(17, 24, 39, 0.92);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-hairline);
       padding: 0.75rem 1.5rem;
       display: flex;
       align-items: center;
@@ -76,20 +123,23 @@
     .brand-icon {
       width: 32px;
       height: 32px;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #f59e0b, #d97706);
+      border-radius: 6px;
+      background: var(--accent);
+      color: var(--bg-canvas);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+      font-family: var(--font-mono);
+      font-weight: 800;
+      font-size: 0.85rem;
     }
 
     .brand-tag {
       font-size: 0.7rem;
       padding: 2px 6px;
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      color: var(--accent-gold);
+      background: var(--accent-muted);
+      border: 1px solid var(--accent);
+      color: var(--accent-text);
       border-radius: 4px;
       font-weight: 600;
       font-family: var(--font-mono);
@@ -99,8 +149,8 @@
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      background: var(--bg-input);
-      border: 1px solid var(--border-subtle);
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-hairline);
       border-radius: 8px;
       padding: 0.4rem 0.8rem;
       max-width: 600px;
@@ -119,8 +169,8 @@
     }
 
     .btn {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
       color: var(--text-primary);
       padding: 0.45rem 0.9rem;
       border-radius: 6px;
@@ -130,17 +180,17 @@
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      transition: all 0.2s ease;
+      transition: all 0.15s ease;
     }
 
-    .btn:hover { background: var(--bg-card-hover); border-color: var(--text-muted); }
-    .btn-primary { background: #2563eb; border-color: #3b82f6; color: #fff; }
-    .btn-primary:hover { background: #1d4ed8; border-color: #60a5fa; box-shadow: 0 0 12px rgba(59, 130, 246, 0.4); }
-    .btn-gold { background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.4); color: var(--accent-gold); }
-    .btn-gold:hover { background: rgba(245, 158, 11, 0.25); border-color: var(--accent-gold); }
+    .btn:hover { background: var(--bg-surface-raised); border-color: var(--border-strong); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--bg-canvas); }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-accent { background: var(--accent-muted); border-color: var(--accent); color: var(--accent-text); }
+    .btn-accent:hover { background: var(--accent); color: var(--bg-canvas); }
     .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.74rem; }
-    .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.35); color: #f87171; }
-    .btn-danger:hover { background: rgba(239, 68, 68, 0.25); border-color: #ef4444; }
+    .btn-danger { background: var(--severity-critical-bg); border-color: var(--severity-critical-border); color: var(--severity-critical); }
+    .btn-danger:hover { background: var(--severity-critical); color: #fff; }
 
     /* Dropdown */
     .dropdown { position: relative; display: inline-block; }
@@ -150,10 +200,10 @@
       right: 0;
       top: 100%;
       margin-top: 4px;
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface-raised);
+      border: 1px solid var(--border-hairline);
       border-radius: 8px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      box-shadow: var(--shadow-raised);
       min-width: 190px;
       z-index: 200;
       overflow: hidden;
@@ -169,13 +219,13 @@
       transition: background 0.15s ease;
       cursor: pointer;
     }
-    .dropdown-content a:hover { background: var(--bg-card); color: var(--accent-gold); }
+    .dropdown-content a:hover { background: var(--bg-surface); color: var(--accent); }
     .dropdown:hover .dropdown-content { display: block; }
 
     /* Navigation Tabs */
     nav.tabs {
       background: var(--bg-surface);
-      border-bottom: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-hairline);
       display: flex;
       gap: 0.25rem;
       padding: 0 1.5rem;
@@ -194,15 +244,16 @@
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      transition: all 0.2s ease;
+      transition: all 0.15s ease;
       white-space: nowrap;
     }
 
     .tab-btn:hover { color: var(--text-primary); }
-    .tab-btn.active { color: var(--accent-gold); border-bottom-color: var(--accent-gold); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
     .tab-badge {
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-hairline);
       padding: 2px 7px;
       border-radius: 10px;
       font-size: 0.72rem;
@@ -219,10 +270,10 @@
     }
 
     .tab-pane { display: none; }
-    .tab-pane.active { display: block; animation: fadeIn 0.25s ease-out; }
+    .tab-pane.active { display: block; animation: fadeIn 0.2s ease-out; }
 
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
+      from { opacity: 0; transform: translateY(3px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
@@ -232,15 +283,15 @@
 
     /* Cards */
     .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      border-radius: 10px;
       padding: 1.25rem;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
 
     .card-title {
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       font-weight: 700;
       color: var(--text-secondary);
       text-transform: uppercase;
@@ -269,27 +320,25 @@
       font-size: 2.1rem;
       font-weight: 800;
       font-family: var(--font-mono);
-      box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.5);
+      border: 3px solid var(--accent);
+      color: var(--accent);
+      background: var(--accent-muted);
     }
-
-    .score-good { background: radial-gradient(circle, #064e3b 0%, #022c22 100%); border: 3px solid var(--accent-emerald); color: var(--accent-emerald); }
-    .score-warn { background: radial-gradient(circle, #78350f 0%, #451a03 100%); border: 3px solid var(--sev-warning); color: var(--sev-warning); }
-    .score-bad { background: radial-gradient(circle, #7f1d1d 0%, #450a0a 100%); border: 3px solid var(--sev-critical); color: var(--sev-critical); }
 
     .category-bars { flex: 1; display: flex; flex-direction: column; gap: 0.6rem; }
     .cat-row { display: flex; align-items: center; gap: 0.75rem; font-size: 0.82rem; }
     .cat-name { width: 60px; color: var(--text-secondary); font-weight: 600; }
-    .cat-bar-bg { flex: 1; height: 8px; background: rgba(255, 255, 255, 0.06); border-radius: 4px; overflow: hidden; }
-    .cat-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+    .cat-bar-bg { flex: 1; height: 8px; background: var(--bg-canvas); border: 1px solid var(--border-hairline); border-radius: 4px; overflow: hidden; }
+    .cat-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
     .cat-score { width: 35px; font-family: var(--font-mono); text-align: right; font-weight: 700; }
 
-    /* Severity Badges */
+    /* Severity Badges (Original Technical Palette) */
     .sev-badge {
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
       padding: 3px 8px;
-      border-radius: 6px;
+      border-radius: 5px;
       font-size: 0.72rem;
       font-weight: 700;
       font-family: var(--font-mono);
@@ -297,30 +346,30 @@
       letter-spacing: 0.04em;
     }
 
-    .sev-critical { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-    .sev-high { background: rgba(249, 115, 22, 0.15); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.3); }
-    .sev-medium { background: rgba(234, 179, 8, 0.15); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.3); }
-    .sev-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-    .sev-advisory { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.3); }
+    .sev-critical { background: var(--severity-critical-bg); color: var(--severity-critical); border: 1px solid var(--severity-critical-border); }
+    .sev-high { background: var(--severity-high-bg); color: var(--severity-high); border: 1px solid var(--severity-high-border); }
+    .sev-medium { background: var(--severity-medium-bg); color: var(--severity-medium); border: 1px solid var(--severity-medium-border); }
+    .sev-warning { background: var(--severity-warning-bg); color: var(--severity-warning); border: 1px solid var(--severity-warning-border); }
+    .sev-advisory { background: var(--severity-advisory-bg); color: var(--severity-advisory); border: 1px solid var(--severity-advisory-border); }
 
     /* Findings List */
     .finding-card {
       background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      margin-bottom: 0.9rem;
+      border: 1px solid var(--border-hairline);
+      border-radius: 8px;
+      margin-bottom: 0.85rem;
       overflow: hidden;
-      transition: border-color 0.2s ease, transform 0.15s ease;
+      transition: border-color 0.15s ease;
     }
 
-    .finding-card:hover { border-color: var(--border-focus); transform: translateY(-1px); }
+    .finding-card:hover { border-color: var(--border-focus); }
     .finding-header {
-      padding: 0.9rem 1.25rem;
+      padding: 0.85rem 1.15rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
       cursor: pointer;
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--bg-surface);
     }
 
     .finding-title-group {
@@ -343,21 +392,21 @@
     }
 
     .finding-body {
-      padding: 1.25rem;
-      border-top: 1px solid var(--border-subtle);
-      background: var(--bg-card);
+      padding: 1.15rem;
+      border-top: 1px solid var(--border-hairline);
+      background: var(--bg-canvas);
       font-size: 0.85rem;
       line-height: 1.5;
     }
 
     .evidence-box {
-      background: var(--bg-input);
-      border: 1px solid var(--border-subtle);
+      background: var(--bg-code);
+      border: 1px solid var(--border-hairline);
       border-radius: 6px;
       padding: 0.75rem;
       font-family: var(--font-mono);
       font-size: 0.8rem;
-      color: #38bdf8;
+      color: var(--accent-text);
       margin: 0.5rem 0;
       white-space: pre-wrap;
       word-break: break-all;
@@ -368,31 +417,31 @@
       position: absolute;
       top: 6px;
       right: 6px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
       color: var(--text-secondary);
       padding: 2px 8px;
       border-radius: 4px;
       font-size: 0.7rem;
       cursor: pointer;
     }
-    .evidence-box .copy-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+    .evidence-box .copy-btn:hover { color: var(--text-primary); border-color: var(--border-strong); }
 
     .finding-actions {
       display: flex;
       gap: 0.5rem;
       margin-top: 0.85rem;
       padding-top: 0.75rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      border-top: 1px solid var(--border-hairline);
     }
 
     /* DAG Canvas */
     .dag-container {
       height: 640px;
       position: relative;
-      background: var(--bg-input);
-      border: 1px solid var(--border-subtle);
-      border-radius: 12px;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-hairline);
+      border-radius: 10px;
       overflow: hidden;
       display: flex;
     }
@@ -410,18 +459,18 @@
       left: 1rem;
       display: flex;
       gap: 0.5rem;
-      background: rgba(17, 24, 39, 0.88);
-      backdrop-filter: blur(8px);
-      padding: 0.45rem;
-      border-radius: 8px;
-      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      padding: 0.4rem;
+      border-radius: 6px;
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--shadow-raised);
       z-index: 10;
     }
 
     .dag-sidebar {
       width: 380px;
       background: var(--bg-surface);
-      border-left: 1px solid var(--border-subtle);
+      border-left: 1px solid var(--border-hairline);
       padding: 1.25rem;
       overflow-y: auto;
     }
@@ -436,20 +485,20 @@
     table.data-table th {
       text-align: left;
       padding: 0.65rem 0.85rem;
-      background: var(--bg-surface);
+      background: var(--bg-surface-raised);
       color: var(--text-secondary);
       font-weight: 600;
-      border-bottom: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-hairline);
     }
 
     table.data-table td {
       padding: 0.65rem 0.85rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid var(--border-hairline);
       color: var(--text-primary);
     }
 
     table.data-table tr:hover td {
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--bg-surface-raised);
     }
 
     /* Filters */
@@ -462,8 +511,8 @@
     }
 
     .filter-input {
-      background: var(--bg-input);
-      border: 1px solid var(--border-subtle);
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-hairline);
       color: var(--text-primary);
       padding: 0.45rem 0.8rem;
       border-radius: 6px;
@@ -478,8 +527,8 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(6px);
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
       z-index: 1000;
       align-items: center;
       justify-content: center;
@@ -487,15 +536,15 @@
     .modal-overlay.active { display: flex; }
 
     .modal-content {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: 12px;
+      background: var(--bg-surface-raised);
+      border: 1px solid var(--border-hairline);
+      border-radius: 10px;
       width: 90%;
       max-width: 680px;
       max-height: 85vh;
       overflow-y: auto;
       padding: 1.5rem;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      box-shadow: var(--shadow-raised);
     }
 
     .modal-header {
@@ -503,7 +552,7 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 1rem;
-      border-bottom: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-hairline);
       padding-bottom: 0.75rem;
     }
 
@@ -525,13 +574,13 @@
     }
 
     .toast {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface-raised);
+      border: 1px solid var(--border-hairline);
       color: var(--text-primary);
       padding: 0.75rem 1.1rem;
-      border-radius: 8px;
+      border-radius: 6px;
       font-size: 0.84rem;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      box-shadow: var(--shadow-raised);
       display: flex;
       align-items: center;
       gap: 0.6rem;
@@ -549,11 +598,13 @@
   <!-- Top Header -->
   <header>
     <div class="brand">
-      <div class="brand-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      <div class="brand-icon">PS</div>
+      <div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span>PBIP Sentinel <span style="font-weight:400; color:var(--text-secondary)">Studio</span></span>
+          <span class="brand-tag">v1.4.0</span>
+        </div>
       </div>
-      <span>PBIP Sentinel <span style="font-weight:400; color:var(--text-secondary)">Studio</span></span>
-      <span class="brand-tag">v1.4.0</span>
     </div>
 
     <div class="project-bar">
@@ -563,14 +614,21 @@
       <button class="btn btn-primary" onclick="rescanProject()">Rescan</button>
     </div>
 
-    <!-- Export Dropdown -->
-    <div class="dropdown">
-      <button class="btn btn-gold">Export Audit ▼</button>
-      <div class="dropdown-content">
-        <a onclick="downloadReport('html')">📄 HTML Audit Report</a>
-        <a onclick="downloadReport('sarif')">🛡️ SARIF (GitHub CodeScan)</a>
-        <a onclick="downloadReport('junit')">🧪 JUnit XML (Azure DevOps)</a>
-        <a onclick="downloadReport('json')">📦 Raw JSON Export</a>
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <!-- Theme Switcher Button -->
+      <button class="btn" id="theme-btn" onclick="toggleTheme()" title="Toggle Light / Dark Theme">
+        <span id="theme-icon">☀️</span> <span id="theme-label">Light</span>
+      </button>
+
+      <!-- Export Dropdown -->
+      <div class="dropdown">
+        <button class="btn btn-accent">Export Audit ▼</button>
+        <div class="dropdown-content">
+          <a onclick="downloadReport('html')">📄 HTML Audit Report</a>
+          <a onclick="downloadReport('sarif')">🛡️ SARIF (GitHub CodeScan)</a>
+          <a onclick="downloadReport('junit')">🧪 JUnit XML (Azure DevOps)</a>
+          <a onclick="downloadReport('json')">📦 Raw JSON Export</a>
+        </div>
       </div>
     </div>
   </header>
@@ -607,21 +665,21 @@
         <div class="card" style="grid-column: span 2;">
           <div class="card-title">Report Health Score</div>
           <div class="score-display">
-            <div class="score-circle score-good" id="gauge-score">100</div>
+            <div class="score-circle" id="gauge-score">100</div>
             <div class="category-bars">
               <div class="cat-row">
                 <span class="cat-name">Model</span>
-                <div class="cat-bar-bg"><div class="cat-bar-fill" id="bar-model" style="width:100%; background:var(--accent-emerald);"></div></div>
+                <div class="cat-bar-bg"><div class="cat-bar-fill" id="bar-model" style="width:100%; background:var(--accent);"></div></div>
                 <span class="cat-score" id="score-model">100</span>
               </div>
               <div class="cat-row">
                 <span class="cat-name">DAX</span>
-                <div class="cat-bar-bg"><div class="cat-bar-fill" id="bar-dax" style="width:100%; background:var(--accent-blue);"></div></div>
+                <div class="cat-bar-bg"><div class="cat-bar-fill" id="bar-dax" style="width:100%; background:var(--severity-high);"></div></div>
                 <span class="cat-score" id="score-dax">100</span>
               </div>
               <div class="cat-row">
                 <span class="cat-name">Report</span>
-                <div class="cat-bar-bg"><div class="cat-bar-fill" id="bar-report" style="width:100%; background:var(--accent-purple);"></div></div>
+                <div class="cat-bar-bg"><div class="cat-bar-fill" id="bar-report" style="width:100%; background:var(--severity-medium);"></div></div>
                 <span class="cat-score" id="score-report">100</span>
               </div>
             </div>
@@ -648,7 +706,7 @@
             <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">Relationships <span id="sum-rels" style="color:var(--text-primary); font-weight:700;">0</span></div>
             <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">Measures <span id="sum-measures" style="color:var(--text-primary); font-weight:700;">0</span></div>
             <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">Pages / Visuals <span id="sum-pages-visuals" style="color:var(--text-primary); font-weight:700;">0 / 0</span></div>
-            <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">Active Roots <span id="sum-roots" style="color:var(--accent-gold); font-weight:700;">0</span></div>
+            <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">Active Roots <span id="sum-roots" style="color:var(--accent); font-weight:700;">0</span></div>
           </div>
         </div>
       </div>
@@ -776,11 +834,11 @@
   <div class="modal-overlay" id="suppress-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>Suppress Finding (.pbiscanignore)</h3>
+        <h3>Suppress Finding (pbiscan.suppressions.json)</h3>
         <button class="btn btn-sm" onclick="closeSuppressModal()">✕</button>
       </div>
       <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.75rem;">
-        This will add an entry to your project's <code style="color:var(--accent-gold);">.pbiscanignore</code> file so this finding is ignored in subsequent CLI and CI/CD quality gates.
+        This will add an entry to your project's <code style="color:var(--accent);">pbiscan.suppressions.json</code> file so this finding is ignored in subsequent CLI and CI/CD quality gates.
       </p>
       <div style="margin-bottom:0.75rem;">
         <label style="font-size:0.78rem; color:var(--text-muted); display:block; margin-bottom:4px;">Rule & Location:</label>
@@ -813,6 +871,36 @@
     let selectedDagNode = null;
     let activeSuppressData = null;
 
+    // Theme Management (Light / Dark)
+    function initTheme() {
+      const storedTheme = localStorage.getItem('pbiscan_theme') || 'dark';
+      setTheme(storedTheme);
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      setTheme(next);
+      showToast(`Switched to ${next} theme`);
+    }
+
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('pbiscan_theme', theme);
+      const icon = document.getElementById('theme-icon');
+      const label = document.getElementById('theme-label');
+      if (icon && label) {
+        if (theme === 'dark') {
+          icon.innerText = '☀️';
+          label.innerText = 'Light';
+        } else {
+          icon.innerText = '🌙';
+          label.innerText = 'Dark';
+        }
+      }
+      if (window.drawDag) drawDag();
+    }
+
     // Toast Notification System
     function showToast(msg, icon = '✓') {
       const box = document.getElementById('toast-box');
@@ -830,6 +918,7 @@
 
     // Load on init
     window.addEventListener('DOMContentLoaded', () => {
+      initTheme();
       const urlParams = new URLSearchParams(window.location.search);
       const targetPath = urlParams.get('path') || '.';
       loadScan(targetPath);
@@ -947,7 +1036,7 @@
         });
         const data = await resp.json();
         closeSuppressModal();
-        showToast(`Suppression saved to .pbiscanignore`);
+        showToast(`Suppression saved to pbiscan.suppressions.json`);
         rescanProject();
       } catch (err) {
         alert('Suppression failed: ' + err);
@@ -1021,7 +1110,6 @@ table Sales
       const overall = scanData.scores.overall;
       const gauge = document.getElementById('gauge-score');
       gauge.innerText = Math.round(overall);
-      gauge.className = 'score-circle ' + (overall >= 90 ? 'score-good' : overall >= 75 ? 'score-warn' : 'score-bad');
 
       const catScores = scanData.scores.category_scores || {};
       document.getElementById('score-model').innerText = Math.round(catScores.model || 100);
@@ -1108,9 +1196,9 @@ table Sales
               ${f.evidence}
             </div>
             <p style="margin-top:0.4rem;"><strong>Impact:</strong> ${f.impact}</p>
-            <p style="margin-top:0.4rem; color:var(--accent-emerald);"><strong>Recommendation:</strong> ${f.recommendation}</p>
+            <p style="margin-top:0.4rem; color:var(--accent);"><strong>Recommendation:</strong> ${f.recommendation}</p>
             <div class="finding-actions">
-              <button class="btn btn-sm btn-gold" onclick="showRemediationModal('${f.rule_id}', '${f.location || ''}', '${safeEv}')">⚡ Preview Remediation</button>
+              <button class="btn btn-sm btn-accent" onclick="showRemediationModal('${f.rule_id}', '${f.location || ''}', '${safeEv}')">⚡ Preview Remediation</button>
               ${!f.suppressed ? `<button class="btn btn-sm btn-danger" onclick="promptSuppression('${f.rule_id}', '${f.location || ''}')">🚫 Suppress Finding</button>` : ''}
             </div>
           </div>
@@ -1140,21 +1228,21 @@ table Sales
       });
 
       tContainer.innerHTML = filteredTables.map(t => `
-        <div style="margin-bottom:1rem; padding:0.75rem; background:var(--bg-input); border-radius:8px; border:1px solid var(--border-subtle);">
+        <div style="margin-bottom:1rem; padding:0.75rem; background:var(--bg-canvas); border-radius:6px; border:1px solid var(--border-hairline);">
           <div style="display:flex; justify-content:space-between; font-weight:700; margin-bottom:0.4rem;">
-            <span>📁 ${t.name} ${t.is_date_table ? '<span class="tab-badge" style="color:var(--accent-emerald);">📅 Marked Date</span>' : ''}</span>
+            <span>📁 ${t.name} ${t.is_date_table ? '<span class="tab-badge" style="color:var(--accent);">📅 Marked Date</span>' : ''}</span>
             <span style="font-size:0.75rem; color:var(--text-muted);">${t.column_count} cols | ${t.measures_count} measures</span>
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:4px;">
-            ${t.columns.map(c => `<span style="font-size:0.72rem; padding:2px 6px; background:rgba(255,255,255,0.05); border-radius:4px; font-family:var(--font-mono);">${c.name} <span style="color:var(--text-muted);">${c.data_type}</span></span>`).join('')}
+            ${t.columns.map(c => `<span style="font-size:0.72rem; padding:2px 6px; background:var(--bg-surface-raised); border:1px solid var(--border-hairline); border-radius:4px; font-family:var(--font-mono);">${c.name} <span style="color:var(--text-muted);">${c.data_type}</span></span>`).join('')}
           </div>
         </div>
       `).join('');
 
       const rContainer = document.getElementById('model-rels-list');
       rContainer.innerHTML = scanData.relationships.map(r => `
-        <div style="margin-bottom:0.75rem; padding:0.75rem; background:var(--bg-input); border-radius:8px; border:1px solid var(--border-subtle); font-size:0.84rem;">
-          <div style="font-weight:700; color:var(--accent-blue);">${r.from_table}[${r.from_column}] ${r.cross_filter_direction === 'Both' ? '↔' : '→'} ${r.to_table}[${r.to_column}]</div>
+        <div style="margin-bottom:0.75rem; padding:0.75rem; background:var(--bg-canvas); border-radius:6px; border:1px solid var(--border-hairline); font-size:0.84rem;">
+          <div style="font-weight:700; color:var(--accent);">${r.from_table}[${r.from_column}] ${r.cross_filter_direction === 'Both' ? '↔' : '→'} ${r.to_table}[${r.to_column}]</div>
           <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:4px;">Cardinality: ${r.cardinality} | Filter: ${r.cross_filter_direction} | Active: ${r.is_active}</div>
         </div>
       `).join('');
@@ -1174,8 +1262,8 @@ table Sales
         <tr>
           <td style="font-weight:700; font-family:var(--font-mono); color:var(--text-primary);">${r.target_name}</td>
           <td><span class="sev-badge sev-advisory">${r.source_type}</span></td>
-          <td style="font-family:var(--font-mono); color:var(--accent-blue);">${r.source_object}</td>
-          <td>${r.activates_root ? '<span style="color:var(--accent-emerald); font-weight:700;">✓ Active Root</span>' : '<span style="color:var(--text-muted);">Transitive</span>'}</td>
+          <td style="font-family:var(--font-mono); color:var(--accent);">${r.source_object}</td>
+          <td>${r.activates_root ? '<span style="color:var(--accent); font-weight:700;">✓ Active Root</span>' : '<span style="color:var(--text-muted);">Transitive</span>'}</td>
           <td style="color:var(--text-muted); font-size:0.75rem;">${r.source_file}</td>
         </tr>
       `).join('');
@@ -1187,7 +1275,7 @@ table Sales
       container.innerHTML = scanData.pages.map(p => {
         const isBloat = p.visual_count > 15 || p.slicer_count > 6;
         return `
-          <div class="card" style="border-color:${isBloat ? 'var(--sev-warning)' : 'var(--border-subtle)'};">
+          <div class="card" style="border-color:${isBloat ? 'var(--severity-warning-border)' : 'var(--border-hairline)'};">
             <div class="card-title">
               <span>📄 ${p.display_name}</span>
               ${isBloat ? '<span class="sev-badge sev-warning">Bloat Warning</span>' : ''}
@@ -1198,7 +1286,7 @@ table Sales
             </div>
             <div style="margin-top:0.75rem; font-size:0.75rem; color:var(--text-muted);">
               ${p.visuals.map(v => `<div style="padding:2px 0;">• ${v.visual_type} (${v.measure_refs.length} measures)</div>`).slice(0, 5).join('')}
-              ${p.visuals.length > 5 ? `<div style="color:var(--accent-blue); margin-top:2px;">+ ${p.visuals.length - 5} more visuals</div>` : ''}
+              ${p.visuals.length > 5 ? `<div style="color:var(--accent); margin-top:2px;">+ ${p.visuals.length - 5} more visuals</div>` : ''}
             </div>
           </div>
         `;
@@ -1236,7 +1324,7 @@ table Sales
           x: 100 + col * 220,
           y: 80 + row * 120,
           radius: 35,
-          color: (scanData.semantic_references.active_roots.includes(n.name)) ? '#10b981' : (n.referenced_by.length === 0 ? '#ef4444' : '#38bdf8')
+          color: (scanData.semantic_references.active_roots.includes(n.name)) ? '#C88B3A' : (n.referenced_by.length === 0 ? '#B5453F' : '#8A8880')
         };
       });
 
@@ -1251,6 +1339,7 @@ table Sales
 
     function drawDag() {
       if (!ctx) return;
+      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
       ctx.translate(panX, panY);
@@ -1263,7 +1352,7 @@ table Sales
         const tgt = dagNodes.find(n => n.id.toLowerCase() === e.target.toLowerCase());
         if (src && tgt) {
           const isHighlight = selectedDagNode && (selectedDagNode.id === src.id || selectedDagNode.id === tgt.id || selectedDagNode.references.includes(tgt.id));
-          ctx.strokeStyle = isHighlight ? '#f59e0b' : 'rgba(255,255,255,0.15)';
+          ctx.strokeStyle = isHighlight ? '#C88B3A' : (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)');
           ctx.lineWidth = isHighlight ? 2.5 : 1.5;
           ctx.beginPath();
           ctx.moveTo(src.x, src.y);
@@ -1275,21 +1364,21 @@ table Sales
       // Draw Nodes
       dagNodes.forEach(n => {
         const isSel = selectedDagNode && selectedDagNode.id === n.id;
-        ctx.fillStyle = isSel ? '#f59e0b' : '#1e293b';
+        ctx.fillStyle = isSel ? '#C88B3A' : (isDark ? '#1B1E27' : '#FFFFFF');
         ctx.strokeStyle = n.color;
         ctx.lineWidth = isSel ? 3 : 2;
 
         ctx.beginPath();
-        ctx.roundRect(n.x - 75, n.y - 25, 150, 50, 8);
+        ctx.roundRect(n.x - 75, n.y - 25, 150, 50, 6);
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = '#f1f5f9';
+        ctx.fillStyle = isSel ? '#14161C' : (isDark ? '#E8E6E0' : '#1E1C18');
         ctx.font = 'bold 11px Inter, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(n.id.length > 18 ? n.id.substring(0, 16) + '..' : n.id, n.x, n.y - 2);
 
-        ctx.fillStyle = '#94a3b8';
+        ctx.fillStyle = isSel ? '#14161C' : (isDark ? '#A8A6A0' : '#5C5A54');
         ctx.font = '10px Inter, sans-serif';
         ctx.fillText(n.table, n.x, n.y + 14);
       });
@@ -1356,7 +1445,7 @@ table Sales
           <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">${n.referenced_by.join(', ') || 'None (Unreferenced Root)'}</div>
         </div>
         <div style="margin-top:1rem;">
-          <button class="btn btn-sm btn-gold" onclick="showRemediationModal('DAX_UNUSED_MEASURE', 'Measure: ${n.id}', '${n.id}')">⚡ Fix / Drop Measure</button>
+          <button class="btn btn-sm btn-accent" onclick="showRemediationModal('DAX_UNUSED_MEASURE', 'Measure: ${n.id}', '${n.id}')">⚡ Fix / Drop Measure</button>
         </div>
       `;
     }
