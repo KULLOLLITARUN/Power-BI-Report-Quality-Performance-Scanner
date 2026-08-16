@@ -1,0 +1,27 @@
+table Sales
+	column OrderDate
+		dataType: dateTime
+		sourceColumn: OrderDate
+
+	column CustomerID
+		dataType: string
+		sourceColumn: CustomerID
+
+	column Amount
+		dataType: int64
+		sourceColumn: Amount
+
+	measure TotalSales = SUM(Sales[Amount])
+	measure UserSecurityHash = 128
+	measure CurrentUserRegion = IF(USERPRINCIPALNAME() = "admin@co.com", "East", "West")
+	measure IsUserAuthorizedRegion = IF([CurrentUserRegion] = "East" && [UserSecurityHash] > 0, 1, 0)
+	measure ComplianceFlagMeasure = IF(USEROBJECTID() = "0000-1111", 1, 0)
+	measure UnusedKPI = 9999
+
+	partition Sales = m
+		mode: import
+		source =
+			let
+			    Source = #table({"OrderDate", "CustomerID", "Amount"}, {})
+			in
+			    Source

@@ -1,0 +1,6 @@
+role RegionalManagerRole
+	modelPermission: read
+
+	tablePermission Sales = [IsUserAuthorizedRegion] == 1 || [TotalSales] > 0
+
+	tablePermission DimCustomer = [Segment] == "Enterprise"

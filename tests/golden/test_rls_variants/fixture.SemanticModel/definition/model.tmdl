@@ -1,0 +1,8 @@
+model Model
+	ref table Sales
+	ref table DimCustomer
+	ref table DimUser
+	ref table DimDate
+
+	ref role RegionalManagerRole
+	ref role ComplianceOfficerRole

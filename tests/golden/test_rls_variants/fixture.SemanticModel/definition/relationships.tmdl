@@ -1,0 +1,7 @@
+relationship Rel_Customer_Sales
+	fromColumn: Sales.CustomerID
+	toColumn: DimCustomer.CustomerID
+
+relationship Rel_Date_Sales
+	fromColumn: Sales.OrderDate
+	toColumn: DimDate.Date

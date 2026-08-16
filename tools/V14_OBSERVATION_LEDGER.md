@@ -53,6 +53,7 @@ v1.4 Promotion Viability: [High / Medium / Low / Deferred]
 | **17** | **Diamond Topology & Bridge Fixture** (`test_enterprise_diamond_topology`) | `DOM-06` (Diamond Paths & Bridge Tables) | **2** | **2** | **0** | **0** | **0** | **CLEAN PASS** (No defect candidate required) |
 | **18** | **Calc Group Variants Fixture** (`test_calc_group_variants`) | `DOM-01` (Precedence, `ISSELECTEDMEASURE`, Calc Item DAX) | **4** | **2** | **2** | **0** | **0** | `V14-CAND-01-VAR` (Calc Item DAX & Introspection) |
 | **19** | **Field Parameter Variants Fixture** (`test_field_parameter_variants`) | `DOM-02` (Mixed Params, 4-Tuples, Slicer Only, Cascading) | **7** | **2** | **5** | **0** | **0** | `V14-CAND-02-VAR` (Field Param Cascading Lineage) |
+| **20** | **RLS Structural Variants Fixture** (`test_rls_variants`) | `DOM-03` (Multi-Role, Multi-Table, Cascading Security) | **5** | **1** | **4** | **0** | **0** | `V14-CAND-03-VAR` (RLS Filter Cascading Lineage) |
 
 ---
 
