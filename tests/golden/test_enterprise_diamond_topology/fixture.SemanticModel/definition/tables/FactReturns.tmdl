@@ -1,0 +1,20 @@
+table FactReturns
+	column ReturnDate
+		dataType: dateTime
+		sourceColumn: ReturnDate
+
+	column CustomerID
+		dataType: string
+		sourceColumn: CustomerID
+
+	column RefundAmount
+		dataType: int64
+		sourceColumn: RefundAmount
+
+	partition FactReturns = m
+		mode: import
+		source =
+			let
+			    Source = #table({"ReturnDate", "CustomerID", "RefundAmount"}, {})
+			in
+			    Source

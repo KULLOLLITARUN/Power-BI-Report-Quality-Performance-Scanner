@@ -1,0 +1,72 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.2.0/schema.json",
+  "name": "enterpriseSummaryVisual",
+  "visual": {
+    "visualType": "lineAndStackedColumnComboChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "queryRef": "DimDate.Year",
+              "field": {
+                "Column": {
+                  "Expression": {"SourceRef": {"Entity": "DimDate"}},
+                  "Property": "Year"
+                }
+              }
+            }
+          ]
+        },
+        "Series": {
+          "projections": [
+            {
+              "queryRef": "DimManager.ManagerName",
+              "field": {
+                "Column": {
+                  "Expression": {"SourceRef": {"Entity": "DimManager"}},
+                  "Property": "ManagerName"
+                }
+              }
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "queryRef": "FactSales.NetSales",
+              "field": {
+                "Measure": {
+                  "Expression": {"SourceRef": {"Entity": "FactSales"}},
+                  "Property": "NetSales"
+                }
+              }
+            },
+            {
+              "queryRef": "FactSales.RegionalPerformance",
+              "field": {
+                "Measure": {
+                  "Expression": {"SourceRef": {"Entity": "FactSales"}},
+                  "Property": "RegionalPerformance"
+                }
+              }
+            }
+          ]
+        },
+        "Y2": {
+          "projections": [
+            {
+              "queryRef": "FactSales.ReturnRate",
+              "field": {
+                "Measure": {
+                  "Expression": {"SourceRef": {"Entity": "FactSales"}},
+                  "Property": "ReturnRate"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

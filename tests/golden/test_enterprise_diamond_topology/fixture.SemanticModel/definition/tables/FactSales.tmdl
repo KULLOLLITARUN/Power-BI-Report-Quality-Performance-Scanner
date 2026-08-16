@@ -1,0 +1,30 @@
+table FactSales
+	column OrderDate
+		dataType: dateTime
+		sourceColumn: OrderDate
+
+	column ShipDate
+		dataType: dateTime
+		sourceColumn: ShipDate
+
+	column CustomerID
+		dataType: string
+		sourceColumn: CustomerID
+
+	column Amount
+		dataType: int64
+		sourceColumn: Amount
+
+	measure NetSales = SUM(FactSales[Amount]) - SUM(FactReturns[RefundAmount])
+	measure ReturnRate = DIVIDE(SUM(FactReturns[RefundAmount]), SUM(FactSales[Amount]))
+	measure ShipDateSales = CALCULATE(SUM(FactSales[Amount]), USERELATIONSHIP(DimDate[Date], FactSales[ShipDate]))
+	measure RegionalPerformance = CALCULATE([NetSales], DimManager[Tier] = "Senior")
+	measure UnusedTopologyKPI = 8888
+
+	partition FactSales = m
+		mode: import
+		source =
+			let
+			    Source = #table({"OrderDate", "ShipDate", "CustomerID", "Amount"}, {})
+			in
+			    Source

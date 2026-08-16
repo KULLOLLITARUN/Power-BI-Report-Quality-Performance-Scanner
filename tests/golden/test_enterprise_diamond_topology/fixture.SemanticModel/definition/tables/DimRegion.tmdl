@@ -1,0 +1,17 @@
+table DimRegion
+	column RegionID
+		dataType: string
+		sourceColumn: RegionID
+		isKey
+
+	column ManagerID
+		dataType: string
+		sourceColumn: ManagerID
+
+	partition DimRegion = m
+		mode: import
+		source =
+			let
+			    Source = #table({"RegionID", "ManagerID"}, {})
+			in
+			    Source
