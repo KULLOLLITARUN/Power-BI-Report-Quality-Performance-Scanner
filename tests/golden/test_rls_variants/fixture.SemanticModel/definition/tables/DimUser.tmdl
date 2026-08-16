@@ -1,0 +1,17 @@
+table DimUser
+	column Email
+		dataType: string
+		sourceColumn: Email
+		isKey
+
+	column Tier
+		dataType: string
+		sourceColumn: Tier
+
+	partition DimUser = m
+		mode: import
+		source =
+			let
+			    Source = #table({"Email", "Tier"}, {})
+			in
+			    Source

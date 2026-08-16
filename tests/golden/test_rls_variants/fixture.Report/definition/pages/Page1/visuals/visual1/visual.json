@@ -1,0 +1,37 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.2.0/schema.json",
+  "name": "salesBySegmentChart",
+  "visual": {
+    "visualType": "clusteredBarChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "queryRef": "DimCustomer.Segment",
+              "field": {
+                "Column": {
+                  "Expression": {"SourceRef": {"Entity": "DimCustomer"}},
+                  "Property": "Segment"
+                }
+              }
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "queryRef": "Sales.TotalSales",
+              "field": {
+                "Measure": {
+                  "Expression": {"SourceRef": {"Entity": "Sales"}},
+                  "Property": "TotalSales"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

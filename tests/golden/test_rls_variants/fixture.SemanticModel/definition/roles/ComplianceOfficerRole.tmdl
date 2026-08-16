@@ -1,0 +1,6 @@
+role ComplianceOfficerRole
+	modelPermission: read
+
+	tablePermission Sales = [ComplianceFlagMeasure] == 1
+
+	tablePermission DimCustomer = [CustomerTier] == LOOKUPVALUE(DimUser[Tier], DimUser[Email], USERPRINCIPALNAME())
