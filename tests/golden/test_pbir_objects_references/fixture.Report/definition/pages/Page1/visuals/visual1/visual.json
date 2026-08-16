@@ -1,0 +1,54 @@
+{
+  "name": "visual1",
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": { "SourceRef": { "Entity": "Sales" } },
+                  "Property": "TotalSales"
+                }
+              },
+              "queryRef": "Sales.TotalSales",
+              "nativeQueryRef": "TotalSales"
+            }
+          ]
+        }
+      }
+    },
+    "objects": {
+      "referenceLabel": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Measure": {
+                  "Expression": { "SourceRef": { "Entity": "Sales" } },
+                  "Property": "CardRefMetric"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "referenceLabelDetail": [
+        {
+          "properties": {
+            "detailValue": {
+              "expr": {
+                "Measure": {
+                  "Expression": { "SourceRef": { "Entity": "Sales" } },
+                  "Property": "CardDetailMetric"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

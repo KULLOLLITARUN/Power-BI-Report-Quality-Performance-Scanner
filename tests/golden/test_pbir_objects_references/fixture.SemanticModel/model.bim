@@ -1,0 +1,26 @@
+{
+  "name": "fixture",
+  "compatibilityLevel": 1550,
+  "model": {
+    "culture": "en-US",
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          { "name": "ID", "dataType": "int64", "sourceColumn": "ID" },
+          { "name": "Amount", "dataType": "double", "sourceColumn": "Amount" }
+        ],
+        "measures": [
+          { "name": "TotalSales", "expression": "SUM(Sales[Amount])" },
+          { "name": "CardRefMetric", "expression": "CALCULATE([TotalSales], Sales[Amount] > 100)" },
+          { "name": "CardDetailMetric", "expression": "[TotalSales] - [CardRefMetric]" },
+          { "name": "DynamicTitleMetric", "expression": "\"Sales Dashboard - Total: \" & FORMAT([TotalSales], \"$#,##0\")" },
+          { "name": "DynamicSubTitleMetric", "expression": "\"Target Variance: \" & FORMAT([CardDetailMetric], \"$#,##0\")" },
+          { "name": "ColorFormatMetric", "expression": "IF([TotalSales] > 0, \"#00FF00\", \"#FF0000\")" },
+          { "name": "DynamicAxisMetric", "expression": "MAX(Sales[Amount]) * 1.2" },
+          { "name": "GenuinelyUnusedMetric", "expression": "COUNT(Sales[ID])" }
+        ]
+      }
+    ]
+  }
+}
