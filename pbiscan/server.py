@@ -228,6 +228,47 @@ async def scan_project(req: ScanRequest):
         for cc in report.dax.calculated_columns
     ]
 
+    # Step 6: Extract Semantic References & DAG info for frontend visualization
+    sem_refs = report.semantic_references
+    sem_ref_data = {
+        "total_count": len(sem_refs),
+        "active_roots": list(sem_refs.active_root_measure_names()),
+        "references": [
+            {
+                "target_name": r.target_name,
+                "target_table": r.target_table,
+                "target_type": r.target_type,
+                "source_type": r.source_type,
+                "source_object": r.source_object,
+                "source_file": r.source_file,
+                "source_expression": r.source_expression,
+                "activates_root": r.activates_root,
+            }
+            for r in sem_refs.references
+        ],
+    }
+
+    # Build DAX DAG node & edge data
+    dax_graph = report.dax_graph
+    dax_nodes = []
+    dax_edges = []
+    if dax_graph:
+        for node_name, node in dax_graph.nodes.items():
+            meas_expr = next((m.expression for m in report.dax.measures if m.name.lower() == node.name.lower()), "")
+            dax_nodes.append({
+                "name": node.name,
+                "table": node.table,
+                "kind": node.kind,
+                "expression": meas_expr,
+                "references": list(dax_graph.references(node.name)),
+                "referenced_by": list(dax_graph.referenced_by(node.name)),
+            })
+            for target in dax_graph.references(node.name):
+                dax_edges.append({
+                    "source": node.name,
+                    "target": target,
+                })
+
     page_data = [
         {
             "name": p.name,
@@ -235,6 +276,16 @@ async def scan_project(req: ScanRequest):
             "is_hidden": p.is_hidden,
             "visual_count": p.visual_count,
             "slicer_count": p.slicer_count,
+            "visuals": [
+                {
+                    "visual_type": v.visual_type,
+                    "measure_refs": v.measure_refs,
+                    "fields_used": v.fields_used,
+                    "is_slicer": v.is_slicer,
+                    "hidden": v.hidden,
+                }
+                for v in p.visuals
+            ],
         }
         for p in report.report.pages
     ]
@@ -267,6 +318,13 @@ async def scan_project(req: ScanRequest):
         "measures": measure_data,
         "calculated_columns": calc_col_data,
         "pages": page_data,
+        "semantic_references": sem_ref_data,
+        "dax_graph": {
+            "nodes": dax_nodes,
+            "edges": dax_edges,
+            "has_cycles": bool(dax_graph.find_cycles()) if dax_graph else False,
+            "cycles": dax_graph.find_cycles() if dax_graph else [],
+        },
         "warnings": raw.warnings,
         "summary": {
             "total_findings": len(issues),
@@ -274,6 +332,8 @@ async def scan_project(req: ScanRequest):
             "relationship_count": len(rel_data),
             "measure_count": len(measure_data),
             "page_count": len(page_data),
+            "semantic_reference_count": len(sem_refs),
+            "active_root_count": len(sem_refs.active_root_measure_names()),
         },
     }
 
