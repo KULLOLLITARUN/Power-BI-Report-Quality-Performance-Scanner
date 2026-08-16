@@ -19,6 +19,7 @@ from pbiscan import __version__
 from pbiscan.canonical.builder import CanonicalBuilder
 from pbiscan.engine.issue import IssueGenerator
 from pbiscan.engine.scoring import calculate_scores, load_config
+from pbiscan.engine.suppressions import load_suppressions, apply_suppressions
 from pbiscan.extraction.pbip_reader import PBIPReader, PBIScanError
 from pbiscan.render.html_report import HtmlRenderer
 from pbiscan.rules.dax import DAX_RULES
@@ -214,6 +215,10 @@ def scan(
     gen = IssueGenerator()
     issues = gen.generate(findings)
 
+    # Step 4.5 — Apply suppressions
+    suppressions = load_suppressions(path)
+    issues = apply_suppressions(issues, suppressions)
+
     # Step 5 — Score
     scores = calculate_scores(issues, cfg)
     overall = scores["overall"]
@@ -243,7 +248,8 @@ def scan(
                 loc_clean = loc_raw.replace("↔", "<->").replace("→", "->").replace("←", "<-")
                 loc_ascii = loc_clean.encode("ascii", "replace").decode("ascii")
                 loc_str = f"  {_colour(loc_ascii, _DIM)}" if loc_ascii else ""
-                click.echo(f"  {sev_str}{issue.rule_id}{loc_str}")
+                supp_str = f"  {_colour('(suppressed)', _DIM)}" if issue.suppressed else ""
+                click.echo(f"  {sev_str}{issue.rule_id}{loc_str}{supp_str}")
         else:
             click.echo(f"  {_colour('✓ No findings', _GREEN)} — this report looks clean!")
 
@@ -269,6 +275,8 @@ def scan(
                             "recommendation": i.recommendation,
                             "confidence": i.confidence,
                             "location": i.location,
+                            "suppressed": i.suppressed,
+                            "suppression_reason": i.suppression_reason,
                         }
                         for i in issues
                     ],

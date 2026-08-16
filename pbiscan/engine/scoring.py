@@ -56,12 +56,16 @@ def score_category(issues: list, category: str, deductions: dict[str, int]) -> i
         deductions: severity → deduction points mapping from config
 
     Returns:
-        Integer score 0–100 (clamped at 0 from below).
+        Integer score 0–100 (clamped at 0 from below). Suppressed issues
+        (suppressed=True) are excluded from deductions.
 
     Raises:
         ConfigError: if an issue's severity has no deduction entry in config.
     """
-    cat_issues = [i for i in issues if i.category == category]
+    cat_issues = [
+        i for i in issues 
+        if i.category == category and not getattr(i, "suppressed", False)
+    ]
     total = 0
     for issue in cat_issues:
         sev = issue.severity
