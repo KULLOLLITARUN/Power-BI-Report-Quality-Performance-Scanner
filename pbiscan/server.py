@@ -401,20 +401,34 @@ async def browse_filesystem(req: BrowseRequest):
 
 @app.post("/api/suppress")
 async def add_suppression(req: SuppressRequest):
-    """Add a suppression rule to the project's .pbiscanignore file."""
+    """Add a suppression rule to the project's pbiscan.suppressions.json file."""
     proj_path = Path(req.project_path)
     if not proj_path.exists():
         raise HTTPException(status_code=404, detail="Project path does not exist")
 
-    ignore_file = proj_path if proj_path.is_file() else proj_path / ".pbiscanignore"
-    if ignore_file.suffix == ".pbip":
-        ignore_file = ignore_file.parent / ".pbiscanignore"
+    supp_dir = proj_path if proj_path.is_dir() else proj_path.parent
+    supp_file = supp_dir / "pbiscan.suppressions.json"
 
-    line = f"{req.rule_id} {req.location}  # {req.reason}\n"
-    with open(ignore_file, "a", encoding="utf-8") as f:
-        f.write(line)
+    data = {"suppressions": []}
+    if supp_file.exists():
+        try:
+            import json as json_mod
+            data = json_mod.loads(supp_file.read_text(encoding="utf-8"))
+            if not isinstance(data.get("suppressions"), list):
+                data["suppressions"] = []
+        except Exception:
+            data = {"suppressions": []}
 
-    return {"status": "ok", "message": f"Added suppression to {ignore_file.name}", "line": line.strip()}
+    data["suppressions"].append({
+        "rule_id": req.rule_id,
+        "location": req.location,
+        "reason": req.reason or "Suppressed via Studio",
+    })
+
+    import json as json_mod
+    supp_file.write_text(json_mod.dumps(data, indent=2), encoding="utf-8")
+
+    return {"status": "ok", "message": f"Added suppression to {supp_file.name}"}
 
 
 @app.post("/api/export")

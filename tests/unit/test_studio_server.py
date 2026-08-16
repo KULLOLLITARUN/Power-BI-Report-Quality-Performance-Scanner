@@ -1,6 +1,7 @@
-"""Unit and integration tests for pbiscan Studio FastAPI server endpoints."""
+"""Unit, integration, and hardening tests for pbiscan Studio FastAPI server endpoints."""
 
 from pathlib import Path
+import json
 import pytest
 from fastapi.testclient import TestClient
 from pbiscan.server import app
@@ -9,7 +10,7 @@ GOLDEN_DIR = Path(__file__).parent.parent / "golden"
 
 
 class TestStudioServerApi:
-    """Test suite for FastAPI backend endpoints."""
+    """Comprehensive test suite for FastAPI backend endpoints & hardening contracts."""
 
     @pytest.fixture
     def client(self):
@@ -69,41 +70,86 @@ class TestStudioServerApi:
         assert "Overview" in response.text
         assert "Semantic References" in response.text
 
+    def test_spa_client_routing_fallback(self, client):
+        """SPA fallback should serve index.html for virtual frontend routes."""
+        for route in ("/overview", "/findings", "/dax-dag", "/model", "/sem-refs", "/canvas"):
+            response = client.get(route)
+            assert response.status_code == 200
+            assert "PBIP Sentinel Studio" in response.text
+
     def test_export_endpoints(self, client):
         fixture_path = str(GOLDEN_DIR / "test_calc_group_variants")
-        
-        # Test HTML export
+
+        # 1. HTML export
         resp_html = client.post("/api/export", json={"project_path": fixture_path, "format": "html"})
         assert resp_html.status_code == 200
         assert "<!DOCTYPE html>" in resp_html.json()["content"]
 
-        # Test SARIF export
+        # 2. SARIF export
         resp_sarif = client.post("/api/export", json={"project_path": fixture_path, "format": "sarif"})
         assert resp_sarif.status_code == 200
         assert "2.1.0" in resp_sarif.json()["content"]
 
-        # Test JUnit export
+        # 3. JUnit export
         resp_junit = client.post("/api/export", json={"project_path": fixture_path, "format": "junit"})
         assert resp_junit.status_code == 200
         assert "<testsuites" in resp_junit.json()["content"]
 
-        # Test JSON export
+        # 4. JSON export
         resp_json = client.post("/api/export", json={"project_path": fixture_path, "format": "json"})
         assert resp_json.status_code == 200
         assert "scores" in resp_json.json()["content"]
 
-    def test_suppress_endpoint(self, client, tmp_path):
-        fixture_path = GOLDEN_DIR / "test_calc_group_variants"
-        resp = client.post("/api/suppress", json={
-            "project_path": str(fixture_path),
+    def test_export_and_scan_parity(self, client):
+        """Ensure /api/scan and /api/export generate exact finding counts and scores."""
+        fixture_path = str(GOLDEN_DIR / "test_m_hardcoded_datasource")
+        scan_res = client.post("/api/scan", json={"path": fixture_path}).json()
+        export_res = client.post("/api/export", json={"project_path": fixture_path, "format": "json"}).json()
+        export_data = json.loads(export_res["content"])
+
+        assert len(scan_res["findings"]) == len(export_data["findings"])
+        assert scan_res["scores"]["overall"] == export_data["scores"]["overall"]
+
+    def test_export_nonexistent_path_returns_404(self, client):
+        response = client.post("/api/export", json={"project_path": "invalid_path_404", "format": "html"})
+        assert response.status_code == 404
+
+    def test_suppress_endpoint_and_lifecycle(self, client):
+        fixture_path = GOLDEN_DIR / "test_unusedmeasure"
+        # First scan without suppression to get exact finding
+        scan_before = client.post("/api/scan", json={"path": str(fixture_path)}).json()
+        assert len(scan_before["findings"]) >= 1
+        target_f = scan_before["findings"][0]
+
+        supp_file = fixture_path / "pbiscan.suppressions.json"
+        if supp_file.exists():
+            supp_file.unlink()
+
+        try:
+            # 1. Add suppression using exact rule_id and location from finding
+            resp = client.post("/api/suppress", json={
+                "project_path": str(fixture_path),
+                "rule_id": target_f["rule_id"],
+                "location": target_f["location"],
+                "reason": "Test studio suppression"
+            })
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "ok"
+            assert supp_file.exists()
+
+            # 2. Rescan and verify suppression applied
+            scan_after = client.post("/api/scan", json={"path": str(fixture_path)}).json()
+            suppressed_findings = [f for f in scan_after["findings"] if f.get("suppressed")]
+            assert len(suppressed_findings) >= 1
+            assert suppressed_findings[0]["rule_id"] == target_f["rule_id"]
+        finally:
+            if supp_file.exists():
+                supp_file.unlink()
+
+    def test_suppress_nonexistent_path_returns_404(self, client):
+        response = client.post("/api/suppress", json={
+            "project_path": "invalid_path_404",
             "rule_id": "TEST_RULE",
-            "location": "Sales[Amount]",
-            "reason": "Test studio suppression"
+            "location": "Loc"
         })
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "ok"
-        
-        # Clean up created .pbiscanignore
-        ignore_file = fixture_path / ".pbiscanignore"
-        if ignore_file.exists():
-            ignore_file.unlink()
+        assert response.status_code == 404
