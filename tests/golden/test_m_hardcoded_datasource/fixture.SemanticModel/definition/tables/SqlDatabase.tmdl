@@ -1,0 +1,12 @@
+table SqlDatabase
+	column ProductID = 10
+		dataType: int64
+
+	partition SqlDatabase-Partition = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(#"ServerParam", #"DbParam"),
+				dbo_Products = Source{[Schema="dbo",Item="Products"]}[Data]
+			in
+				dbo_Products

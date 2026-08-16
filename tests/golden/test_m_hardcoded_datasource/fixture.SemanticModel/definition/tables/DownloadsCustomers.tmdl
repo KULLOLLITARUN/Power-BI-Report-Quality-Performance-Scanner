@@ -1,0 +1,12 @@
+table DownloadsCustomers
+	column CustomerID = 1
+		dataType: int64
+
+	partition DownloadsCustomers-Partition = m
+		mode: import
+		source =
+			let
+				Source = Csv.Document(File.Contents("C:\Users\Dev\Downloads\Customers.csv"), [Delimiter=",", Columns=2, Encoding=1252, QuoteStyle=QuoteStyle.None]),
+				Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true])
+			in
+				Promoted

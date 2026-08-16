@@ -1,0 +1,7 @@
+table LocalDateTable_87654321
+	isHidden
+	showAsVariationsOnly
+
+	column Date = "2024-01-01"
+		dataType: dateTime
+		isHidden

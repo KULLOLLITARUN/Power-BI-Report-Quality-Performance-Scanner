@@ -131,6 +131,39 @@ RECOMMENDATIONS: dict[str, dict[str, str]] = {
         ),
     },
 
+    "M_HARDCODED_DATA_SOURCE": {
+        "title": "Hardcoded local file path in Power Query data source",
+        "issue": (
+            "A table partition expression references a hardcoded local machine file path."
+        ),
+        "impact": (
+            "Hardcoding local developer file paths (e.g. C:\\Users\\... or Desktop/Downloads) "
+            "prevents scheduled dataset refreshes in the Power BI Service, breaks CI/CD deployment pipelines, "
+            "and causes immediate refresh failures when the project is opened on another developer's workstation."
+        ),
+        "recommendation": (
+            "Parameterize the file path using a Power Query parameter, or migrate the data source "
+            "to a shared enterprise cloud location such as SharePoint, Azure Blob Storage, Azure SQL, "
+            "or OneDrive for Business with configured Gateway credentials."
+        ),
+    },
+
+    "MODEL_AUTO_DATETIME_BLOAT": {
+        "title": "Auto Date/Time feature enabled generating hidden tables",
+        "issue": (
+            "The model has Power BI's default Auto Date/Time feature enabled, causing hidden local date tables to be generated for every datetime column."
+        ),
+        "impact": (
+            "Each datetime column creates an independent hidden physical date table and hierarchy in VertiPaq memory. "
+            "In models with multiple datetime columns or high row counts, this causes silent memory bloat, increases PBIX file size, "
+            "and prevents building standard time intelligence measures against a single centralized Date dimension."
+        ),
+        "recommendation": (
+            "Disable 'Auto Date/Time' under File > Options and settings > Options > Current File > Data Load. "
+            "Build and mark a single centralized Date dimension table (Calendar) and relate all fact datetime columns to it."
+        ),
+    },
+
     # ------------------------------------------------------------------
     # DAX rules
     # ------------------------------------------------------------------

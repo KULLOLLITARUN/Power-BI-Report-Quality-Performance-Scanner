@@ -1,0 +1,12 @@
+table LocalOrders
+	column OrderID = 1
+		dataType: int64
+
+	partition LocalOrders-Partition = m
+		mode: import
+		source =
+			let
+				Source = Excel.Workbook(File.Contents("C:\Users\Admin\Desktop\Orders.xlsx"), null, true),
+				Sheet1_Sheet = Source{[Item="Sheet1",Kind="Sheet"]}[Data]
+			in
+				Sheet1_Sheet

@@ -1,0 +1,8 @@
+model Model
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+
+ref table Sales
+ref table LocalDateTable_12345678
+ref table LocalDateTable_87654321
+ref table DateTableTemplate_99999999
