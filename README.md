@@ -1,12 +1,15 @@
 # PBIP Sentinel (`pbiscan`)
 
+[![Live Demo](https://img.shields.io/badge/Live_Workbench-pbip--sentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbip-sentinel.netlify.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Tests: 244 Passing](https://img.shields.io/badge/Tests-244%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![Python: 3.10 | 3.11 | 3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue?style=for-the-badge&logo=python&logoColor=white)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![SARIF: OASIS v2.1.0](https://img.shields.io/badge/SARIF-OASIS%20v2.1.0-blueviolet?style=for-the-badge)](https://sarifweb.azurewebsites.net/)
-[![Delivery: CLI | CI/CD | Studio](https://img.shields.io/badge/Delivery-CLI%20%7C%20CI%2FCD%20%7C%20Studio-orange?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 
 **PBIP Sentinel** is an enterprise static analysis diagnostic engine, CI/CD quality gate, and interactive developer studio for Microsoft Power BI Projects (`.pbip`).
+
+👉 **Try the Live In-Browser Studio Workbench:** **[https://pbip-sentinel.netlify.app/](https://pbip-sentinel.netlify.app/)**  
+*(100% In-Browser & Private — drag & drop any `.pbip` folder locally in browser memory, zero files uploaded to any server)*
 
 It inspects semantic model definitions (**TMDL** / **TMSL**), DAX calculation expressions, and report layout schemas (**PBIR** / JSON) to detect anti-patterns, orphaned measures, gateway refresh blockers, and memory bloat before reports are merged or deployed to production.
 
