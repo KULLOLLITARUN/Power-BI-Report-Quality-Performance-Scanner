@@ -52,7 +52,7 @@
 
     /* Header */
     header {
-      background: rgba(17, 24, 39, 0.9);
+      background: rgba(17, 24, 39, 0.92);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border-subtle);
       padding: 0.75rem 1.5rem;
@@ -139,6 +139,8 @@
     .btn-gold { background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.4); color: var(--accent-gold); }
     .btn-gold:hover { background: rgba(245, 158, 11, 0.25); border-color: var(--accent-gold); }
     .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.74rem; }
+    .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.35); color: #f87171; }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.25); border-color: #ef4444; }
 
     /* Dropdown */
     .dropdown { position: relative; display: inline-block; }
@@ -152,7 +154,7 @@
       border: 1px solid var(--border-subtle);
       border-radius: 8px;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-      min-width: 180px;
+      min-width: 190px;
       z-index: 200;
       overflow: hidden;
     }
@@ -362,6 +364,20 @@
       position: relative;
     }
 
+    .evidence-box .copy-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+    .evidence-box .copy-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
     .finding-actions {
       display: flex;
       gap: 0.5rem;
@@ -372,7 +388,7 @@
 
     /* DAG Canvas */
     .dag-container {
-      height: 620px;
+      height: 640px;
       position: relative;
       background: var(--bg-input);
       border: 1px solid var(--border-subtle);
@@ -394,16 +410,16 @@
       left: 1rem;
       display: flex;
       gap: 0.5rem;
-      background: rgba(17, 24, 39, 0.85);
+      background: rgba(17, 24, 39, 0.88);
       backdrop-filter: blur(8px);
-      padding: 0.4rem;
+      padding: 0.45rem;
       border-radius: 8px;
       border: 1px solid var(--border-subtle);
       z-index: 10;
     }
 
     .dag-sidebar {
-      width: 360px;
+      width: 380px;
       background: var(--bg-surface);
       border-left: 1px solid var(--border-subtle);
       padding: 1.25rem;
@@ -495,6 +511,36 @@
       padding: 4rem 2rem;
       text-align: center;
       color: var(--text-muted);
+    }
+
+    /* Toast Notification System */
+    .toast-container {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      z-index: 2000;
+    }
+
+    .toast {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      padding: 0.75rem 1.1rem;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      animation: slideIn 0.2s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
     }
   </style>
 </head>
@@ -719,16 +765,68 @@
       </div>
       <p id="diff-modal-desc" style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;"></p>
       <div class="evidence-box" id="diff-modal-code" style="max-height:300px; overflow-y:auto;"></div>
-      <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+      <div style="display:flex; justify-content:space-between; margin-top:1rem;">
+        <button class="btn" onclick="copyModalCode()">📋 Copy Fix</button>
         <button class="btn btn-primary" onclick="closeDiffModal()">Done</button>
       </div>
     </div>
   </div>
 
+  <!-- Suppression Modal -->
+  <div class="modal-overlay" id="suppress-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Suppress Finding (.pbiscanignore)</h3>
+        <button class="btn btn-sm" onclick="closeSuppressModal()">✕</button>
+      </div>
+      <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.75rem;">
+        This will add an entry to your project's <code style="color:var(--accent-gold);">.pbiscanignore</code> file so this finding is ignored in subsequent CLI and CI/CD quality gates.
+      </p>
+      <div style="margin-bottom:0.75rem;">
+        <label style="font-size:0.78rem; color:var(--text-muted); display:block; margin-bottom:4px;">Rule & Location:</label>
+        <div id="suppress-target-text" class="evidence-box" style="margin:0; font-size:0.85rem;"></div>
+      </div>
+      <div style="margin-bottom:1rem;">
+        <label style="font-size:0.78rem; color:var(--text-muted); display:block; margin-bottom:4px;">Reason / Business Justification:</label>
+        <select id="suppress-reason-preset" class="filter-input" style="width:100%; margin-bottom:0.5rem;" onchange="onSuppressPresetChange()">
+          <option value="Approved business exception">Approved business exception</option>
+          <option value="Intentional disconnected table pattern">Intentional disconnected table pattern</option>
+          <option value="Staged measure for upcoming release">Staged measure for upcoming release</option>
+          <option value="Temporary developer local datasource">Temporary developer local datasource</option>
+          <option value="custom">Custom justification...</option>
+        </select>
+        <input type="text" id="suppress-custom-reason" class="filter-input" style="width:100%; display:none;" placeholder="Enter custom justification...">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+        <button class="btn" onclick="closeSuppressModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmSuppression()">Confirm Suppression</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-box"></div>
+
   <script>
     // State Store
     let scanData = null;
     let selectedDagNode = null;
+    let activeSuppressData = null;
+
+    // Toast Notification System
+    function showToast(msg, icon = '✓') {
+      const box = document.getElementById('toast-box');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+      box.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
 
     // Load on init
     window.addEventListener('DOMContentLoaded', () => {
@@ -752,6 +850,7 @@
         }
         scanData = await resp.json();
         renderAll();
+        showToast('Scan loaded successfully');
       } catch (err) {
         console.error(err);
       }
@@ -806,24 +905,49 @@
         a.download = data.filename;
         a.click();
         URL.revokeObjectURL(url);
+        showToast(`Exported ${data.filename}`);
       } catch (err) {
         alert('Export error: ' + err);
       }
     }
 
-    async function suppressFinding(ruleId, location) {
+    function promptSuppression(ruleId, location) {
+      activeSuppressData = { ruleId, location };
+      document.getElementById('suppress-target-text').innerText = `${ruleId} ${location}`;
+      document.getElementById('suppress-modal').classList.add('active');
+    }
+
+    function closeSuppressModal() {
+      document.getElementById('suppress-modal').classList.remove('active');
+      activeSuppressData = null;
+    }
+
+    function onSuppressPresetChange() {
+      const preset = document.getElementById('suppress-reason-preset').value;
+      const customInput = document.getElementById('suppress-custom-reason');
+      customInput.style.display = preset === 'custom' ? 'block' : 'none';
+    }
+
+    async function confirmSuppression() {
+      if (!activeSuppressData) return;
       const cur = document.getElementById('display-project-path').innerText;
-      const reason = prompt('Enter justification for suppressing this finding:', 'Approved exception');
-      if (!reason) return;
+      const preset = document.getElementById('suppress-reason-preset').value;
+      const reason = preset === 'custom' ? (document.getElementById('suppress-custom-reason').value || 'Custom exception') : preset;
 
       try {
         const resp = await fetch('/api/suppress', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project_path: cur, rule_id: ruleId, location: location, reason: reason })
+          body: JSON.stringify({
+            project_path: cur,
+            rule_id: activeSuppressData.ruleId,
+            location: activeSuppressData.location,
+            reason: reason
+          })
         });
         const data = await resp.json();
-        alert(data.message);
+        closeSuppressModal();
+        showToast(`Suppression saved to .pbiscanignore`);
         rescanProject();
       } catch (err) {
         alert('Suppression failed: ' + err);
@@ -870,6 +994,17 @@ table Sales
 
     function closeDiffModal() {
       document.getElementById('diff-modal').classList.remove('active');
+    }
+
+    function copyModalCode() {
+      const text = document.getElementById('diff-modal-code').innerText;
+      navigator.clipboard.writeText(text);
+      showToast('Remediation code copied to clipboard');
+    }
+
+    function copyToClipboard(text, label = 'Copied') {
+      navigator.clipboard.writeText(text);
+      showToast(`${label} copied to clipboard`);
     }
 
     function renderAll() {
@@ -954,6 +1089,7 @@ table Sales
 
     function buildFindingCardHtml(f, id) {
       const sevClass = 'sev-' + f.severity.toLowerCase();
+      const safeEv = f.evidence.replace(/'/g, "\\'").replace(/"/g, '&quot;');
       return `
         <div class="finding-card">
           <div class="finding-header" onclick="toggleFinding('f-body-${id}')">
@@ -967,12 +1103,15 @@ table Sales
           </div>
           <div class="finding-body" id="f-body-${id}" style="display:block;">
             <p><strong>Issue:</strong> ${f.issue || f.title}</p>
-            <div class="evidence-box">${f.evidence}</div>
+            <div class="evidence-box">
+              <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('${safeEv}', 'Evidence')">📋 Copy</button>
+              ${f.evidence}
+            </div>
             <p style="margin-top:0.4rem;"><strong>Impact:</strong> ${f.impact}</p>
             <p style="margin-top:0.4rem; color:var(--accent-emerald);"><strong>Recommendation:</strong> ${f.recommendation}</p>
             <div class="finding-actions">
-              <button class="btn btn-sm btn-gold" onclick="showRemediationModal('${f.rule_id}', '${f.location || ''}', '${f.evidence.replace(/'/g, "\\'")}')">⚡ Preview Remediation</button>
-              ${!f.suppressed ? `<button class="btn btn-sm" onclick="suppressFinding('${f.rule_id}', '${f.location || ''}')">🚫 Suppress Finding</button>` : ''}
+              <button class="btn btn-sm btn-gold" onclick="showRemediationModal('${f.rule_id}', '${f.location || ''}', '${safeEv}')">⚡ Preview Remediation</button>
+              ${!f.suppressed ? `<button class="btn btn-sm btn-danger" onclick="promptSuppression('${f.rule_id}', '${f.location || ''}')">🚫 Suppress Finding</button>` : ''}
             </div>
           </div>
         </div>
@@ -1077,7 +1216,7 @@ table Sales
       canvas = document.getElementById('dag-canvas');
       if (!canvas || !scanData) return;
       ctx = canvas.getContext('2d');
-      canvas.width = canvas.parentElement.clientWidth - 360;
+      canvas.width = canvas.parentElement.clientWidth - 380;
       canvas.height = canvas.parentElement.clientHeight;
 
       const rawNodes = scanData.dax_graph.nodes || [];
@@ -1204,7 +1343,10 @@ table Sales
         <div class="card-title">Measure Inspector</div>
         <div style="font-weight:700; font-size:1.1rem; color:${n.color};">${n.id}</div>
         <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.75rem;">Table: ${n.table}</div>
-        <div class="evidence-box">${n.expression || 'No DAX expression available'}</div>
+        <div class="evidence-box">
+          <button class="copy-btn" onclick="copyToClipboard('${(n.expression || '').replace(/'/g, "\\'")}', 'Formula')">📋 Copy</button>
+          ${n.expression || 'No DAX expression available'}
+        </div>
         <div style="margin-top:0.75rem;">
           <div style="font-size:0.8rem; font-weight:700; color:var(--text-secondary);">Direct Dependencies (${n.references.length}):</div>
           <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">${n.references.join(', ') || 'None (Leaf Node)'}</div>
