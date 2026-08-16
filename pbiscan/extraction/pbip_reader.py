@@ -72,6 +72,9 @@ class RawTable:
     measures: list[dict[str, Any]] = field(default_factory=list)
     calculated_columns: list[dict[str, Any]] = field(default_factory=list)
     annotations: list[dict[str, Any]] = field(default_factory=list)
+    calculation_items: list[dict[str, Any]] = field(default_factory=list)
+    partition_source: str = ""
+    source_file: str = ""
 
 
 @dataclass
@@ -112,6 +115,8 @@ class RawExtraction:
     tables: list[RawTable] = field(default_factory=list)
     relationships: list[RawRelationship] = field(default_factory=list)
     pages: list[RawPage] = field(default_factory=list)
+    roles: list[dict[str, Any]] = field(default_factory=list)
+    tmdl_roles: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -168,9 +173,9 @@ class PBIPReader:
         report_dir = self._find_report_dir(root)
 
         # Parse model
-        tables, relationships, warnings = [], [], []
+        tables, relationships, roles, tmdl_roles, warnings = [], [], [], [], []
         if semantic_model_dir:
-            tables, relationships, w = self._parse_semantic_model(semantic_model_dir)
+            tables, relationships, roles, tmdl_roles, w = self._parse_semantic_model(semantic_model_dir)
             warnings.extend(w)
         else:
             warnings.append("No SemanticModel directory found — model analysis skipped.")
@@ -194,6 +199,8 @@ class PBIPReader:
             tables=tables,
             relationships=relationships,
             pages=pages,
+            roles=roles,
+            tmdl_roles=tmdl_roles,
             warnings=warnings,
         )
 
@@ -223,7 +230,7 @@ class PBIPReader:
 
     def _parse_semantic_model(
         self, sm_dir: Path
-    ) -> tuple[list[RawTable], list[RawRelationship], list[str]]:
+    ) -> tuple[list[RawTable], list[RawRelationship], list[dict[str, Any]], list[dict[str, Any]], list[str]]:
         """Parse the semantic model directory."""
         warnings: list[str] = []
         model_bim = sm_dir / "model.bim"
@@ -234,24 +241,26 @@ class PBIPReader:
             model_node = raw_model.get("model", raw_model)
             tables = self._parse_tables(model_node.get("tables", []))
             relationships = self._parse_relationships(model_node.get("relationships", []))
-            return tables, relationships, warnings
+            roles = model_node.get("roles", [])
+            return tables, relationships, roles, [], warnings
 
         # Check for TMDL format
         tmdl_files = list(sm_dir.rglob("*.tmdl"))
         if tmdl_files:
             logger.info("Parsing TMDL semantic model in: %s", sm_dir)
-            tables, relationships = self._parse_tmdl_semantic_model(sm_dir)
-            return tables, relationships, warnings
+            tables, relationships, tmdl_roles = self._parse_tmdl_semantic_model(sm_dir)
+            return tables, relationships, [], tmdl_roles, warnings
 
         raise SchemaError(f"No model.bim or TMDL definitions found in {sm_dir}")
 
     def _parse_tmdl_semantic_model(
         self, sm_dir: Path
-    ) -> tuple[list[RawTable], list[RawRelationship]]:
-        """Parse TMDL semantic model format (definition/tables/*.tmdl and relationships.tmdl)."""
+    ) -> tuple[list[RawTable], list[RawRelationship], list[dict[str, Any]]]:
+        """Parse TMDL semantic model format (definition/tables/*.tmdl, roles/*.tmdl, relationships.tmdl)."""
         definition_dir = sm_dir / "definition" if (sm_dir / "definition").exists() else sm_dir
         tables: list[RawTable] = []
         relationships: list[RawRelationship] = []
+        tmdl_roles: list[dict[str, Any]] = []
 
         # Parse tables
         tables_dir = definition_dir / "tables"
@@ -261,12 +270,26 @@ class PBIPReader:
                 if t:
                     tables.append(t)
 
+        # Parse roles
+        roles_dir = definition_dir / "roles"
+        if roles_dir.exists():
+            for role_file in sorted(roles_dir.glob("*.tmdl")):
+                try:
+                    r_content = role_file.read_text(encoding="utf-8")
+                    tmdl_roles.append({
+                        "name": role_file.stem,
+                        "content": r_content,
+                        "path": str(role_file),
+                    })
+                except OSError:
+                    pass
+
         # Parse relationships
         rel_file = definition_dir / "relationships.tmdl"
         if rel_file.exists():
             relationships = self._parse_tmdl_relationships(rel_file)
 
-        return tables, relationships
+        return tables, relationships, tmdl_roles
 
     def _unquote_tmdl(self, s: str) -> str:
         s = s.strip()
@@ -301,6 +324,9 @@ class PBIPReader:
         measures: list[dict[str, Any]] = []
         calc_cols: list[dict[str, Any]] = []
         annotations: list[dict[str, Any]] = []
+        calculation_items: list[dict[str, Any]] = []
+        partition_source_lines: list[str] = []
+        in_partition_source = False
 
         current_item_type: Optional[str] = None
         current_item_data: dict[str, Any] = {}
@@ -322,6 +348,10 @@ class PBIPReader:
             elif current_item_type == "column":
                 current_item_data["_table"] = table_name
                 columns.append(current_item_data)
+            elif current_item_type == "calc_item":
+                current_item_data["expression"] = "\n".join(current_expr_lines).strip()
+                current_item_data["_table"] = table_name
+                calculation_items.append(current_item_data)
             current_item_type = None
             current_item_data = {}
             current_expr_lines = []
@@ -329,8 +359,10 @@ class PBIPReader:
         for line in lines:
             stripped = line.strip()
             if not stripped:
-                if current_item_type in ("measure", "calc_col"):
+                if current_item_type in ("measure", "calc_col", "calc_item"):
                     current_expr_lines.append("")
+                elif in_partition_source:
+                    partition_source_lines.append("")
                 continue
 
             if line.startswith("///") or stripped.startswith("///"):
@@ -343,8 +375,24 @@ class PBIPReader:
                     is_date_table = True
             elif current_item_type is None and stripped in ("isHidden", "isHidden: true"):
                 hidden = True
+            elif stripped.startswith("calculationItem "):
+                flush_current()
+                in_partition_source = False
+                current_item_type = "calc_item"
+                item_sig = stripped[16:].strip()
+                if "=" in item_sig:
+                    parts = item_sig.split("=", 1)
+                    item_name = self._unquote_tmdl(parts[0].strip())
+                    inline_expr = parts[1].strip()
+                    current_item_data = {"name": item_name, "format_string": ""}
+                    current_expr_lines = [inline_expr] if inline_expr else []
+                else:
+                    item_name = self._unquote_tmdl(item_sig)
+                    current_item_data = {"name": item_name, "format_string": ""}
+                    current_expr_lines = []
             elif stripped.startswith("measure "):
                 flush_current()
+                in_partition_source = False
                 current_item_type = "measure"
                 measure_sig = stripped[8:].strip()
                 if "=" in measure_sig:
@@ -359,6 +407,7 @@ class PBIPReader:
                     current_expr_lines = []
             elif stripped.startswith("column ") and "=" in stripped:
                 flush_current()
+                in_partition_source = False
                 current_item_type = "calc_col"
                 col_sig = stripped[7:].strip()
                 parts = col_sig.split("=", 1)
@@ -368,12 +417,13 @@ class PBIPReader:
                 current_expr_lines = [inline_expr] if inline_expr else []
             elif stripped.startswith("column "):
                 flush_current()
+                in_partition_source = False
                 current_item_type = "column"
                 col_name = self._unquote_tmdl(stripped[7:].strip())
                 current_item_data = {"name": col_name, "dataType": "string", "annotations": []}
             elif stripped.startswith("partition "):
                 flush_current()
-                current_item_type = "partition"
+                in_partition_source = True
             elif stripped.startswith("annotation "):
                 ann_str = stripped[11:].strip()
                 if "=" in ann_str:
@@ -387,6 +437,12 @@ class PBIPReader:
                     current_item_data.setdefault("annotations", []).append(ann_dict)
                 else:
                     annotations.append(ann_dict)
+            elif current_item_type == "calc_item":
+                if stripped.startswith("formatStringDefinition =") or stripped.startswith("formatStringDefinition:"):
+                    sep = "=" if "=" in stripped else ":"
+                    current_item_data["format_string"] = stripped.split(sep, 1)[1].strip()
+                else:
+                    current_expr_lines.append(stripped)
             elif current_item_type in ("measure", "calc_col"):
                 if ":" in stripped and any(stripped.startswith(p) for p in ("formatString:", "lineageTag:", "dataType:", "summarizeBy:", "displayFolder:", "isHidden:")):
                     k, v = stripped.split(":", 1)
@@ -399,6 +455,28 @@ class PBIPReader:
                     current_item_data[k.strip()] = v.strip()
                 elif stripped == "isHidden":
                     current_item_data["isHidden"] = True
+            elif in_partition_source:
+                if stripped.startswith("source ="):
+                    partition_source_lines.append(stripped[8:].strip())
+                else:
+                    partition_source_lines.append(stripped)
+
+        flush_current()
+        if not table_name:
+            return None
+
+        return RawTable(
+            name=table_name,
+            hidden=hidden,
+            is_date_table=is_date_table,
+            columns=columns,
+            measures=measures,
+            calculated_columns=calc_cols,
+            annotations=annotations,
+            calculation_items=calculation_items,
+            partition_source="\n".join(partition_source_lines).strip(),
+            source_file=str(file_path),
+        )
 
         flush_current()
         if not table_name:
@@ -486,6 +564,19 @@ class PBIPReader:
             for m in raw.get("measures", []):
                 raw_measures.append({**m, "_table": name})
 
+            calc_group = raw.get("calculationGroup", {})
+            calc_items = calc_group.get("calculationItems", []) if calc_group else []
+            partitions = raw.get("partitions", [])
+            part_source = ""
+            if partitions:
+                src = partitions[0].get("source", {})
+                if isinstance(src, dict):
+                    part_source = src.get("expression", "")
+                    if isinstance(part_source, list):
+                        part_source = "\n".join(part_source)
+                elif isinstance(src, str):
+                    part_source = src
+
             result.append(RawTable(
                 name=name,
                 hidden=raw.get("isHidden", False),
@@ -494,6 +585,9 @@ class PBIPReader:
                 measures=raw_measures,
                 calculated_columns=raw_calc_cols,
                 annotations=annotations,
+                calculation_items=calc_items,
+                partition_source=part_source,
+                source_file="model.bim",
             ))
         return result
 

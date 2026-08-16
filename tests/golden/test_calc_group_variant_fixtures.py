@@ -38,19 +38,32 @@ class TestCalculationGroupVariants:
         flagged_locations = {f.location for f in unused_findings}
         assert "Measure: ActualSales" not in flagged_locations
 
-    def test_calc_item_bracket_and_isselectedmeasure_references_flagged_in_v13(self, report_and_findings):
-        """Documents baseline gap where calculation item DAX and ISSELECTEDMEASURE measures are flagged.
+    def test_calc_item_bracket_and_isselectedmeasure_references_resolved_in_v14(self, report_and_findings):
+        """Validates that calculation item DAX and ISSELECTEDMEASURE measures are resolved in v1.4.
 
-        In v1.3.0 control baseline:
-        - BudgetSales (used in calc item 'vs Budget %') is flagged (False Positive).
-        - TargetMargin (used in calc item 'Custom Logic' ISSELECTEDMEASURE) is flagged (False Positive).
-        - DynamicFormatKPI & UnusedKPI are flagged (True Positives).
+        In v1.4 resolution:
+        - BudgetSales (used in calc item 'vs Budget %') is active (0 FP).
+        - TargetMargin (used in calc item 'Custom Logic' ISSELECTEDMEASURE) is active (0 FP).
+        - DynamicFormatKPI & UnusedKPI are correctly flagged as orphans (True Positives).
         """
-        _, unused_findings = report_and_findings
+        report, unused_findings = report_and_findings
         flagged_locations = {f.location for f in unused_findings}
 
-        assert "Measure: BudgetSales" in flagged_locations
-        assert "Measure: TargetMargin" in flagged_locations
+        assert "Measure: BudgetSales" not in flagged_locations
+        assert "Measure: TargetMargin" not in flagged_locations
         assert "Measure: DynamicFormatKPI" in flagged_locations
         assert "Measure: UnusedKPI" in flagged_locations
-        assert len(unused_findings) == 4
+        assert len(unused_findings) == 2
+
+    def test_provenance_metadata_recorded(self, report_and_findings):
+        """Validates exact provenance metadata in SemanticReferenceIndex."""
+        report, _ = report_and_findings
+        budget_refs = report.semantic_references.find_by_target("BudgetSales")
+        assert len(budget_refs) >= 1
+        assert budget_refs[0].source_type == "calc_item_dax"
+        assert budget_refs[0].source_object == "TimeCalcGroup['vs Budget %']"
+
+        target_refs = report.semantic_references.find_by_target("TargetMargin")
+        assert len(target_refs) == 1
+        assert target_refs[0].source_type == "calc_item_predicate"
+        assert target_refs[0].source_object == "TimeCalcGroup['Custom Logic']"

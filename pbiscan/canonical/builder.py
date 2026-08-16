@@ -57,6 +57,12 @@ _CROSS_FILTER_MAP: dict[str, str] = {
 }
 
 
+from pbiscan.canonical.references import SemanticReference, SemanticReferenceIndex
+from pbiscan.extraction.calc_group_extractor import extract_calc_group_references
+from pbiscan.extraction.field_param_extractor import extract_field_param_references
+from pbiscan.extraction.rls_extractor import extract_rls_tmdl_references, extract_rls_bim_references
+
+
 class CanonicalBuilder:
     """Converts a RawExtraction into a CanonicalReport."""
 
@@ -76,14 +82,88 @@ class CanonicalBuilder:
         pages = self._build_pages(raw)
         report_dom = ReportDOM(pages=pages)
 
+        # Build Unified Semantic Reference Index (v1.4)
+        semantic_references = self._build_semantic_references(
+            raw=raw,
+            pages=pages,
+            tables=tables,
+            measures=measures,
+        )
+
         return CanonicalReport(
             model=model,
             dax=dax,
             dax_graph=dax_graph,
             report=report_dom,
+            semantic_references=semantic_references,
             source_path=raw.source_path,
             report_name=raw.report_name,
         )
+
+    def _build_semantic_references(
+        self,
+        raw: RawExtraction,
+        pages: list[Page],
+        tables: list[Table],
+        measures: list[Measure],
+    ) -> SemanticReferenceIndex:
+        """Extract and aggregate all semantic references across visuals, calc groups, field params, and RLS."""
+        index = SemanticReferenceIndex()
+
+        # 1. PBIR Visual references
+        for page in pages:
+            for visual in page.visuals:
+                for ref in visual.measure_refs:
+                    index.add(
+                        SemanticReference(
+                            target_name=ref,
+                            target_type="measure",
+                            source_type="visual_projection",
+                            source_object=f"{page.label}.{visual.visual_type}",
+                            activates_root=True,
+                        )
+                    )
+
+        # 2. Calculation Group references (DOM-01)
+        for raw_tbl in raw.tables:
+            if raw_tbl.calculation_items:
+                calc_refs = extract_calc_group_references(
+                    table_name=raw_tbl.name,
+                    calc_items=raw_tbl.calculation_items,
+                    source_file=raw_tbl.source_file,
+                )
+                index.add_many(calc_refs)
+
+        # 3. Field Parameter references (DOM-02)
+        known_measures = {m.name for m in measures}
+        known_columns = {col.name for t in tables for col in t.columns}
+
+        for raw_tbl in raw.tables:
+            if raw_tbl.partition_source:
+                fp_refs = extract_field_param_references(
+                    table_name=raw_tbl.name,
+                    partition_expression=raw_tbl.partition_source,
+                    known_measure_names=known_measures,
+                    known_column_names=known_columns,
+                    source_file=raw_tbl.source_file,
+                )
+                index.add_many(fp_refs)
+
+        # 4. Row-Level Security (RLS) references (DOM-03)
+        if hasattr(raw, "tmdl_roles") and raw.tmdl_roles:
+            for role_dict in raw.tmdl_roles:
+                rls_refs = extract_rls_tmdl_references(
+                    role_name=role_dict.get("name", ""),
+                    tmdl_content=role_dict.get("content", ""),
+                    source_file=role_dict.get("path", ""),
+                )
+                index.add_many(rls_refs)
+
+        if hasattr(raw, "roles") and raw.roles:
+            bim_rls_refs = extract_rls_bim_references(raw.roles)
+            index.add_many(bim_rls_refs)
+
+        return index
 
     # ------------------------------------------------------------------
     # Model graph
