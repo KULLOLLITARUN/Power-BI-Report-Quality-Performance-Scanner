@@ -1,0 +1,16 @@
+table DimCustomer
+	column CustomerID = "CUST-001"
+		dataType: string
+		isKey
+
+	column Segment = "Enterprise"
+		dataType: string
+
+	partition DimCustomer = m
+		mode: dual
+		source =
+			let
+			    Source = Sql.Database("sqlserver.database.windows.net", "SalesDB"),
+			    dbo_DimCustomer = Source{[Schema="dbo",Item="DimCustomer"]}[Data]
+			in
+			    dbo_DimCustomer
