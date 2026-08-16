@@ -118,16 +118,16 @@ RECOMMENDATIONS: dict[str, dict[str, str]] = {
             "neither has a dimension naming pattern)."
         ),
         "impact": (
-            "Direct fact-to-fact relationships are not natively supported in "
-            "Power BI star-schema modelling and are often a modelling error. "
-            "Filter propagation may not behave as expected. This is a "
-            "heuristic detection — review is required to confirm."
+            "Direct fact-to-fact relationships bypass standard star-schema "
+            "conventions and can create filter context ambiguity or many-to-many "
+            "evaluation overhead. This is a heuristic detection (60% confidence) — "
+            "transactional or snapshot bridge tables may legitimately connect facts."
         ),
         "recommendation": (
-            "Review the relationship and confirm the intended role of each "
-            "table. If both are truly fact tables, consider introducing a "
-            "shared dimension or bridge table to mediate the relationship. "
-            "Validate measure results to confirm filter behaviour is correct."
+            "Review the relationship and confirm the intended architectural role "
+            "of each table. If both represent transactional facts, consider "
+            "introducing a shared conforming dimension or bridge table to mediate "
+            "filter propagation cleanly. Validate measure results to ensure correct context."
         ),
     },
 
@@ -142,17 +142,17 @@ RECOMMENDATIONS: dict[str, dict[str, str]] = {
             "with potential performance concerns."
         ),
         "impact": (
-            "These patterns are worth reviewing but cannot be confirmed as "
-            "performance problems without runtime analysis. Context and intent "
-            "matter — not every instance of these patterns is a defect. Only "
-            "Server Timings data can confirm actual performance impact."
+            "These patterns warrant review but cannot be confirmed as "
+            "performance bottlenecks without runtime analysis. Context and data "
+            "cardinality matter — not every flagged pattern degrades query speed. "
+            "Confidence is intentionally capped at ≤65% as only DAX Studio Server "
+            "Timings can confirm actual VertiPaq engine scan costs."
         ),
         "recommendation": (
-            "Review the flagged measure. Consider whether FILTER(ALL(...)) "
-            "can be rewritten using CALCULATE with explicit filter arguments, "
+            "Review the flagged measure expression. Consider whether FILTER(ALL(...)) "
+            "can be simplified using CALCULATE with predicate arguments, "
             "or whether EARLIER() can be replaced with a VAR/RETURN pattern. "
-            "Nested CALCULATE() calls should be checked for unintended "
-            "context-transition side effects."
+            "Check nested CALCULATE() calls for unintended context-transition side effects."
         ),
     },
 
@@ -201,19 +201,19 @@ RECOMMENDATIONS: dict[str, dict[str, str]] = {
         "title": "Potentially unused measure",
         "issue": (
             "A measure does not appear to be used by any report visual and "
-            "is not referenced by any other measure in the model."
+            "is not transitively referenced by any other measure in this PBIP project."
         ),
         "impact": (
-            "Unused measures add unnecessary complexity to the model, making "
-            "the field list harder to navigate for report authors. They are "
-            "still validated and compiled at refresh time."
+            "Unused measures add cognitive clutter to the field list and "
+            "increase model maintenance surface area. They are compiled at refresh "
+            "time even if never rendered."
         ),
         "recommendation": (
-            "Verify whether the measure is used in hidden visuals, bookmarks, "
-            "subscriptions, or external tools (Analyse in Excel, paginated "
-            "reports, XMLA endpoints). If it is genuinely unused, consider "
-            "removing it to reduce model complexity. Confidence is 95% — "
-            "confirm before deleting."
+            "Verify whether the measure is referenced in external tools (e.g. "
+            "Analyze in Excel, XMLA endpoints, paginated reports, or downstream "
+            "thin reports) or bookmarks. If it is genuinely unreferenced, consider "
+            "deprecating or removing it. Confidence is 95% within this PBIP artifact — "
+            "confirm external consumption before deleting."
         ),
     },
 
