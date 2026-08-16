@@ -1,0 +1,22 @@
+table FactSales
+	column CustomerID = "CUST-001"
+		dataType: string
+
+	column OrderDate = "2024-01-01"
+		dataType: dateTime
+
+	column Amount = 100
+		dataType: int64
+
+	measure DirectQuerySales = SUM(FactSales[Amount])
+	measure DirectQueryFilteredSales = CALCULATE([DirectQuerySales], DimCustomer[Segment] = "Enterprise")
+	measure UnusedKPI = 999
+
+	partition FactSales = m
+		mode: directQuery
+		source =
+			let
+			    Source = Sql.Database("sqlserver.database.windows.net", "SalesDB"),
+			    dbo_FactSales = Source{[Schema="dbo",Item="FactSales"]}[Data]
+			in
+			    dbo_FactSales
