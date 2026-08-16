@@ -41,4 +41,4 @@ output*.html
 scratch/
 
 # Internal documentation / build notes
-docs/
+!docs/*.md
