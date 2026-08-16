@@ -1,0 +1,9 @@
+- id: pbiscan
+  name: pbiscan
+  description: Power BI Report Quality & Performance Scanner for PBIP projects
+  entry: pbiscan scan
+  language: python
+  types_or: [directory]
+  files: ^.*\.pbip$|^.*\.pbir$|^.*\.tmdl$|^.*\.bim$
+  pass_filenames: true
+  args: ["--fail-on", "HIGH"]

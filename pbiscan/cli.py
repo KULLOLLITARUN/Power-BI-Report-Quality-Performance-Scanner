@@ -22,6 +22,8 @@ from pbiscan.engine.scoring import calculate_scores, load_config
 from pbiscan.engine.suppressions import load_suppressions, apply_suppressions
 from pbiscan.extraction.pbip_reader import PBIPReader, PBIScanError
 from pbiscan.render.html_report import HtmlRenderer
+from pbiscan.render.sarif_report import SarifRenderer
+from pbiscan.render.junit_report import JUnitRenderer
 from pbiscan.rules.dax import DAX_RULES
 from pbiscan.rules.model import MODEL_RULES
 from pbiscan.rules.report import REPORT_RULES
@@ -125,16 +127,22 @@ def main() -> None:
 @click.option(
     "--format", "-f",
     "output_format",
-    type=click.Choice(["html", "json"]),
+    type=click.Choice(["html", "json", "sarif", "junit"], case_sensitive=False),
     default="html",
     show_default=True,
     help="Output format when --out is specified.",
 )
 @click.option(
     "--fail-under",
-    type=int,
+    type=float,
     default=None,
     help="Exit with code 1 if overall score is below this threshold (CI/CD gate).",
+)
+@click.option(
+    "--fail-on",
+    type=click.Choice(["CRITICAL", "HIGH", "MEDIUM", "WARNING", "ADVISORY", "LOW"], case_sensitive=False),
+    default=None,
+    help="Exit with code 1 if any unsuppressed issue with this severity or higher is found (CI/CD gate).",
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose/debug logging.")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress all output except errors.")
@@ -143,7 +151,8 @@ def scan(
     config: str | None,
     out: str | None,
     output_format: str,
-    fail_under: int | None,
+    fail_under: float | None,
+    fail_on: str | None,
     verbose: bool,
     quiet: bool,
 ) -> None:
@@ -269,7 +278,8 @@ def scan(
     if out:
         output_path = Path(out)
         try:
-            if output_format == "json":
+            fmt_lower = output_format.lower()
+            if fmt_lower == "json":
                 data = {
                     "report_name": report.report_name,
                     "scan_timestamp": datetime.now(timezone.utc).isoformat(),
@@ -294,6 +304,18 @@ def scan(
                     ],
                 }
                 output_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            elif fmt_lower == "sarif":
+                sarif_renderer = SarifRenderer()
+                sarif_content = sarif_renderer.render(issues=issues, report_path=str(path))
+                output_path.write_text(sarif_content, encoding="utf-8")
+            elif fmt_lower == "junit":
+                junit_renderer = JUnitRenderer()
+                junit_content = junit_renderer.render(
+                    issues=issues,
+                    scores=scores,
+                    report_name=report.report_name,
+                )
+                output_path.write_text(junit_content, encoding="utf-8")
             else:
                 renderer = HtmlRenderer()
                 html = renderer.render(
@@ -316,13 +338,34 @@ def scan(
     elif not quiet:
         click.echo("")
 
-    # Step 8 — CI/CD threshold gate
+    # Step 8 — CI/CD threshold and quality gates
+    gate_failed = False
+
     if fail_under is not None and overall < fail_under:
         if not quiet:
             click.echo(
                 f"  {_colour('FAIL:', _RED)} Overall score {overall:.1f} is below threshold {fail_under}\n",
                 err=True,
             )
+        gate_failed = True
+
+    if fail_on is not None:
+        fail_on_upper = fail_on.upper()
+        if fail_on_upper in _SEVERITY_ORDER:
+            threshold_idx = _SEVERITY_ORDER.index(fail_on_upper)
+            triggering = [
+                i for i in issues
+                if not i.suppressed and i.severity in _SEVERITY_ORDER and _SEVERITY_ORDER.index(i.severity) <= threshold_idx
+            ]
+            if triggering:
+                if not quiet:
+                    click.echo(
+                        f"  {_colour('FAIL:', _RED)} Found {len(triggering)} unsuppressed issue(s) with severity >= {fail_on_upper}\n",
+                        err=True,
+                    )
+                gate_failed = True
+
+    if gate_failed:
         sys.exit(1)
 
 

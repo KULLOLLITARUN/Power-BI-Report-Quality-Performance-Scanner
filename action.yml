@@ -1,0 +1,62 @@
+name: "PBIP Sentinel Quality Scanner"
+description: "Static quality, performance, and DAX reachability analysis for Power BI PBIP projects"
+author: "pbiscan"
+branding:
+  icon: "check-circle"
+  color: "yellow"
+
+inputs:
+  path:
+    description: "Path to the .pbip project directory to scan"
+    required: true
+    default: "."
+  config:
+    description: "Path to custom rules.config.json"
+    required: false
+  fail-under:
+    description: "Fail the workflow if overall health score is strictly below this threshold (e.g. 90)"
+    required: false
+  fail-on:
+    description: "Fail the workflow if any issue with this severity or higher is found (CRITICAL, HIGH, MEDIUM, WARNING)"
+    required: false
+  output-format:
+    description: "Report format: html, json, sarif, or junit"
+    required: false
+    default: "sarif"
+  output-path:
+    description: "Path to write the report artifact (e.g. pbiscan-results.sarif)"
+    required: false
+    default: "pbiscan-results.sarif"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install pbiscan
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install pbiscan
+
+    - name: Run PBIP Scan
+      shell: bash
+      run: |
+        ARGS=()
+        if [ -n "${{ inputs.config }}" ]; then
+          ARGS+=(--config "${{ inputs.config }}")
+        fi
+        if [ -n "${{ inputs.fail-under }}" ]; then
+          ARGS+=(--fail-under "${{ inputs.fail-under }}")
+        fi
+        if [ -n "${{ inputs.fail-on }}" ]; then
+          ARGS+=(--fail-on "${{ inputs.fail-on }}")
+        fi
+        if [ -n "${{ inputs.output-path }}" ]; then
+          ARGS+=(--out "${{ inputs.output-path }}" --format "${{ inputs.output-format }}")
+        fi
+
+        pbiscan scan "${{ inputs.path }}" "${ARGS[@]}"
