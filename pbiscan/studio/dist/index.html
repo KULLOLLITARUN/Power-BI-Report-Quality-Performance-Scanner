@@ -53,30 +53,30 @@
       --bg-surface: #FFFFFF;         /* Crisp panel surface */
       --bg-surface-raised: #FFFFFF;  /* Elevated elements with subtle shadow */
       --bg-code: #F4F1EA;            /* High-density code containers */
-      --border-hairline: #E5E2DA;    /* Crisp 1px structural lines */
-      --border-strong: #D3CFC5;      /* Emphasized boundaries */
+      --border-hairline: #DCD8CE;    /* Crisp 1px structural lines */
+      --border-strong: #C4BFB4;      /* Emphasized boundaries */
       --border-focus: #A8672A;       /* Focus ring / active outline */
-      --text-primary: #1E1C18;       /* Warm near-black */
-      --text-secondary: #5C5A54;     /* Supporting technical text */
-      --text-muted: #96938B;         /* Captions, line numbers */
-      --accent: #A8672A;             /* Darker copper for contrast */
+      --text-primary: #0A0A0A;       /* Solid crisp black */
+      --text-secondary: #282828;     /* Crisp high-contrast secondary */
+      --text-muted: #5A5852;         /* High-legibility technical text */
+      --accent: #A8672A;             /* Dark copper */
       --accent-muted: rgba(168, 103, 42, 0.12);
       --accent-text: #8A4E1B;
       --severity-critical: #A03E38;
       --severity-critical-bg: rgba(160, 62, 56, 0.08);
-      --severity-critical-border: rgba(160, 62, 56, 0.25);
+      --severity-critical-border: rgba(160, 62, 56, 0.35);
       --severity-high: #A8552F;
       --severity-high-bg: rgba(168, 85, 47, 0.08);
-      --severity-high-border: rgba(168, 85, 47, 0.25);
+      --severity-high-border: rgba(168, 85, 47, 0.35);
       --severity-medium: #8F6B2E;
       --severity-medium-bg: rgba(143, 107, 46, 0.08);
-      --severity-medium-border: rgba(143, 107, 46, 0.25);
+      --severity-medium-border: rgba(143, 107, 46, 0.35);
       --severity-warning: #7A6636;
       --severity-warning-bg: rgba(122, 102, 54, 0.08);
-      --severity-warning-border: rgba(122, 102, 54, 0.25);
-      --severity-advisory: #6B6862;
-      --severity-advisory-bg: rgba(107, 104, 98, 0.08);
-      --severity-advisory-border: rgba(107, 104, 98, 0.20);
+      --severity-warning-border: rgba(122, 102, 54, 0.35);
+      --severity-advisory: #55534E;
+      --severity-advisory-bg: rgba(85, 83, 78, 0.08);
+      --severity-advisory-border: rgba(85, 83, 78, 0.30);
       --shadow-raised: 0 6px 24px rgba(30, 28, 24, 0.08);
     }
 
@@ -180,17 +180,17 @@
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, border-color 0.15s ease;
     }
 
-    .btn:hover { background: var(--bg-surface-raised); border-color: var(--border-strong); }
-    .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--bg-canvas); }
-    .btn-primary:hover { opacity: 0.9; }
-    .btn-accent { background: var(--accent-muted); border-color: var(--accent); color: var(--accent-text); }
-    .btn-accent:hover { background: var(--accent); color: var(--bg-canvas); }
+    .btn:hover { background: var(--bg-surface-raised); border-color: var(--border-strong); color: var(--text-primary); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #FFFFFF; }
+    .btn-primary:hover { opacity: 0.92; color: #FFFFFF; }
+    .btn-accent { background: var(--bg-surface); border-color: var(--accent); color: var(--text-primary); }
+    .btn-accent:hover { background: var(--accent); color: #FFFFFF; }
     .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.74rem; }
     .btn-danger { background: var(--severity-critical-bg); border-color: var(--severity-critical-border); color: var(--severity-critical); }
-    .btn-danger:hover { background: var(--severity-critical); color: #fff; }
+    .btn-danger:hover { background: var(--severity-critical); color: #FFFFFF; }
 
     /* Dropdown */
     .dropdown { position: relative; display: inline-block; }
@@ -219,7 +219,7 @@
       transition: background 0.15s ease;
       cursor: pointer;
     }
-    .dropdown-content a:hover { background: var(--bg-surface); color: var(--accent); }
+    .dropdown-content a:hover { background: var(--bg-surface); color: var(--text-primary); }
     .dropdown:hover .dropdown-content { display: block; }
 
     /* Navigation Tabs */
@@ -236,7 +236,7 @@
       background: transparent;
       border: none;
       border-bottom: 2px solid transparent;
-      color: var(--text-secondary);
+      color: var(--text-primary);
       padding: 0.85rem 1.1rem;
       font-size: 0.88rem;
       font-weight: 600;
@@ -244,20 +244,28 @@
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      transition: all 0.15s ease;
       white-space: nowrap;
     }
 
-    .tab-btn:hover { color: var(--text-primary); }
-    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .tab-btn.active {
+      color: var(--text-primary);
+      border-bottom-color: var(--accent);
+      font-weight: 700;
+    }
 
     .tab-badge {
       background: var(--bg-canvas);
-      border: 1px solid var(--border-hairline);
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
       padding: 2px 7px;
       border-radius: 10px;
       font-size: 0.72rem;
       font-family: var(--font-mono);
+      font-weight: 600;
     }
 
     /* Main Container */
