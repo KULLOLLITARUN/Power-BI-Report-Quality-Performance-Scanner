@@ -21,8 +21,10 @@
 
 - **Total External Projects Scanned**: `4`
 - **Total External Findings Evaluated**: `117`
-- **Post-Fix True Positives (TP)**: `73`
-- **Post-Fix False Positives (FP)**: **`0` (100% resolution of the 21 initial FPs)**
+- **Unique False Positive Measures Identified in v1.2**: `21` (5 in Entry 02 + 13 in Entry 03 + 3 in Entry 04)
+- **Total Diagnostic Findings Reduction in v1.3**: `34` (from 107 down to 73 across all pages/tables)
+- **Post-Fix False Positives (FP)**: **`0` (100% resolution of all 21 identified false-positive measures)**
+- **Post-Fix True Positives (TP)**: `73` (100% preserved)
 - **Ambiguous (AMB)**: `0`
 - **Suspected False Negatives (FN)**: `0`
 
@@ -34,7 +36,7 @@
 | **Entry 02 (`03 Xmas Sales`)** | 6 | 1 | **-5 FP** (`referenceLabel` & details) | 1 TP (`Sales Index`) |
 | **Entry 03 (`AC Sales Dashboard`)** | 39 | 13 | **-26 FP** (Dynamic titles & color formatting) | 13 TP (Orphaned KPIs) |
 | **Entry 04 (`Services Profitability`)** | 43 | 40 | **-3 FP** (Subtitles, GP colors, axis max) | 40 TP (Unused time-intel) |
-| **TOTAL** | **107** | **73** | **-34 FP Resolved (0 FP remaining)** | **73 TP Preserved** |
+| **TOTAL** | **107** | **73** | **-34 Findings Resolved (0 FP remaining)** | **73 TP Preserved** |
 
 ---
 
