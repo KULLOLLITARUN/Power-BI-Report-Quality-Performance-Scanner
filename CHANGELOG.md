@@ -6,6 +6,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-08-16
+
+### Added
+- **Recursive Visual AST Expression Harvesting (`PBIPReader`)**:
+  - Implemented `_extract_measure_names_from_expr_tree()` to recursively traverse nested PBIR and legacy report visual property trees.
+  - Full automatic coverage across all modern visual property expression surfaces:
+    - Card visual reference labels (`objects.referenceLabel[].properties.value.expr.Measure`)
+    - Card reference details (`objects.referenceLabelDetail[].properties.detailValue.expr.Measure`)
+    - Dynamic DAX titles (`objects.title[].properties.text.expr.Measure`)
+    - Dynamic subtitles (`objects.subTitle[].properties.text.expr.Measure`)
+    - Conditional color formatting (`objects.*[].properties.*.solid.color.expr.Measure`)
+    - Dynamic Axis Min/Max bounds (`objects.valueAxis[].properties.max.expr.Measure`)
+    - Visual header tooltips & filters (`visualContainerObjects` & `filters`).
+- **Golden Contract Test Suite & Dedicated Fixture**:
+  - Added `tests/golden/test_pbir_objects_references/` and `tests/golden/test_pbir_objects_fixtures.py` validating that measures bound exclusively in `objects` expressions are recognized as active references while preserving accurate detection for genuinely unused measures.
+  - Test suite expanded to **158 passing tests** with 100% regression fidelity.
+
+### Changed
+- **Empirical Re-Audit Across Real-World PBIP Models**:
+  - Eliminated all **34 observed false positives** across 4 independent external PBIP projects while preserving **73 true positives**.
+  - Average scan latency increased from 4.32 ms to 26.79 ms due to recursive PBIR expression traversal, remaining well within the sub-50ms target. Peak memory increased by only 0.41 KB (387.86 KB $\to$ 388.27 KB).
+  - All 10 non-D004 production diagnostic rules remain 100% behaviorally invariant.
+
+---
+
 ## [1.2.0] - 2026-08-16
 
 ### Added
