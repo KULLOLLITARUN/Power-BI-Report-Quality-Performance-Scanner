@@ -2,7 +2,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Workbench-pbip--sentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbip-sentinel.netlify.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Tests: Passing](https://img.shields.io/badge/Tests-118%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
+[![Tests: Passing](https://img.shields.io/badge/Tests-151%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 
 **PBIP Sentinel** is a static analysis diagnostic engine and quality linter for Power BI Projects (`.pbip`).
 
@@ -23,6 +23,8 @@ $$\text{Evidence} \longrightarrow \text{Architectural Impact} \longrightarrow \t
 
 - **Hedged Confidence**: Rules explicitly state confidence percentages (e.g. 60% for heuristic joins, 100% for bidirectional links) to eliminate false-alarm panic.
 - **Explainable Diagnostics**: Junior developers and cross-functional teams learn *why* a pattern is problematic and *how* to resolve it.
+- **Transitive DAX Reachability**: Multi-hop measure dependency tracking prevents false-positive unused warnings on base measures used by upstream KPIs.
+- **Auditable Suppressions**: Review and approve intentional design patterns via `pbiscan.suppressions.json` without deleting findings or disabling rules.
 - **Multi-Platform & Pure Python**: Runs headlessly in Linux/macOS/Windows CI/CD pipelines with zero external binary or .NET framework prerequisites.
 
 ---
@@ -56,13 +58,41 @@ $$\text{Evidence} \longrightarrow \text{Architectural Impact} \longrightarrow \t
 | `D001` | `DAX_SUSPICIOUS_PATTERN` | `ADVISORY` | ≤65% | Flags patterns such as `FILTER(ALL(...))` and `EARLIER()` that often warrant optimization. |
 | `D002` | `DAX_EXCESSIVE_CALC_COLUMNS` | `MEDIUM` | 100% | Calculated columns consume uncompressed memory and increase refresh time; prefers measures or upstream ETL. |
 | `D003` | `DAX_DUPLICATE_MEASURE` | `MEDIUM` | 90% | Identifies identical normalized DAX expressions across different measure names to eliminate redundant logic. |
-| `D004` | `DAX_UNUSED_MEASURE` | `ADVISORY` | 95% | Deep reference scan flagging measures that are neither placed in report visuals nor referenced by downstream measures. |
+| `D004` | `DAX_UNUSED_MEASURE` | `ADVISORY` | 95% | Deep multi-hop graph scan flagging measures that are neither placed in visuals nor transitively referenced by active measures. |
 
 ### Report Layout & Density (2 Rules)
 | Code | Rule ID | Severity | Confidence | Rationale |
 |---|---|---|---|---|
 | `R001` | `REPORT_VISUAL_BLOAT` | `MEDIUM` | 100% | Pages with >15 visuals trigger concurrent DAX queries that increase visual load times and capacity utilization. |
 | `R002` | `REPORT_SLICER_BLOAT` | `MEDIUM` | 100% | Pages with >6 slicers generate redundant query overhead on initial page render and cross-filtering events. |
+
+---
+
+## Finding Suppression System
+
+Intentional architecture decisions (e.g. a necessary bidirectional relationship or a measure intended for Excel PivotTables) can be suppressed via a `pbiscan.suppressions.json` file in your repository:
+
+```json
+{
+  "suppressions": [
+    {
+      "rule_id": "MODEL_BIDIRECTIONAL",
+      "location": "FactSales[CustID] <-> DimCustomer[CustID]",
+      "reason": "Intentional — required for cross-filtering the returns dashboard.",
+      "added_by": "tarun",
+      "added_at": "2026-08-16"
+    },
+    {
+      "rule_id": "DAX_UNUSED_MEASURE",
+      "location": "Measure: Total Value (Display)",
+      "reason": "Used in external Excel financial reporting model"
+    }
+  ]
+}
+```
+
+- **Transparent & Auditable**: Suppressed findings still appear in the finding list and HTML/JSON reports with their rationale, keeping audit history clear.
+- **Score Neutral**: Suppressed findings do **not** contribute to score deductions.
 
 ---
 
@@ -118,7 +148,7 @@ pbiscan scan "path/to/SalesAnalytics.pbip" --fail-under 85 --format json --out "
 
 ## Architecture
 
-`pbiscan` enforces a strict separation between extraction, canonical representations, and rule evaluation:
+`pbiscan` enforces a clean separation between extraction, canonical graph construction, rule evaluation, and suppression post-processing:
 
 ```text
 PBIP Project (.pbip / TMDL / TMSL / PBIR)
@@ -127,13 +157,18 @@ PBIP Project (.pbip / TMDL / TMSL / PBIR)
          Extraction Layer (pbip_reader.py)
                   │
                   ▼
-         Canonical Model (canonical/model.py)
+         Canonical Model (canonical/model.py, dax_graph.py)
+         ├── ModelGraph (Topology: connected_components, relationship_paths)
+         └── DaxDependencyGraph (Transitive DAG, cycle-safe reachability)
                   │
                   ▼
          Rule Engine (rules/model.py, dax.py, report.py)
                   │
                   ▼
          Issue Generator (engine/issue.py)
+                  │
+                  ▼
+         Suppression Filter (engine/suppressions.py)
                   │
                   ▼
          Scoring & Reporting (engine/scoring.py, render/)
@@ -146,7 +181,7 @@ PBIP Project (.pbip / TMDL / TMSL / PBIR)
 
 ## Testing
 
-Run the automated test suite across all 118 unit, integration, and golden fixture tests:
+Run the automated test suite across all 151 unit, integration, and golden fixture tests:
 
 ```bash
 pytest tests/ -v
