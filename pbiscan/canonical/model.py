@@ -61,6 +61,94 @@ class ModelGraph:
                 return t
         return None
 
+    def connected_components(self) -> list[set[str]]:
+        """Groups of table names connected by any relationship (active or
+        inactive, either direction). A model with 2+ components has at
+        least one disconnected island of tables."""
+        all_table_names = {t.name for t in self.tables}
+        adj: dict[str, set[str]] = {name: set() for name in all_table_names}
+        for rel in self.relationships:
+            if rel.from_table in adj and rel.to_table in adj:
+                adj[rel.from_table].add(rel.to_table)
+                adj[rel.to_table].add(rel.from_table)
+
+        visited: set[str] = set()
+        components: list[set[str]] = []
+
+        for name in sorted(all_table_names):
+            if name not in visited:
+                comp: set[str] = set()
+                queue = [name]
+                visited.add(name)
+                while queue:
+                    curr = queue.pop(0)
+                    comp.add(curr)
+                    for nxt in adj.get(curr, set()):
+                        if nxt not in visited:
+                            visited.add(nxt)
+                            queue.append(nxt)
+                components.append(comp)
+
+        return components
+
+    def isolated_tables(self) -> list[str]:
+        """Table names with zero relationships - a specific, common case
+        of a disconnected component containing exactly one table."""
+        rel_tables = set()
+        for rel in self.relationships:
+            rel_tables.add(rel.from_table.lower())
+            rel_tables.add(rel.to_table.lower())
+
+        isolated: list[str] = []
+        for t in self.tables:
+            if t.name.lower() not in rel_tables:
+                isolated.append(t.name)
+        return sorted(isolated)
+
+    def relationship_paths(
+        self, from_table: str, to_table: str, active_only: bool = True
+    ) -> list[list[str]]:
+        """All distinct simple paths between two tables through relationships.
+
+        If active_only=True (default), considers only active relationships.
+        Returns list of paths, e.g. [['FactSales', 'DimStore', 'DimRegion'], ['FactSales', 'DimRegion']].
+        """
+        from_lower = from_table.lower()
+        to_lower = to_table.lower()
+
+        canonical_names = {t.name.lower(): t.name for t in self.tables}
+        if from_lower not in canonical_names or to_lower not in canonical_names:
+            return []
+
+        adj: dict[str, set[str]] = {t.name: set() for t in self.tables}
+        for rel in self.relationships:
+            if active_only and not rel.is_active:
+                continue
+            if rel.from_table in adj and rel.to_table in adj:
+                adj[rel.from_table].add(rel.to_table)
+                adj[rel.to_table].add(rel.from_table)
+
+        start_name = canonical_names[from_lower]
+        target_name = canonical_names[to_lower]
+
+        paths: list[list[str]] = []
+
+        def dfs_paths(current: str, target: str, current_path: list[str], visited: set[str]):
+            if current == target:
+                paths.append(list(current_path))
+                return
+
+            for neighbor in sorted(adj.get(current, set())):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    current_path.append(neighbor)
+                    dfs_paths(neighbor, target, current_path, visited)
+                    current_path.pop()
+                    visited.remove(neighbor)
+
+        dfs_paths(start_name, target_name, [start_name], {start_name})
+        return paths
+
 
 # ---------------------------------------------------------------------------
 # DAX layer

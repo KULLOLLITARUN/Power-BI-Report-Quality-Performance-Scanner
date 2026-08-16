@@ -87,6 +87,13 @@ def test_topology_disconnected_raw_contract():
     assert table_names == {"FactSales", "DimCustomer", "DimDate", "IsolatedAuditLog"}
     assert len(report.model.relationships) == 2
 
+    # Topology query assertions
+    assert report.model.isolated_tables() == ["IsolatedAuditLog"]
+    comps = report.model.connected_components()
+    assert len(comps) == 2
+    assert {"FactSales", "DimCustomer", "DimDate"} in comps
+    assert {"IsolatedAuditLog"} in comps
+
 
 def test_topology_ambiguous_path_raw_contract():
     """Verify tables and relationships in ambiguous path topology fixture."""
@@ -98,6 +105,18 @@ def test_topology_ambiguous_path_raw_contract():
     table_names = {t.name for t in report.model.tables}
     assert table_names == {"FactSales", "DimStore", "DimRegion", "DimCustomer", "DimCity", "DimDate"}
     assert len(report.model.relationships) == 5
+
+    # Positive case: 2 active paths between FactSales and DimRegion
+    sales_to_region_paths = report.model.relationship_paths("FactSales", "DimRegion")
+    assert len(sales_to_region_paths) == 2
+    path_tuples = [tuple(p) for p in sales_to_region_paths]
+    assert ("FactSales", "DimRegion") in path_tuples
+    assert ("FactSales", "DimStore", "DimRegion") in path_tuples
+
+    # Negative baseline case: exactly 1 path between FactSales and DimCity
+    sales_to_city_paths = report.model.relationship_paths("FactSales", "DimCity")
+    assert len(sales_to_city_paths) == 1
+    assert sales_to_city_paths[0] == ["FactSales", "DimCustomer", "DimCity"]
 
 
 def test_suppression_scoring_fixture_contract():
