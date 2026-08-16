@@ -1,0 +1,11 @@
+relationship Rel_Sales_Product
+	fromColumn: FactSales.ProductID
+	toColumn: DimProduct.ProductID
+
+relationship Rel_Sales_Customer
+	fromColumn: FactSales.CustomerID
+	toColumn: DimCustomer.CustomerID
+
+relationship Rel_Sales_Date
+	fromColumn: FactSales.OrderDate
+	toColumn: DimDate.Date

@@ -1,0 +1,5 @@
+model Model
+	ref table FactSales
+	ref table DimProduct
+	ref table DimCustomer
+	ref table DimDate

@@ -1,0 +1,60 @@
+table FactSales
+	column ProductID
+		dataType: string
+		sourceColumn: ProductID
+
+	column CustomerID
+		dataType: string
+		sourceColumn: CustomerID
+
+	column OrderDate
+		dataType: dateTime
+		sourceColumn: OrderDate
+
+	column Revenue
+		dataType: int64
+		sourceColumn: Revenue
+
+	column Cost
+		dataType: int64
+		sourceColumn: Cost
+
+	column Units
+		dataType: int64
+		sourceColumn: Units
+
+	// Active Deep Dependency Tree (10 Measures)
+	measure Base_Revenue = SUM(FactSales[Revenue])
+	measure Base_Cost = SUM(FactSales[Cost])
+	measure Base_Units = SUM(FactSales[Units])
+	measure Base_Margin = [Base_Revenue] - [Base_Cost]
+	measure Avg_Price_Per_Unit = DIVIDE([Base_Revenue], [Base_Units])
+	measure Weighted_Margin = SUMX(DimProduct, [Base_Margin] * DimProduct[Weight])
+	measure Filtered_Enterprise_Margin = CALCULATE([Weighted_Margin], FILTER(DimCustomer, DimCustomer[Segment] = "Enterprise"))
+	measure Switched_Scenario_KPI =
+		VAR CurrentM = [Filtered_Enterprise_Margin]
+		VAR UnitP = [Avg_Price_Per_Unit]
+		RETURN
+			SWITCH(
+				TRUE(),
+				UnitP > 50, CurrentM * 1.1,
+				CurrentM
+			)
+	measure Prior_Year_Scenario_KPI = CALCULATE([Switched_Scenario_KPI], SAMEPERIODLASTYEAR(DimDate[Date]))
+	measure Final_Executive_Target_Growth = DIVIDE([Switched_Scenario_KPI] - [Prior_Year_Scenario_KPI], [Prior_Year_Scenario_KPI])
+
+	// Disconnected Orphan Dependency Subtree (3 Measures)
+	measure Orphan_Branch_L1 = 100
+	measure Orphan_Branch_L2 = [Orphan_Branch_L1] * 2
+	measure Orphan_Branch_L3 = [Orphan_Branch_L2] + 50
+
+	// Standalone Orphan
+	measure DeliberatelyUnusedKPI = 9999
+
+	partition FactSales = m
+		mode: import
+		source =
+			let
+			    Source = #table({"ProductID", "CustomerID", "OrderDate", "Revenue", "Cost", "Units"}, {})
+			in
+			    Source
