@@ -1,0 +1,13 @@
+table CurrencyCalcGroup
+	calculationGroup
+		precedence: 10
+
+	column Currency
+		dataType: string
+		sourceColumn: [Name]
+
+	calculationItem 'USD' = SELECTEDMEASURE()
+		formatStringDefinition = "$#,##0"
+
+	calculationItem 'EUR' = SELECTEDMEASURE() * 0.92
+		formatStringDefinition = "€#,##0"

@@ -1,0 +1,31 @@
+table TimeCalcGroup
+	calculationGroup
+		precedence: 20
+
+	column Period
+		dataType: string
+		sourceColumn: [Name]
+
+	calculationItem 'Current' = SELECTEDMEASURE()
+
+	calculationItem 'YTD' = CALCULATE(SELECTEDMEASURE(), DATESYTD(Calendar[Date]))
+
+	calculationItem 'vs Budget %' =
+		DIVIDE(
+			SELECTEDMEASURE() - [BudgetSales],
+			[BudgetSales]
+		)
+		formatStringDefinition = "0.0%"
+
+	calculationItem 'Custom Logic' =
+		IF(
+			ISSELECTEDMEASURE([TargetMargin]),
+			SELECTEDMEASURE() * 1.05,
+			SELECTEDMEASURE()
+		)
+		formatStringDefinition =
+			IF(
+				ISSELECTEDMEASURE([ActualSales]),
+				"$#,##0",
+				SELECTEDMEASUREFORMATSTRING()
+			)

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.2.0/schema.json",
+  "name": "calcGroupMatrix",
+  "visual": {
+    "visualType": "matrix",
+    "query": {
+      "queryState": {
+        "Rows": {
+          "projections": [
+            {
+              "queryRef": "Calendar.Year",
+              "field": {
+                "Column": {
+                  "Expression": {"SourceRef": {"Entity": "Calendar"}},
+                  "Property": "Year"
+                }
+              }
+            }
+          ]
+        },
+        "Columns": {
+          "projections": [
+            {
+              "queryRef": "TimeCalcGroup.Period",
+              "field": {
+                "Column": {
+                  "Expression": {"SourceRef": {"Entity": "TimeCalcGroup"}},
+                  "Property": "Period"
+                }
+              }
+            }
+          ]
+        },
+        "Values": {
+          "projections": [
+            {
+              "queryRef": "Sales.ActualSales",
+              "field": {
+                "Measure": {
+                  "Expression": {"SourceRef": {"Entity": "Sales"}},
+                  "Property": "ActualSales"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

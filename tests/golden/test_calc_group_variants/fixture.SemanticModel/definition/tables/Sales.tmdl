@@ -1,0 +1,26 @@
+table Sales
+	column OrderDate
+		dataType: dateTime
+		sourceColumn: OrderDate
+
+	column Amount
+		dataType: int64
+		sourceColumn: Amount
+
+	column Budget
+		dataType: int64
+		sourceColumn: Budget
+
+	measure ActualSales = SUM(Sales[Amount])
+	measure BudgetSales = SUM(Sales[Budget])
+	measure TargetMargin = [ActualSales] * 0.25
+	measure DynamicFormatKPI = 0.85
+	measure UnusedKPI = 9999
+
+	partition Sales = m
+		mode: import
+		source =
+			let
+			    Source = #table({"OrderDate", "Amount", "Budget"}, {})
+			in
+			    Source
