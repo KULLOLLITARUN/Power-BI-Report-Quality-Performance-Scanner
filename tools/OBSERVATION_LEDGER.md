@@ -17,14 +17,15 @@
 | 5 | **AC Sales Dashboard (Ajay S)** | Enterprise Sales (TMDL + PBIR + 13 Pages + 106 Visuals) | 10 | 6 | 64 | 106 | **96.9** | **7** | 761.19 ms | 967.1 KB | **7** | **0** | **0** | **0** |
 | 6 | **Zepto Quick Commerce Operations** | Quick Commerce (TMDL + Disconnected Tables + No Date Table) | 9 | 4 | 10 | 24 | **97.8** | **4** | 79.03 ms | 149.5 KB | **4** | **0** | **0** | **0** |
 | 7 | **Spotify Top Tracks 2023 Dashboard** | Media & Streaming (TMDL + PBIR + Dynamic KPIs) | 3 | 1 | 9 | 21 | **98.4** | **2** | 35.45 ms | 167.4 KB | **2** | **0** | **0** | **0** |
+| 8 | **TermAid SAP Operational Report** | Operational Reporting (Legacy BIM + report.json + Flat SAP Qry) | 2 | 0 | 0 | 3 | **98.7** | **1** | 25.13 ms | 100.5 KB | **1** | **0** | **0** | **0** |
 
 ---
 
-## Cumulative Observation Statistics across External Models (7 Projects)
+## Cumulative Observation Statistics across External Models (8 Projects)
 
-- **Total External Projects Scanned**: `7`
-- **Total Diagnostic Findings Evaluated in v1.3**: `96`
-- **Post-v1.3 True Positives (TP)**: **`96` (100% Observed Precision)**
+- **Total External Projects Scanned**: `8`
+- **Total Diagnostic Findings Evaluated in v1.3**: `97`
+- **Post-v1.3 True Positives (TP)**: **`97` (100% Observed Precision)**
 - **Post-v1.3 False Positives (FP)**: **`0`**
 - **Ambiguous (AMB)**: `0`
 - **Suspected False Negatives (FN)**: `0`
@@ -42,6 +43,29 @@
 ---
 
 ## Detailed Log Entries
+
+### Project Audit Entry 08: `TermAid SAP Operational Report`
+
+- **Date**: `2026-08-16`
+- **File**: `C:\Users\TARUN\Downloads\TermAidReport_PBIV\TermAidReport_PBIV.pbip`
+- **Model Classification**: Operational SAP Reporting (Legacy `model.bim` TMSL Semantic Model + Legacy `report.json` Layout with Flat Table Queries)
+- **Size / Footprint**: 2 Tables, 0 Relationships, 0 DAX Measures, 0 Calc Columns, 2 Pages, 3 Visuals
+- **External Consumption Known?**: No
+- **Reviewer**: Antigravity Pair Audit
+
+#### Metrics & Performance
+- **Scan Latency**: `25.13 ms`
+- **Peak Memory**: `100.49 KB`
+- **Overall Health Score**: `98.7`
+- **Category Breakdown**: Model: `97` | DAX: `100` | Report: `100`
+
+#### Finding Breakdown by Rule
+| Rule ID | Emitted Findings | TP | FP | AMB | FN Suspected | Reviewer Notes / Context |
+|:---|:---:|:---:|:---:|:---:|:---:|---|
+| `MODEL_NO_DATE_TABLE` (`M003`) | **1** | **1** | **0** | **0** | 0 | Model contains raw flat SAP queries (`Main_SAP_qry`, `Query1`) without a marked date table or calendar dimension (**TP**, 70% conf warning). |
+| `Other Rules` | **0** | - | - | - | 0 | 0 relationships, 0 DAX measures, clean visual count. |
+
+---
 
 ### Project Audit Entry 07: `Spotify Top Tracks 2023 Dashboard`
 
