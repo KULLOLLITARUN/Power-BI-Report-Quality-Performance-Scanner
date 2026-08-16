@@ -6,6 +6,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-08-16
+
+### Added
+- **Real-World Audit Harness & Benchmark Suite (`tools/audit_harness.py`)**:
+  - Memory profiling (`tracemalloc`) and scan latency benchmarking across PBIP models.
+  - Generates machine-readable classification reports (`tools/audit_corpus_results.json`) and audit classification workbooks (`tools/AUDIT_CLASSIFICATION_SHEET.md`).
+- **Formal 10-Point Candidate Rule Promotion Gate**:
+  - Establishes strict criteria (positive fixture, negative fixture, cycle safety, real-world evidence, regression guard) before candidate rules are promoted.
+- **Candidate Topology Golden Fixtures**:
+  - `tests/golden/test_isolated_table/` (Positive) & `test_isolated_table_negative/` (Negative) for candidate `M006`.
+  - `tests/golden/test_ambiguous_path/` (Positive) & `test_ambiguous_path_negative/` (Negative) for candidate `M007`.
+  - Cycle-safety and path deduplication contract tests (`tests/golden/test_candidate_rules_fixtures.py`).
+  - Total test suite expanded to **156 passing tests** with 100% zero-regression fidelity.
+
+### Changed
+- **Calibrated Rule Recommendations & Context Hedging**:
+  - **`D004` (`DAX_UNUSED_MEASURE`)**: Explicitly defines the local PBIP static analysis boundary and recommends verifying external XMLA/Analyze in Excel/downstream thin-report consumption before deletion.
+  - **`M005` (`MODEL_FACT_TO_FACT`)**: Explains filter context ambiguity risks while clarifying that transactional or return links may legitimately connect fact tables.
+  - **`D001` (`DAX_SUSPICIOUS_PATTERN`)**: Clarifies that static pattern flags are structural signals whose actual VertiPaq engine scan costs require DAX Studio Server Timings confirmation.
+- **Governance & Matrix Stability**:
+  - Candidates `M006` and `M007` remain preserved in `canonical/` query infrastructure and are deferred from the active rule matrix.
+  - Active production rule matrix locked at **11 core diagnostic rules**.
+
+---
+
 ## [1.1.0] - 2026-08-16
 
 ### Added
