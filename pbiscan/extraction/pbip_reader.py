@@ -624,6 +624,23 @@ class PBIPReader:
 
         return pages
 
+    def _extract_measure_names_from_expr_tree(self, obj: Any) -> set[str]:
+        """Recursively traverse any JSON/dict subtree and extract all Measure.Property expressions."""
+        refs: set[str] = set()
+        if isinstance(obj, dict):
+            # Check for direct Measure expression object e.g. {"Measure": {"Property": "TotalSales"}}
+            if "Measure" in obj and isinstance(obj["Measure"], dict):
+                prop = obj["Measure"].get("Property", "")
+                if prop:
+                    refs.add(prop)
+            # Recursively traverse child objects
+            for v in obj.values():
+                refs.update(self._extract_measure_names_from_expr_tree(v))
+        elif isinstance(obj, list):
+            for item in obj:
+                refs.update(self._extract_measure_names_from_expr_tree(item))
+        return refs
+
     def _parse_pbir_visual(self, raw: dict) -> Optional[RawVisual]:
         """Parse a single PBIR visual.json file."""
         visual_node = raw.get("visual", {})
@@ -636,15 +653,22 @@ class PBIPReader:
         height = position.get("height", 0.0)
 
         # Extract measure references from query state
-        measure_refs, fields_used = self._extract_measure_refs_from_pbir_query(
+        query_measures, fields_used = self._extract_measure_refs_from_pbir_query(
             visual_node.get("query", {})
         )
+
+        # Recursively harvest measure references across the complete visual AST
+        # (including objects.referenceLabel, objects.title, objects.subTitle, conditional formatting, filters)
+        ast_measures = self._extract_measure_names_from_expr_tree(raw)
+        
+        all_measure_refs = sorted(list(set(query_measures) | ast_measures))
+        all_fields_used = sorted(list(set(fields_used) | ast_measures))
 
         return RawVisual(
             visual_type=visual_type,
             x=x, y=y, width=width, height=height,
-            fields_used=fields_used,
-            measure_refs=measure_refs,
+            fields_used=all_fields_used,
+            measure_refs=all_measure_refs,
             is_slicer=(visual_type.lower() == "slicer"),
             hidden=raw.get("hidden", False),
         )
@@ -721,14 +745,19 @@ class PBIPReader:
                                 fields_used.append(clean_name)
                                 measure_refs.append(clean_name)
 
+        # Recursively harvest measure references from objects / visual container JSON
+        ast_measures = self._extract_measure_names_from_expr_tree(config)
+        all_measure_refs = sorted(list(set(measure_refs) | ast_measures))
+        all_fields_used = sorted(list(set(fields_used) | ast_measures))
+
         return RawVisual(
             visual_type=visual_type,
             x=float(vc.get("x", 0)),
             y=float(vc.get("y", 0)),
             width=float(vc.get("width", 0)),
             height=float(vc.get("height", 0)),
-            fields_used=fields_used,
-            measure_refs=measure_refs,
+            fields_used=all_fields_used,
+            measure_refs=all_measure_refs,
             is_slicer=(visual_type.lower() == "slicer"),
             hidden=vc.get("hidden", False),
         )
