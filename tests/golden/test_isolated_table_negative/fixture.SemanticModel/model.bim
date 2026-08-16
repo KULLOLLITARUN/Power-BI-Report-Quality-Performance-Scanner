@@ -1,0 +1,51 @@
+{
+  "_comment": "M006 NEGATIVE FIXTURE: Every table participates in at least 1 relationship. isolated_tables() must return [].",
+  "model": {
+    "tables": [
+      {
+        "name": "FactSales",
+        "columns": [
+          {"name": "SaleID", "dataType": "int64", "sourceColumn": "SaleID"},
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "DateKey", "dataType": "int64", "sourceColumn": "DateKey"}
+        ],
+        "partitions": [{"name": "FactSales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimCustomer",
+        "columns": [
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "Name", "dataType": "string", "sourceColumn": "Name"}
+        ],
+        "partitions": [{"name": "DimCustomer", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [
+          {"name": "DateKey", "dataType": "int64", "sourceColumn": "DateKey"},
+          {"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}
+        ],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "rel_sales_cust",
+        "fromTable": "FactSales",
+        "fromColumn": "CustID",
+        "toTable": "DimCustomer",
+        "toColumn": "CustID",
+        "isActive": true
+      },
+      {
+        "name": "rel_sales_date",
+        "fromTable": "FactSales",
+        "fromColumn": "DateKey",
+        "toTable": "DimDate",
+        "toColumn": "DateKey",
+        "isActive": true
+      }
+    ]
+  }
+}

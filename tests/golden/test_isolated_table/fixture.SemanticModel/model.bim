@@ -1,0 +1,41 @@
+{
+  "_comment": "M006 POSITIVE FIXTURE: IsolatedAuditLog has 0 relationships.",
+  "model": {
+    "tables": [
+      {
+        "name": "FactSales",
+        "columns": [
+          {"name": "SaleID", "dataType": "int64", "sourceColumn": "SaleID"},
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"}
+        ],
+        "partitions": [{"name": "FactSales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimCustomer",
+        "columns": [
+          {"name": "CustID", "dataType": "int64", "sourceColumn": "CustID"},
+          {"name": "Name", "dataType": "string", "sourceColumn": "Name"}
+        ],
+        "partitions": [{"name": "DimCustomer", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "IsolatedAuditLog",
+        "columns": [
+          {"name": "LogID", "dataType": "int64", "sourceColumn": "LogID"},
+          {"name": "Message", "dataType": "string", "sourceColumn": "Message"}
+        ],
+        "partitions": [{"name": "IsolatedAuditLog", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "rel_sales_cust",
+        "fromTable": "FactSales",
+        "fromColumn": "CustID",
+        "toTable": "DimCustomer",
+        "toColumn": "CustID",
+        "isActive": true
+      }
+    ]
+  }
+}
