@@ -54,3 +54,27 @@ class BackupManager:
                 return False
 
         return True
+
+    @staticmethod
+    def get_backup_metadata(backup_path: Path) -> dict:
+        """Extract portable audit metadata from a backup directory."""
+        if not backup_path.exists():
+            return {
+                "backup_id": None,
+                "backup_location": None,
+                "backup_hash": None,
+                "files_backed_up": [],
+            }
+
+        files = sorted([str(p.relative_to(backup_path)) for p in backup_path.glob("**/*") if p.is_file()])
+        from pbiscan.remediation.models import compute_sha256
+        combined_hashes = "".join(compute_file_sha256(backup_path / f) for f in files)
+        backup_hash = compute_sha256(combined_hashes) if files else ""
+        backup_id = f"BKP-{backup_path.name.split('.bak_')[-1] if '.bak_' in backup_path.name else 'MANUAL'}-{backup_hash[:8]}"
+
+        return {
+            "backup_id": backup_id,
+            "backup_location": str(backup_path),
+            "backup_hash": backup_hash,
+            "files_backed_up": files,
+        }

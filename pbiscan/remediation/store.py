@@ -15,23 +15,27 @@ class RemediationAuditStore:
 
     @classmethod
     def resolve_store_dir(cls, project_or_store_dir: Path) -> Path:
-        """Resolve the remediation audit directory for a given model or directory."""
+        """Pure path calculation resolving the remediation audit directory."""
         if project_or_store_dir.name == "remediation" and project_or_store_dir.parent.name == cls.DEFAULT_STORE_DIR_NAME:
-            store_dir = project_or_store_dir
+            return project_or_store_dir
         elif (project_or_store_dir / cls.DEFAULT_STORE_DIR_NAME / "remediation").exists():
-            store_dir = project_or_store_dir / cls.DEFAULT_STORE_DIR_NAME / "remediation"
+            return project_or_store_dir / cls.DEFAULT_STORE_DIR_NAME / "remediation"
         elif project_or_store_dir.is_dir():
-            store_dir = project_or_store_dir / cls.DEFAULT_STORE_DIR_NAME / "remediation"
+            return project_or_store_dir / cls.DEFAULT_STORE_DIR_NAME / "remediation"
         else:
-            store_dir = project_or_store_dir.parent / cls.DEFAULT_STORE_DIR_NAME / "remediation"
+            return project_or_store_dir.parent / cls.DEFAULT_STORE_DIR_NAME / "remediation"
 
+    @classmethod
+    def ensure_store_dir(cls, project_or_store_dir: Path) -> Path:
+        """Ensure the audit store directory exists before writing."""
+        store_dir = cls.resolve_store_dir(project_or_store_dir)
         store_dir.mkdir(parents=True, exist_ok=True)
         return store_dir
 
     @classmethod
     def save_manifest(cls, manifest: RemediationManifest, target_dir: Path) -> Path:
         """Persist a RemediationManifest to disk and update history.json index."""
-        store_dir = cls.resolve_store_dir(target_dir)
+        store_dir = cls.ensure_store_dir(target_dir)
         manifest_filename = f"manifest_{manifest.manifest_id}.json"
         manifest_path = store_dir / manifest_filename
 
@@ -45,8 +49,11 @@ class RemediationAuditStore:
 
     @classmethod
     def get_manifest(cls, manifest_id: str, target_dir: Path) -> Optional[RemediationManifest]:
-        """Load a specific manifest by ID."""
+        """Load a specific manifest by ID (pure read-only)."""
         store_dir = cls.resolve_store_dir(target_dir)
+        if not store_dir.exists():
+            return None
+
         manifest_path = store_dir / f"manifest_{manifest_id}.json"
         if not manifest_path.exists():
             return None
@@ -59,8 +66,11 @@ class RemediationAuditStore:
 
     @classmethod
     def list_manifests(cls, target_dir: Path) -> list[dict[str, Any]]:
-        """List summary history entries in reverse chronological order."""
+        """List summary history entries in reverse chronological order (pure read-only)."""
         store_dir = cls.resolve_store_dir(target_dir)
+        if not store_dir.exists():
+            return []
+
         history_path = store_dir / "history.json"
         if not history_path.exists():
             return []

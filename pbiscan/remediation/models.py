@@ -202,10 +202,19 @@ def compute_scan_fingerprint(scan_res: Any) -> str:
     return compute_sha256(json.dumps(payload, sort_keys=True))
 
 
+def generate_manifest_id(prefix: str = "MAN", seed: str = "") -> str:
+    """Generate collision-proof unique manifest ID with 12-char SHA-256 entropy."""
+    import uuid
+    timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    entropy = f"{seed}_{uuid.uuid4().hex}_{datetime.utcnow().isoformat()}"
+    suffix = compute_sha256(entropy)[:12].upper()
+    return f"{prefix}-{timestamp}-{suffix}"
+
+
 @dataclass
 class RemediationManifest:
     """Permanent, immutable audit record of a remediation run."""
-    manifest_id: str = field(default_factory=lambda: f"MAN-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}")
+    manifest_id: str = field(default_factory=lambda: generate_manifest_id("MAN"))
     manifest_version: str = "1.8"
     engine_version: str = "1.8.0"
     model_name: str = ""
@@ -219,6 +228,9 @@ class RemediationManifest:
     after_score: float = 0.0
     score_delta: float = 0.0
     backup_id: Optional[str] = None
+    backup_location: Optional[str] = None
+    backup_hash: Optional[str] = None
+    files_backed_up: list[str] = field(default_factory=list)
     applied_patches: list[dict] = field(default_factory=list)
     rejected_patches: list[dict] = field(default_factory=list)
     skipped_findings: list[dict] = field(default_factory=list)
@@ -226,6 +238,8 @@ class RemediationManifest:
     validation_result: Optional[dict] = None
     rejection_reasons: list[str] = field(default_factory=list)
     rollback_executed: bool = False
+    audit_saved: bool = True
+    audit_error: Optional[str] = None
     baseline_scan_hash: str = ""
     patches: list[dict] = field(default_factory=list)
 
@@ -255,6 +269,9 @@ class RemediationManifest:
             "after_score": self.after_score,
             "score_delta": self.score_delta,
             "backup_id": self.backup_id,
+            "backup_location": self.backup_location,
+            "backup_hash": self.backup_hash,
+            "files_backed_up": self.files_backed_up,
             "applied_patches": self.applied_patches,
             "rejected_patches": self.rejected_patches,
             "skipped_findings": self.skipped_findings,
@@ -262,6 +279,8 @@ class RemediationManifest:
             "validation_result": self.validation_result,
             "rejection_reasons": self.rejection_reasons,
             "rollback_executed": self.rollback_executed,
+            "audit_saved": self.audit_saved,
+            "audit_error": self.audit_error,
             "patches": self.applied_patches,
             "baseline_scan_hash": self.baseline_scan_fingerprint,
         }
@@ -287,6 +306,9 @@ class RemediationManifest:
             after_score=float(data.get("after_score", 0.0)),
             score_delta=float(data.get("score_delta", 0.0)),
             backup_id=data.get("backup_id"),
+            backup_location=data.get("backup_location"),
+            backup_hash=data.get("backup_hash"),
+            files_backed_up=data.get("files_backed_up", []),
             applied_patches=data.get("applied_patches", data.get("patches", [])),
             rejected_patches=data.get("rejected_patches", []),
             skipped_findings=data.get("skipped_findings", []),
@@ -294,6 +316,8 @@ class RemediationManifest:
             validation_result=data.get("validation_result"),
             rejection_reasons=data.get("rejection_reasons", []),
             rollback_executed=bool(data.get("rollback_executed", False)),
+            audit_saved=bool(data.get("audit_saved", True)),
+            audit_error=data.get("audit_error"),
             baseline_scan_hash=data.get("baseline_scan_hash", ""),
             patches=data.get("patches", []),
         )

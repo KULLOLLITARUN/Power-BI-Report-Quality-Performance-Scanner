@@ -188,3 +188,98 @@ class TestRemediationAuditStore:
         assert saved.decision == "ACCEPTED"
         assert saved.actor == "CLI"
         assert saved.after_score >= saved.before_score
+        assert saved.baseline_scan_fingerprint != ""
+        assert saved.post_scan_fingerprint != ""
+        assert saved.backup_id is not None
+        assert saved.backup_hash is not None
+
+    def test_reading_audit_store_never_creates_directories(self, tmp_path: Path):
+        uncreated_dir = tmp_path / "never_created_project"
+        assert not uncreated_dir.exists()
+
+        # Pure reads
+        res_list = RemediationAuditStore.list_manifests(uncreated_dir)
+        assert res_list == []
+        assert not uncreated_dir.exists()
+
+        res_get = RemediationAuditStore.get_manifest("NON_EXISTENT", uncreated_dir)
+        assert res_get is None
+        assert not uncreated_dir.exists()
+
+    def test_manifest_id_collision_is_impossible(self):
+        from pbiscan.remediation.models import generate_manifest_id
+        ids = {generate_manifest_id("MAN", seed=f"item_{i}") for i in range(1000)}
+        assert len(ids) == 1000
+
+    def test_manifest_baseline_and_post_fingerprints(self, tmp_path: Path):
+        import shutil
+        model_dir = tmp_path / "test_model_fp"
+        shutil.copytree(GOLDEN_DIR / "test_bidirectional", model_dir)
+
+        scan_before = RemediationEngine.analyze(model_dir)
+        fp_before = compute_scan_fingerprint(scan_before)
+
+        plan = RemediationEngine.plan(model_dir, scan_before)
+        validation = RemediationEngine.validate(plan, scan_before)
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan_before)
+        assert success is True
+        assert manifest.baseline_scan_fingerprint == fp_before
+        assert manifest.post_scan_fingerprint != ""
+        assert manifest.post_scan_fingerprint != fp_before  # finding resolved -> fingerprint changes
+
+    def test_rejected_validation_manifest_is_persisted(self, tmp_path: Path):
+        import shutil
+        model_dir = tmp_path / "test_model_rejected"
+        shutil.copytree(GOLDEN_DIR / "test_bidirectional", model_dir)
+
+        scan_before = RemediationEngine.analyze(model_dir)
+        plan = RemediationEngine.plan(model_dir, scan_before)
+        
+        # Simulate rejected validation result
+        from pbiscan.remediation.models import PatchValidationResult
+        rejected_validation = PatchValidationResult(
+            accepted=False,
+            rejection_reasons=["Simulated test rejection reason"],
+            finding_resolved=False,
+            resolved_count=0,
+            expected_resolved_count=1,
+            score_delta=0.0,
+            new_high_critical_count=0,
+            new_findings=[],
+            resolved_findings=[],
+            before_score=scan_before.overall_score,
+            after_score=scan_before.overall_score,
+        )
+
+        success, manifest = RemediationEngine.apply(plan, rejected_validation, backup=True)
+        assert success is False
+        assert manifest.decision == "REJECTED"
+
+        # Verify persisted
+        saved = RemediationAuditStore.get_manifest(manifest.manifest_id, model_dir)
+        assert saved is not None
+        assert saved.decision == "REJECTED"
+        assert "Simulated test rejection reason" in saved.rejection_reasons
+
+    def test_audit_persistence_failure_triggers_rollback(self, tmp_path: Path, monkeypatch):
+        import shutil
+        model_dir = tmp_path / "test_model_audit_fail"
+        shutil.copytree(GOLDEN_DIR / "test_bidirectional", model_dir)
+
+        scan_before = RemediationEngine.analyze(model_dir)
+        plan = RemediationEngine.plan(model_dir, scan_before)
+        validation = RemediationEngine.validate(plan, scan_before)
+
+        # Mock save_manifest to raise an unexpected IOError
+        def mock_failing_save(manifest, target_dir):
+            raise IOError("Simulated disk quota failure during audit persistence")
+
+        monkeypatch.setattr(RemediationAuditStore, "save_manifest", mock_failing_save)
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True)
+        assert success is False
+        assert manifest.decision == "ROLLED_BACK"
+        assert manifest.rollback_executed is True
+        assert manifest.audit_saved is False
+        assert "Audit persistence failure" in manifest.rejection_reasons[0]
