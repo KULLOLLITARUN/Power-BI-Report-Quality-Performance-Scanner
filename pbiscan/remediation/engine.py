@@ -15,6 +15,7 @@ from pbiscan.remediation.models import (
     RemediationManifest,
     RemediationPlan,
     compute_file_sha256,
+    compute_sha256,
 )
 from pbiscan.remediation.planner import RemediationPlanner
 from pbiscan.remediation.validator import SandboxValidator
@@ -167,19 +168,36 @@ class RemediationEngine:
         for p in actionable:
             p.state = PatchLifecycleState.APPLIED
 
+        manifest_id = f"MAN-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}-{compute_sha256(str(plan.model_path) + created_at)[:6]}"
         manifest = RemediationManifest(
+            manifest_id=manifest_id,
+            manifest_version="1.8",
             engine_version=__version__,
             model_name=plan.model_path.name,
-            baseline_scan_hash=compute_file_sha256(plan.model_path / "model.bim") or "",
+            model_path=str(plan.model_path),
             created_at=created_at,
+            actor="CLI",
             decision="ACCEPTED",
+            baseline_scan_fingerprint=compute_file_sha256(plan.model_path / "model.bim") or "",
             before_score=validation_result.before_score,
             after_score=final_scan.overall_score,
             score_delta=round(final_scan.overall_score - validation_result.before_score, 1),
-            patches=[p.to_dict() for p in plan.patches],
+            backup_id=str(backup_dir) if backup_dir else None,
+            applied_patches=[p.to_dict() for p in plan.applied_patches],
+            rejected_patches=[p.to_dict() for p in plan.patches if p.state == PatchLifecycleState.REJECTED],
+            skipped_findings=plan.skipped_findings,
             conflicts=[c.to_dict() for c in plan.conflicts],
+            validation_result=validation_result.to_dict(),
             rejection_reasons=[],
+            rollback_executed=False,
         )
+
+        try:
+            from pbiscan.remediation.store import RemediationAuditStore
+            RemediationAuditStore.save_manifest(manifest, plan.model_path)
+        except Exception:
+            pass
+
         return True, manifest
 
     @classmethod

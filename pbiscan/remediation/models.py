@@ -183,20 +183,122 @@ class RemediationPlan:
         }
 
 
+def compute_scan_fingerprint(scan_res: Any) -> str:
+    """Compute deterministic SHA-256 fingerprint for a ScanResult."""
+    if not scan_res:
+        return ""
+    # Collect canonical finding signatures and scores
+    findings_sig = [
+        f"{issue.rule_id}::{issue.location or ''}::{issue.severity or ''}"
+        for issue in sorted(getattr(scan_res, "issues", []), key=lambda x: (x.rule_id, x.location or ""))
+    ]
+    scores_dict = getattr(scan_res, "scores", {})
+    payload = {
+        "overall_score": getattr(scan_res, "overall_score", 0.0),
+        "scores": scores_dict,
+        "findings": findings_sig,
+    }
+    import json
+    return compute_sha256(json.dumps(payload, sort_keys=True))
+
+
 @dataclass
 class RemediationManifest:
-    """Permanent audit record of a remediation run."""
-    engine_version: str
-    model_name: str
-    baseline_scan_hash: str
-    created_at: str
-    decision: str                        # "ACCEPTED", "REJECTED", "REVIEW_REQUIRED"
-    before_score: float
-    after_score: float
-    score_delta: float
-    patches: list[dict]
-    conflicts: list[dict]
+    """Permanent, immutable audit record of a remediation run."""
+    manifest_id: str = field(default_factory=lambda: f"MAN-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}")
+    manifest_version: str = "1.8"
+    engine_version: str = "1.8.0"
+    model_name: str = ""
+    model_path: str = ""
+    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    actor: str = "CLI"                   # "CLI", "STUDIO", "CI", "AUTOMATION"
+    decision: str = "ACCEPTED"           # "ACCEPTED", "REJECTED", "REVIEW_REQUIRED", "ROLLED_BACK", "DRY_RUN"
+    baseline_scan_fingerprint: str = ""
+    post_scan_fingerprint: str = ""
+    before_score: float = 0.0
+    after_score: float = 0.0
+    score_delta: float = 0.0
+    backup_id: Optional[str] = None
+    applied_patches: list[dict] = field(default_factory=list)
+    rejected_patches: list[dict] = field(default_factory=list)
+    skipped_findings: list[dict] = field(default_factory=list)
+    conflicts: list[dict] = field(default_factory=list)
+    validation_result: Optional[dict] = None
     rejection_reasons: list[str] = field(default_factory=list)
+    rollback_executed: bool = False
+    baseline_scan_hash: str = ""
+    patches: list[dict] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.baseline_scan_fingerprint and self.baseline_scan_hash:
+            self.baseline_scan_fingerprint = self.baseline_scan_hash
+        if not self.baseline_scan_hash and self.baseline_scan_fingerprint:
+            self.baseline_scan_hash = self.baseline_scan_fingerprint
+        if not self.applied_patches and self.patches:
+            self.applied_patches = self.patches
+        if not self.patches and self.applied_patches:
+            self.patches = self.applied_patches
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return {
+            "manifest_id": self.manifest_id,
+            "manifest_version": self.manifest_version,
+            "engine_version": self.engine_version,
+            "model_name": self.model_name,
+            "model_path": self.model_path,
+            "created_at": self.created_at,
+            "actor": self.actor,
+            "decision": self.decision,
+            "baseline_scan_fingerprint": self.baseline_scan_fingerprint,
+            "post_scan_fingerprint": self.post_scan_fingerprint,
+            "before_score": self.before_score,
+            "after_score": self.after_score,
+            "score_delta": self.score_delta,
+            "backup_id": self.backup_id,
+            "applied_patches": self.applied_patches,
+            "rejected_patches": self.rejected_patches,
+            "skipped_findings": self.skipped_findings,
+            "conflicts": self.conflicts,
+            "validation_result": self.validation_result,
+            "rejection_reasons": self.rejection_reasons,
+            "rollback_executed": self.rollback_executed,
+            "patches": self.applied_patches,
+            "baseline_scan_hash": self.baseline_scan_fingerprint,
+        }
+
+    def to_json(self, indent: int = 2) -> str:
+        import json
+        return json.dumps(self.to_dict(), indent=indent)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> RemediationManifest:
+        return cls(
+            manifest_id=data.get("manifest_id", ""),
+            manifest_version=data.get("manifest_version", "1.8"),
+            engine_version=data.get("engine_version", "1.8.0"),
+            model_name=data.get("model_name", ""),
+            model_path=data.get("model_path", ""),
+            created_at=data.get("created_at", ""),
+            actor=data.get("actor", "CLI"),
+            decision=data.get("decision", "ACCEPTED"),
+            baseline_scan_fingerprint=data.get("baseline_scan_fingerprint", data.get("baseline_scan_hash", "")),
+            post_scan_fingerprint=data.get("post_scan_fingerprint", ""),
+            before_score=float(data.get("before_score", 0.0)),
+            after_score=float(data.get("after_score", 0.0)),
+            score_delta=float(data.get("score_delta", 0.0)),
+            backup_id=data.get("backup_id"),
+            applied_patches=data.get("applied_patches", data.get("patches", [])),
+            rejected_patches=data.get("rejected_patches", []),
+            skipped_findings=data.get("skipped_findings", []),
+            conflicts=data.get("conflicts", []),
+            validation_result=data.get("validation_result"),
+            rejection_reasons=data.get("rejection_reasons", []),
+            rollback_executed=bool(data.get("rollback_executed", False)),
+            baseline_scan_hash=data.get("baseline_scan_hash", ""),
+            patches=data.get("patches", []),
+        )
+
+    @classmethod
+    def from_json(cls, json_str: str) -> RemediationManifest:
+        import json
+        return cls.from_dict(json.loads(json_str))
