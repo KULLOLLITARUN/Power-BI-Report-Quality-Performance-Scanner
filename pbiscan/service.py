@@ -35,15 +35,20 @@ DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 
-def resolve_config(config_path: Optional[str | Path] = None, explicit_config: Optional[dict] = None) -> dict:
+def resolve_config(
+    config_path: Optional[str | Path] = None,
+    explicit_config: Optional[dict] = None,
+    project_path: Optional[str | Path] = None,
+) -> dict:
     """Resolve and validate the configuration dictionary.
 
     Resolution order:
     1. explicit_config dictionary if provided
     2. config_path file if provided and exists
-    3. rules.config.json in current working directory
-    4. rules.config.json in package root
-    5. DEFAULT_CONFIG fallback
+    3. .pbiscan.config.json inside project_path directory (if project_path provided)
+    4. rules.config.json in current working directory
+    5. rules.config.json in package root
+    6. DEFAULT_CONFIG fallback
     """
     if explicit_config is not None:
         return explicit_config
@@ -52,6 +57,15 @@ def resolve_config(config_path: Optional[str | Path] = None, explicit_config: Op
         cp = Path(config_path)
         if cp.exists():
             return load_config(cp)
+
+    if project_path:
+        pp = Path(project_path)
+        proj_cfg = pp / ".pbiscan.config.json" if pp.is_dir() else pp.parent / ".pbiscan.config.json"
+        if proj_cfg.exists():
+            try:
+                return load_config(proj_cfg)
+            except Exception:
+                pass
 
     local = Path("rules.config.json")
     if local.exists():
@@ -326,7 +340,7 @@ class ScanService:
             raise FileNotFoundError(f"Path does not exist: {project_path}")
 
         # Resolve configuration
-        effective_config = resolve_config(config_path=config_path, explicit_config=config)
+        effective_config = resolve_config(config_path=config_path, explicit_config=config, project_path=proj_path)
 
         # Step 1: Extract PBIP metadata
         reader = PBIPReader()
