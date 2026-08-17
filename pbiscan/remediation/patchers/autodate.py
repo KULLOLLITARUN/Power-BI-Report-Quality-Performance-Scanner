@@ -36,6 +36,8 @@ class AutoDatePatcher(BasePatcher):
             "local_date_tables_detected",
             "target_files_located",
             "zero_direct_visual_bindings",
+            "zero_custom_relationship_dependencies",
+            "zero_semantic_reference_consumers",
             "clean_syntax_boundary",
         ]
         satisfied: list[str] = []
@@ -49,7 +51,7 @@ class AutoDatePatcher(BasePatcher):
 
         satisfied.append("model_identified")
 
-        # Check visual bindings to LocalDateTable columns
+        # 1. Check visual bindings to LocalDateTable columns
         direct_bindings = False
         for page in report.report.pages:
             for visual in page.visuals:
@@ -67,7 +69,36 @@ class AutoDatePatcher(BasePatcher):
         else:
             violated.append("zero_direct_visual_bindings")
 
-        # Locate target files
+        # 2. Check custom non-variation relationships
+        custom_rel = False
+        for rel in report.model.relationships:
+            from_match = any(t.lower() == rel.from_table.lower() for t in local_date_tables)
+            to_match = any(t.lower() == rel.to_table.lower() for t in local_date_tables)
+            # If both ends are not standard auto-variations or if custom active user relationship
+            if from_match and to_match:
+                custom_rel = True
+                break
+
+        if not custom_rel:
+            satisfied.append("zero_custom_relationship_dependencies")
+        else:
+            violated.append("zero_custom_relationship_dependencies")
+
+        # 3. Check semantic references
+        sem_refs = getattr(report, "semantic_references", None)
+        has_sem_ref = False
+        if sem_refs and hasattr(sem_refs, "find_by_target"):
+            for t in local_date_tables:
+                if sem_refs.find_by_target(t):
+                    has_sem_ref = True
+                    break
+
+        if not has_sem_ref:
+            satisfied.append("zero_semantic_reference_consumers")
+        else:
+            violated.append("zero_semantic_reference_consumers")
+
+        # 4. Locate target files
         model_tmdl = self._find_model_tmdl(model_dir)
         bim_file = self._find_bim_file(model_dir)
 
