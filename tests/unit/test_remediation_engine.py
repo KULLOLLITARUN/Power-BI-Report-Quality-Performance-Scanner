@@ -18,6 +18,7 @@ from pbiscan.remediation.models import (
     RemediationSafety,
     compute_file_sha256,
 )
+from pbiscan.remediation.patchers.datasource import DataSourcePatcher
 from pbiscan.remediation.patchers.measure import MeasurePatcher
 from pbiscan.remediation.patchers.relationship import RelationshipPatcher
 from pbiscan.remediation.planner import RemediationPlanner
@@ -50,6 +51,15 @@ def temp_unusedmeasure_bim(tmp_path: Path) -> Path:
     """Create a temporary copy of test_unusedmeasure (BIM)."""
     src = GOLDEN_DIR / "test_unusedmeasure"
     dest = tmp_path / "test_unusedmeasure"
+    shutil.copytree(src, dest)
+    return dest
+
+
+@pytest.fixture
+def temp_hardcoded_datasource_tmdl(tmp_path: Path) -> Path:
+    """Create a temporary copy of test_m_hardcoded_datasource (TMDL)."""
+    src = GOLDEN_DIR / "test_m_hardcoded_datasource"
+    dest = tmp_path / "test_m_hardcoded_datasource"
     shutil.copytree(src, dest)
     return dest
 
@@ -313,6 +323,106 @@ class TestMeasurePatcher:
         evidence = patcher.analyze(unused_findings[0], scan_res.report, model_dir)
         assert "clean_syntax_boundary" in evidence.violated_preconditions
         assert patcher.generate_patch(unused_findings[0], evidence, model_dir) is None
+
+
+class TestDataSourcePatcher:
+    def test_hardcoded_datasource_tmdl_patch_generation_and_evidence(self, temp_hardcoded_datasource_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_hardcoded_datasource_tmdl)
+        ds_findings = [f for f in scan_res.issues if f.rule_id == "M_HARDCODED_DATA_SOURCE"]
+        assert len(ds_findings) == 2  # LocalOrders & DownloadsCustomers
+
+        target_issue = next(f for f in ds_findings if "LocalOrders" in (f.location or f.evidence))
+
+        patcher = DataSourcePatcher()
+        evidence = patcher.analyze(target_issue, scan_res.report, temp_hardcoded_datasource_tmdl)
+
+        assert evidence.rule_id == "M_HARDCODED_DATA_SOURCE"
+        assert evidence.confidence > 0.9
+        assert not evidence.violated_preconditions
+        assert "table_identified" in evidence.satisfied_preconditions
+        assert "hardcoded_path_detected" in evidence.satisfied_preconditions
+        assert evidence.semantic_risk == "HIGH"
+
+        patch = patcher.generate_patch(target_issue, evidence, temp_hardcoded_datasource_tmdl)
+        assert patch is not None
+        assert patch.rule_id == "M_HARDCODED_DATA_SOURCE"
+        assert patch.safety == RemediationSafety.REVIEW_REQUIRED
+        assert len(patch.chunks) == 1
+        assert "DataFolderPath" in patch.chunks[0].replacement_text
+        assert "C:\\Users\\Admin\\Desktop\\Orders.xlsx" in patch.chunks[0].original_text
+
+    def test_cloud_datasource_does_not_generate_patch(self, temp_hardcoded_datasource_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_hardcoded_datasource_tmdl)
+
+        # Fake issue targeting clean table CloudSales
+        fake_issue = AuditIssue(
+            rule_id="M_HARDCODED_DATA_SOURCE",
+            category="model",
+            severity="HIGH",
+            title="Hardcoded data source",
+            issue="Hardcoded data source",
+            evidence="Table 'CloudSales' contains hardcoded path",
+            impact="None",
+            recommendation="Parameterize",
+            confidence=95,
+            location="Table: CloudSales",
+        )
+
+        patcher = DataSourcePatcher()
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_hardcoded_datasource_tmdl)
+        assert "hardcoded_path_detected" in evidence.violated_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, temp_hardcoded_datasource_tmdl) is None
+
+    def test_apply_hardcoded_datasource_remediation_lifecycle_tmdl(self, temp_hardcoded_datasource_tmdl: Path):
+        scan_before = RemediationEngine.analyze(temp_hardcoded_datasource_tmdl)
+        ds_before = [f for f in scan_before.issues if f.rule_id == "M_HARDCODED_DATA_SOURCE"]
+        assert len(ds_before) == 2
+        before_score = scan_before.overall_score
+
+        plan = RemediationEngine.plan(
+            temp_hardcoded_datasource_tmdl,
+            scan_before,
+            rule_filter="M_HARDCODED_DATA_SOURCE",
+        )
+        assert len(plan.actionable_patches) == 2
+
+        validation = RemediationEngine.validate(plan, scan_before)
+        assert validation.accepted is True
+        assert validation.finding_resolved is True
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True)
+        assert success is True
+        assert manifest.decision == "ACCEPTED"
+        assert manifest.after_score >= before_score
+
+    def test_parameter_name_collision_blocks_remediation(self, temp_hardcoded_datasource_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_hardcoded_datasource_tmdl)
+        
+        # Synthesize a collision where a table named 'DataFolderPath' exists
+        from pbiscan.canonical.model import Table
+        scan_res.report.model.tables.append(Table(name="DataFolderPath"))
+
+        target_issue = next(f for f in scan_res.issues if f.rule_id == "M_HARDCODED_DATA_SOURCE")
+        patcher = DataSourcePatcher()
+        evidence = patcher.analyze(target_issue, scan_res.report, temp_hardcoded_datasource_tmdl)
+        
+        assert "no_parameter_collision" in evidence.violated_preconditions
+        assert patcher.generate_patch(target_issue, evidence, temp_hardcoded_datasource_tmdl) is None
+
+    def test_dynamic_m_expression_blocks_remediation(self, temp_hardcoded_datasource_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_hardcoded_datasource_tmdl)
+        
+        # Inject dynamic Expression.Evaluate into table partition source
+        for t in scan_res.report.model.tables:
+            if t.name == "LocalOrders":
+                t.partition_source = "let Source = Expression.Evaluate(\"C:\\Users\\Admin\\Desktop\\Orders.xlsx\") in Source"
+
+        target_issue = next(f for f in scan_res.issues if f.rule_id == "M_HARDCODED_DATA_SOURCE" and "LocalOrders" in f.location)
+        patcher = DataSourcePatcher()
+        evidence = patcher.analyze(target_issue, scan_res.report, temp_hardcoded_datasource_tmdl)
+        
+        assert "supported_path_semantics" in evidence.violated_preconditions
+        assert patcher.generate_patch(target_issue, evidence, temp_hardcoded_datasource_tmdl) is None
 
 
 class TestRemediationEngineLifecycle:

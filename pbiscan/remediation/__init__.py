@@ -12,6 +12,7 @@ from pbiscan.remediation.models import (
     RemediationPlan,
     RemediationSafety,
 )
+from pbiscan.remediation.patchers.datasource import DataSourcePatcher
 from pbiscan.remediation.patchers.measure import MeasurePatcher
 from pbiscan.remediation.patchers.relationship import RelationshipPatcher
 from pbiscan.remediation.planner import RemediationPlanner
@@ -19,6 +20,7 @@ from pbiscan.remediation.validator import SandboxValidator
 
 __all__ = [
     "BackupManager",
+    "DataSourcePatcher",
     "MeasurePatcher",
     "Patch",
     "PatchChunk",
