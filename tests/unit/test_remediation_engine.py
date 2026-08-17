@@ -18,6 +18,7 @@ from pbiscan.remediation.models import (
     RemediationSafety,
     compute_file_sha256,
 )
+from pbiscan.remediation.patchers.measure import MeasurePatcher
 from pbiscan.remediation.patchers.relationship import RelationshipPatcher
 from pbiscan.remediation.planner import RemediationPlanner
 from pbiscan.remediation.validator import SandboxValidator
@@ -40,6 +41,15 @@ def temp_bidirectional_tmdl(tmp_path: Path) -> Path:
     """Create a temporary copy of test_enterprise_stress (TMDL)."""
     src = GOLDEN_DIR / "test_enterprise_stress"
     dest = tmp_path / "test_enterprise_stress"
+    shutil.copytree(src, dest)
+    return dest
+
+
+@pytest.fixture
+def temp_unusedmeasure_bim(tmp_path: Path) -> Path:
+    """Create a temporary copy of test_unusedmeasure (BIM)."""
+    src = GOLDEN_DIR / "test_unusedmeasure"
+    dest = tmp_path / "test_unusedmeasure"
     shutil.copytree(src, dest)
     return dest
 
@@ -103,6 +113,206 @@ class TestRelationshipPatcher:
         assert patch.file_path.name == "relationships.tmdl"
         assert len(patch.chunks) == 1
         assert "oneDirection" in patch.chunks[0].replacement_text
+
+
+class TestMeasurePatcher:
+    def test_unused_measure_bim_patch_generation_and_evidence(self, temp_unusedmeasure_bim: Path):
+        scan_res = ScanService.execute_scan(temp_unusedmeasure_bim)
+        unused_findings = [f for f in scan_res.issues if f.rule_id == "DAX_UNUSED_MEASURE"]
+        assert len(unused_findings) == 1
+        assert "Unused Measure" in (unused_findings[0].location or "")
+
+        patcher = MeasurePatcher()
+        evidence = patcher.analyze(unused_findings[0], scan_res.report, temp_unusedmeasure_bim)
+        
+        assert evidence.rule_id == "DAX_UNUSED_MEASURE"
+        assert evidence.confidence > 0.9
+        assert not evidence.violated_preconditions
+        assert "zero_transitive_measure_dependents" in evidence.satisfied_preconditions
+        assert "zero_semantic_reference_consumers" in evidence.satisfied_preconditions
+        assert "zero_visual_consumers" in evidence.satisfied_preconditions
+
+        patch = patcher.generate_patch(unused_findings[0], evidence, temp_unusedmeasure_bim)
+        assert patch is not None
+        assert patch.rule_id == "DAX_UNUSED_MEASURE"
+        assert patch.safety == RemediationSafety.REVIEW_REQUIRED
+        assert len(patch.chunks) == 1
+        assert "Unused Measure" in patch.chunks[0].original_text
+        assert "Unused Measure" not in patch.chunks[0].replacement_text
+
+    def test_unused_measure_tmdl_patch_generation_and_evidence(self, temp_bidirectional_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_bidirectional_tmdl)
+        unused_findings = [f for f in scan_res.issues if f.rule_id == "DAX_UNUSED_MEASURE"]
+        assert len(unused_findings) >= 1
+        
+        target_issue = next(f for f in unused_findings if "Orphaned Tax Calc" in (f.location or f.evidence))
+        
+        patcher = MeasurePatcher()
+        evidence = patcher.analyze(target_issue, scan_res.report, temp_bidirectional_tmdl)
+        assert not evidence.violated_preconditions
+        
+        patch = patcher.generate_patch(target_issue, evidence, temp_bidirectional_tmdl)
+        assert patch is not None
+        assert patch.file_path.name == "Sales.tmdl"
+        assert len(patch.chunks) == 1
+        assert "Orphaned Tax Calc" in patch.chunks[0].original_text
+        assert patch.chunks[0].replacement_text == ""
+
+    def test_used_measure_with_transitive_dependents_blocks_deletion(self, temp_bidirectional_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_bidirectional_tmdl)
+        
+        # Synthesize an issue targeting a base measure with dependents ('Base Amount')
+        fake_issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE",
+            category="dax",
+            severity="ADVISORY",
+            title="Unused measure",
+            issue="Unused measure",
+            evidence="Measure 'Base Amount' [Sales]: fake evidence",
+            impact="None",
+            recommendation="Delete",
+            confidence=95,
+            location="Measure: Base Amount",
+        )
+        
+        patcher = MeasurePatcher()
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_bidirectional_tmdl)
+        assert "zero_transitive_measure_dependents" in evidence.violated_preconditions
+        assert evidence.confidence == 0.0
+        
+        patch = patcher.generate_patch(fake_issue, evidence, temp_bidirectional_tmdl)
+        assert patch is None
+
+    def test_measure_in_visual_blocks_deletion(self, temp_unusedmeasure_bim: Path):
+        scan_res = ScanService.execute_scan(temp_unusedmeasure_bim)
+        
+        # 'Total Revenue' is used in visual
+        fake_issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE",
+            category="dax",
+            severity="ADVISORY",
+            title="Unused measure",
+            issue="Unused measure",
+            evidence="Measure 'Total Revenue' [Sales]: fake evidence",
+            impact="None",
+            recommendation="Delete",
+            confidence=95,
+            location="Measure: Total Revenue",
+        )
+        
+        patcher = MeasurePatcher()
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_unusedmeasure_bim)
+        assert "zero_visual_consumers" in evidence.violated_preconditions
+        
+        patch = patcher.generate_patch(fake_issue, evidence, temp_unusedmeasure_bim)
+        assert patch is None
+
+    def test_apply_unused_measure_remediation_lifecycle_bim(self, temp_unusedmeasure_bim: Path):
+        scan_before = RemediationEngine.analyze(temp_unusedmeasure_bim)
+        assert any(f.rule_id == "DAX_UNUSED_MEASURE" for f in scan_before.issues)
+        before_score = scan_before.overall_score
+
+        plan = RemediationEngine.plan(temp_unusedmeasure_bim, scan_before, rule_filter="DAX_UNUSED_MEASURE")
+        assert len(plan.actionable_patches) == 1
+
+        validation = RemediationEngine.validate(plan, scan_before)
+        assert validation.accepted is True
+        assert validation.finding_resolved is True
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True)
+        assert success is True
+        assert manifest.decision == "ACCEPTED"
+        assert manifest.after_score >= before_score
+
+    def test_calc_group_reference_blocks_deletion(self):
+        src = GOLDEN_DIR / "test_calc_groups_selectedmeasure"
+        scan_res = ScanService.execute_scan(src)
+        
+        # Inject a synthetic calc_item_dax semantic reference to 'Raw Margin'
+        from pbiscan.canonical.references import SemanticReference
+        scan_res.report.semantic_references.add(SemanticReference(
+            target_name="Raw Margin",
+            target_table="Sales",
+            target_type="measure",
+            source_type="calc_item_dax",
+            source_object="TimeIntelligence['YTD']",
+            source_file="definition/tables/TimeIntelligence.tmdl",
+        ))
+        
+        fake_issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE",
+            category="dax",
+            severity="ADVISORY",
+            title="Unused measure",
+            issue="Unused measure",
+            evidence="Measure 'Raw Margin' [Sales]: fake evidence",
+            impact="None",
+            recommendation="Delete",
+            confidence=95,
+            location="Measure: Raw Margin",
+        )
+        patcher = MeasurePatcher()
+        evidence = patcher.analyze(fake_issue, scan_res.report, src)
+        assert "zero_semantic_reference_consumers" in evidence.violated_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, src) is None
+
+    def test_field_parameter_reference_blocks_deletion(self):
+        src = GOLDEN_DIR / "test_field_parameters_usage"
+        scan_res = ScanService.execute_scan(src)
+        
+        fake_issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE",
+            category="dax",
+            severity="ADVISORY",
+            title="Unused measure",
+            issue="Unused measure",
+            evidence="Measure 'ParameterMeasureA' [Sales]: fake evidence",
+            impact="None",
+            recommendation="Delete",
+            confidence=95,
+            location="Measure: ParameterMeasureA",
+        )
+        patcher = MeasurePatcher()
+        evidence = patcher.analyze(fake_issue, scan_res.report, src)
+        assert "zero_semantic_reference_consumers" in evidence.violated_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, src) is None
+
+    def test_multi_hop_transitive_dependency_blocks_deletion(self, temp_bidirectional_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_bidirectional_tmdl)
+        
+        # 'Net Sales' is referenced by 'Net Sales YTD' which is referenced by 'Sales Growth YoY %'
+        fake_issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE",
+            category="dax",
+            severity="ADVISORY",
+            title="Unused measure",
+            issue="Unused measure",
+            evidence="Measure 'Net Sales' [Sales]: fake evidence",
+            impact="None",
+            recommendation="Delete",
+            confidence=95,
+            location="Measure: Net Sales",
+        )
+        patcher = MeasurePatcher()
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_bidirectional_tmdl)
+        assert "zero_transitive_measure_dependents" in evidence.violated_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, temp_bidirectional_tmdl) is None
+
+    def test_unknown_surface_reference_blocks_deletion(self, tmp_path: Path):
+        model_dir = tmp_path / "unknown_surface_model"
+        shutil.copytree(GOLDEN_DIR / "test_unusedmeasure", model_dir)
+        
+        # Inject an unmapped reference into an external script file
+        (model_dir / "custom_script.dax").write_text("EVALUATE ROW(\"Val\", [Unused Measure])", encoding="utf-8")
+        
+        scan_res = ScanService.execute_scan(model_dir)
+        unused_findings = [f for f in scan_res.issues if f.rule_id == "DAX_UNUSED_MEASURE"]
+        assert len(unused_findings) == 1
+
+        patcher = MeasurePatcher()
+        evidence = patcher.analyze(unused_findings[0], scan_res.report, model_dir)
+        assert "clean_syntax_boundary" in evidence.violated_preconditions
+        assert patcher.generate_patch(unused_findings[0], evidence, model_dir) is None
 
 
 class TestRemediationEngineLifecycle:
@@ -284,7 +494,7 @@ class TestCliFixCommand:
 
     def test_cli_fix_clean_model_returns_exit_0(self, tmp_path: Path):
         clean_model = tmp_path / "clean_model"
-        shutil.copytree(GOLDEN_DIR / "test_calc_group_variants", clean_model)
+        shutil.copytree(GOLDEN_DIR / "test_measure_referenced_by_another", clean_model)
 
         runner = CliRunner()
         res = runner.invoke(main, ["fix", str(clean_model)])

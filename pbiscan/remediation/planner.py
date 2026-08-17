@@ -10,6 +10,7 @@ from pbiscan.remediation.models import (
     RemediationPlan,
 )
 from pbiscan.remediation.patchers.base import BasePatcher
+from pbiscan.remediation.patchers.measure import MeasurePatcher
 from pbiscan.remediation.patchers.relationship import RelationshipPatcher
 
 
@@ -19,6 +20,7 @@ class RemediationPlanner:
     def __init__(self) -> None:
         self._patchers: Dict[str, BasePatcher] = {}
         self.register_patcher(RelationshipPatcher())
+        self.register_patcher(MeasurePatcher())
 
     def register_patcher(self, patcher: BasePatcher) -> None:
         """Register a rule-specific patcher."""
