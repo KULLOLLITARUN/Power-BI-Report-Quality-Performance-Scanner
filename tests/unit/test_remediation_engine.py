@@ -476,6 +476,49 @@ class TestAutoDatePatcher:
         assert "zero_direct_visual_bindings" in evidence.violated_preconditions
         assert len(patcher.generate_patches(autodate_findings[0], evidence, temp_autodate_tmdl)) == 0
 
+    def test_autodate_custom_relationship_blocks_remediation(self, temp_autodate_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_autodate_tmdl)
+
+        # Inject a custom relationship between two LocalDateTables
+        from pbiscan.canonical.model import Relationship
+        scan_res.report.model.relationships.append(
+            Relationship(
+                from_table="LocalDateTable_12345678",
+                from_column="Date",
+                to_table="LocalDateTable_87654321",
+                to_column="Date",
+                cross_filter_direction="both",
+            )
+        )
+
+        autodate_findings = [f for f in scan_res.issues if f.rule_id == "MODEL_AUTO_DATETIME_BLOAT"]
+        patcher = AutoDatePatcher()
+        evidence = patcher.analyze(autodate_findings[0], scan_res.report, temp_autodate_tmdl)
+
+        assert "zero_custom_relationship_dependencies" in evidence.violated_preconditions
+        assert len(patcher.generate_patches(autodate_findings[0], evidence, temp_autodate_tmdl)) == 0
+
+    def test_autodate_semantic_reference_blocks_remediation(self, temp_autodate_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_autodate_tmdl)
+
+        from pbiscan.canonical.references import SemanticReference
+        scan_res.report.semantic_references.add(
+            SemanticReference(
+                target_name="LocalDateTable_12345678",
+                target_type="table",
+                source_type="calc_item_dax",
+                source_object="CalculationGroup['Item']",
+                source_file="definition/tables/CalculationGroup.tmdl",
+            )
+        )
+
+        autodate_findings = [f for f in scan_res.issues if f.rule_id == "MODEL_AUTO_DATETIME_BLOAT"]
+        patcher = AutoDatePatcher()
+        evidence = patcher.analyze(autodate_findings[0], scan_res.report, temp_autodate_tmdl)
+
+        assert "zero_semantic_reference_consumers" in evidence.violated_preconditions
+        assert len(patcher.generate_patches(autodate_findings[0], evidence, temp_autodate_tmdl)) == 0
+
     def test_apply_autodate_remediation_lifecycle_tmdl(self, temp_autodate_tmdl: Path):
         scan_before = RemediationEngine.analyze(temp_autodate_tmdl)
         assert any(f.rule_id == "MODEL_AUTO_DATETIME_BLOAT" for f in scan_before.issues)
@@ -500,6 +543,46 @@ class TestAutoDatePatcher:
         # Verify rescan on modified real workspace has 0 MODEL_AUTO_DATETIME_BLOAT findings
         scan_after = RemediationEngine.analyze(temp_autodate_tmdl)
         assert not any(f.rule_id == "MODEL_AUTO_DATETIME_BLOAT" for f in scan_after.issues)
+
+
+class TestCombinedEnterpriseMultiPatcherCertification:
+    def test_enterprise_model_with_all_remediation_rules(self, tmp_path: Path):
+        """Combined certification test verifying simultaneous multi-patcher lifecycle."""
+        # Create a rich model combining bidirectional relationships, unused measures, and hardcoded data sources
+        model_dir = tmp_path / "enterprise_combined_model"
+        shutil.copytree(GOLDEN_DIR / "test_enterprise_stress", model_dir)
+
+        scan_before = RemediationEngine.analyze(model_dir)
+        before_rules = {f.rule_id for f in scan_before.issues}
+        assert "MODEL_BIDIRECTIONAL" in before_rules
+        assert "DAX_UNUSED_MEASURE" in before_rules
+        before_score = scan_before.overall_score
+
+        # Plan across all certified patchers
+        plan = RemediationEngine.plan(model_dir, scan_before)
+        assert len(plan.actionable_patches) >= 2
+        planned_rules = {p.rule_id for p in plan.actionable_patches}
+        assert "MODEL_BIDIRECTIONAL" in planned_rules
+        assert "DAX_UNUSED_MEASURE" in planned_rules
+
+        # Sandbox Before -> After validation
+        validation = RemediationEngine.validate(plan, scan_before)
+        assert validation.accepted is True
+        assert validation.finding_resolved is True
+        assert validation.score_delta > 0
+
+        # Atomic apply with backup
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True)
+        assert success is True
+        assert manifest.decision == "ACCEPTED"
+        assert manifest.after_score > before_score
+        assert len(manifest.patches) >= 2
+
+        # Verify rescan of modified model
+        scan_after = RemediationEngine.analyze(model_dir)
+        after_rules = {f.rule_id for f in scan_after.issues}
+        assert "MODEL_BIDIRECTIONAL" not in after_rules
+        assert scan_after.overall_score > before_score
 
 
 class TestRemediationEngineLifecycle:
