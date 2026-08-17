@@ -403,7 +403,132 @@ def diff(
     sys.exit(0)
 
 
+@main.command()
+@click.argument("path", type=click.Path(exists=True))
+@click.option(
+    "--apply",
+    is_flag=True,
+    help="Apply validated remediation patches to disk (default is dry-run plan only).",
+)
+@click.option(
+    "--backup/--no-backup",
+    default=True,
+    show_default=True,
+    help="Create timestamped .bak backup directory before modifying files.",
+)
+@click.option(
+    "--rule", "-r",
+    type=str,
+    default=None,
+    help="Filter remediation to a specific rule (e.g. MODEL_BIDIRECTIONAL).",
+)
+@click.option(
+    "--config", "-c",
+    type=click.Path(),
+    default=None,
+    help="Path to rules.config.json.",
+)
+@click.option(
+    "--format", "-f",
+    "output_format",
+    type=click.Choice(["console", "json", "markdown"], case_sensitive=False),
+    default="console",
+    show_default=True,
+    help="Output format.",
+)
+@click.option(
+    "--out", "-o",
+    type=click.Path(),
+    default=None,
+    help="Output file path for remediation plan / manifest.",
+)
+@click.option(
+    "--quiet", "-q",
+    is_flag=True,
+    help="Suppress stdout console output.",
+)
+def fix(
+    path: str,
+    apply: bool,
+    backup: bool,
+    rule: Optional[str],
+    config: Optional[str],
+    output_format: str,
+    out: Optional[str],
+    quiet: bool,
+) -> None:
+    """Analyze, plan, and safely apply verified remediation patches to a PBIP model."""
+    from pbiscan.remediation.engine import RemediationEngine
+
+    model_path = Path(path)
+    if not model_path.exists():
+        click.echo(f"[ERROR] Target path does not exist: {path}", err=True)
+        sys.exit(2)
+
+    try:
+        # Phase 1: Baseline Scan
+        scan_res = RemediationEngine.analyze(model_path, config_path=config)
+
+        # Phase 2: Remediation Plan
+        plan = RemediationEngine.plan(model_path, scan_res, rule_filter=rule)
+
+        # Phase 3: Sandbox Validation Loop
+        validation = RemediationEngine.validate(plan, scan_res, config_path=config)
+    except Exception as exc:
+        click.echo(f"[ERROR] Remediation planning failed: {exc}", err=True)
+        sys.exit(2)
+
+    # Phase 4: Apply or Plan Preview
+    if apply:
+        try:
+            success, manifest = RemediationEngine.apply(
+                plan=plan,
+                validation_result=validation,
+                backup=backup,
+                config_path=config,
+            )
+        except Exception as exc:
+            click.echo(f"[ERROR] Remediation apply failed with unexpected exception: {exc}", err=True)
+            sys.exit(2)
+
+        rendered = json.dumps(manifest.to_dict(), indent=2) if output_format.lower() == "json" else RemediationEngine.render_preview(plan, validation, output_format)
+
+        if out:
+            Path(out).write_text(json.dumps(manifest.to_dict(), indent=2), encoding="utf-8")
+            if not quiet:
+                click.echo(f"\n  Remediation manifest saved: {_colour(str(out), _GREEN)}")
+        elif not quiet:
+            click.echo(rendered)
+
+        if success:
+            if not quiet:
+                click.echo(_colour(f"\n✔ Successfully applied {len(plan.actionable_patches)} remediation patch(es).", _GREEN))
+            sys.exit(0)
+        else:
+            if not quiet:
+                click.echo(_colour("\n✖ Remediation rejected by validation or transactional rollback.", _RED), err=True)
+            sys.exit(1)
+    else:
+        # Plan-only (Safe Default)
+        rendered = RemediationEngine.render_preview(plan, validation, output_format)
+
+        if out:
+            Path(out).write_text(rendered, encoding="utf-8")
+            if not quiet:
+                click.echo(f"\n  Remediation plan saved: {_colour(str(out), _GREEN)}")
+        elif not quiet:
+            click.echo(rendered)
+
+        if plan.actionable_patches:
+            # Exit 3: Plan-only / Review required
+            sys.exit(3)
+        else:
+            # Exit 0: Clean model / No actionable findings
+            sys.exit(0)
+
+
 if __name__ == "__main__":
     main()
+
 
 
