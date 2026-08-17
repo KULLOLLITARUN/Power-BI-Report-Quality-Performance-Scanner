@@ -2,13 +2,7 @@
 
 import json
 from pathlib import Path
-from pbiscan.extraction.pbip_reader import PBIPReader
-from pbiscan.canonical.builder import CanonicalBuilder
-from pbiscan.rules.dax import DAX_RULES
-from pbiscan.rules.model import MODEL_RULES
-from pbiscan.rules.report import REPORT_RULES
-
-ALL_RULES = MODEL_RULES + DAX_RULES + REPORT_RULES
+from pbiscan.service import ScanService
 
 TARGET_MODELS = [
     Path(r"C:\Users\TARUN\Downloads\Test\1761793292566_02 email communication report challenge.pbip"),
@@ -19,14 +13,11 @@ TARGET_MODELS = [
 def audit_top_models():
     records = []
     for model_path in TARGET_MODELS:
-        reader = PBIPReader()
-        raw = reader.read(model_path)
-        builder = CanonicalBuilder()
-        report = builder.build(raw)
-
-        findings = []
-        for rule in ALL_RULES:
-            findings.extend(rule(report))
+        if not model_path.exists():
+            continue
+        result = ScanService.execute_scan(model_path)
+        report = result.report
+        issues = result.issues
 
         measure_map = {m.name: m for m in report.dax.measures}
         sem_refs = report.semantic_references
