@@ -4,10 +4,11 @@ import {
   Network, 
   Code2, 
   Layers,
-  FolderOpen
+  FolderOpen,
+  GitCompare
 } from 'lucide-react';
 
-export type TabType = 'dashboard' | 'model-map' | 'dax-explorer' | 'pages';
+export type TabType = 'dashboard' | 'model-map' | 'dax-explorer' | 'pages' | 'diff';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -52,6 +53,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Visual Pages',
       icon: Layers,
       badge: pagesCount > 0 ? `${pagesCount}` : undefined,
+    },
+    {
+      id: 'diff' as TabType,
+      label: 'Compare / Diff',
+      icon: GitCompare,
     },
   ];
 

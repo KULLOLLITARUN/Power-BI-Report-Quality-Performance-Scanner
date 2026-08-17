@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from pbiscan import __version__
+from pbiscan.diff import DiffService, QualityGatePolicy
 from pbiscan.extraction.pbip_reader import PBIScanError
 from pbiscan.service import ScanService, resolve_config
 
@@ -60,6 +61,16 @@ class ExportRequest(BaseModel):
     project_path: str
     format: str  # "html", "json", "sarif", "junit"
     config_path: Optional[str] = None
+
+
+class DiffRequest(BaseModel):
+    baseline_path: str
+    current_path: str
+    config_path: Optional[str] = None
+    fail_on_regression: Optional[bool] = False
+    max_score_drop: Optional[float] = None
+    fail_on_new: Optional[str] = None
+    fail_on_category_regression: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +257,39 @@ async def export_audit(req: ExportRequest):
         return {"content": result.to_junit(), "mime": "application/xml", "filename": f"{result.report_name}-junit.xml"}
     else:
         return {"content": result.to_html(), "mime": "text/html", "filename": f"{result.report_name}-audit.html"}
+
+
+@app.post("/api/diff")
+async def diff_audit(req: DiffRequest):
+    """Compare two scans (PBIP directories or JSON artifacts) and return canonical DiffResult."""
+    base_path = Path(req.baseline_path)
+    if not base_path.exists():
+        raise HTTPException(status_code=404, detail=f"Baseline path does not exist: {req.baseline_path}")
+
+    curr_path = Path(req.current_path)
+    if not curr_path.exists():
+        raise HTTPException(status_code=404, detail=f"Current path does not exist: {req.current_path}")
+
+    policy = QualityGatePolicy(
+        fail_on_regression=req.fail_on_regression or False,
+        max_score_drop=req.max_score_drop,
+        fail_on_new=req.fail_on_new,
+        fail_on_category_regression=req.fail_on_category_regression,
+    )
+
+    try:
+        diff_res = DiffService.compare(
+            baseline=base_path,
+            current=curr_path,
+            policy=policy,
+            config_path=req.config_path,
+        )
+        return diff_res.to_dict()
+    except PBIScanError as exc:
+        raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Diff failed: {exc}")
+
 
 
 # ---------------------------------------------------------------------------

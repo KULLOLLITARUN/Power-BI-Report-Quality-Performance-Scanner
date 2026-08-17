@@ -274,6 +274,135 @@ def studio(path: str | None, port: int, host: str, no_browser: bool) -> None:
     uvicorn.run("pbiscan.server:app", host=host, port=port, log_level="warning")
 
 
+@main.command()
+@click.argument("baseline", type=click.Path())
+@click.argument("current", type=click.Path())
+@click.option(
+    "--config", "-c",
+    type=click.Path(),
+    default=None,
+    help="Path to rules.config.json for PBIP scans.",
+)
+@click.option(
+    "--format", "-f",
+    "output_format",
+    type=click.Choice(["console", "json", "markdown"], case_sensitive=False),
+    default="console",
+    show_default=True,
+    help="Output format.",
+)
+@click.option(
+    "--out", "-o",
+    type=click.Path(),
+    default=None,
+    help="Output file path (e.g. diff.json, pr_comment.md). If omitted, prints to stdout.",
+)
+@click.option(
+    "--fail-on-regression",
+    is_flag=True,
+    help="Exit with code 1 if overall health score regresses (delta < 0).",
+)
+@click.option(
+    "--max-score-drop",
+    type=float,
+    default=None,
+    help="Exit with code 1 if overall score drop exceeds this threshold (e.g. 3.0).",
+)
+@click.option(
+    "--fail-on-new",
+    type=click.Choice(["CRITICAL", "HIGH", "MEDIUM", "WARNING", "ADVISORY", "LOW"], case_sensitive=False),
+    default=None,
+    help="Exit with code 1 if any newly introduced finding has this severity or higher.",
+)
+@click.option(
+    "--fail-on-category-regression",
+    type=click.Choice(["model", "dax", "report"], case_sensitive=False),
+    default=None,
+    help="Exit with code 1 if the specified category score regresses.",
+)
+@click.option(
+    "--quiet", "-q",
+    is_flag=True,
+    help="Suppress stdout console output (useful in CI scripts).",
+)
+def diff(
+    baseline: str,
+    current: str,
+    config: Optional[str],
+    output_format: str,
+    out: Optional[str],
+    fail_on_regression: bool,
+    max_score_drop: Optional[float],
+    fail_on_new: Optional[str],
+    fail_on_category_regression: Optional[str],
+    quiet: bool,
+) -> None:
+    """Compare two scans (PBIP projects or JSON scan artifacts) and track drift."""
+    from pbiscan.diff import DiffService, QualityGatePolicy
+    from pbiscan.render.diff_console import DiffConsoleRenderer
+    from pbiscan.render.diff_markdown import DiffMarkdownRenderer
+
+    base_path = Path(baseline)
+    curr_path = Path(current)
+
+    if not base_path.exists():
+        click.echo(f"[ERROR] Baseline path does not exist: {baseline}", err=True)
+        sys.exit(2)
+
+    if not curr_path.exists():
+        click.echo(f"[ERROR] Current path does not exist: {current}", err=True)
+        sys.exit(2)
+
+    policy = QualityGatePolicy(
+        fail_on_regression=fail_on_regression,
+        max_score_drop=max_score_drop,
+        fail_on_new=fail_on_new,
+        fail_on_category_regression=fail_on_category_regression,
+    )
+
+    try:
+        diff_res = DiffService.compare(
+            baseline=base_path,
+            current=curr_path,
+            policy=policy,
+            config_path=config,
+        )
+    except Exception as exc:
+        click.echo(f"[ERROR] Diff execution failed: {exc}", err=True)
+        sys.exit(2)
+
+    # Render output
+    fmt_lower = output_format.lower()
+    if fmt_lower == "json":
+        rendered = diff_res.to_json()
+    elif fmt_lower == "markdown":
+        rendered = DiffMarkdownRenderer().render(diff_res)
+    else:
+        rendered = DiffConsoleRenderer().render(diff_res)
+
+    if out:
+        try:
+            Path(out).write_text(rendered, encoding="utf-8")
+            if not quiet:
+                click.echo(f"\n  Diff report saved: {_colour(str(out), _GREEN)}")
+        except Exception as exc:
+            click.echo(f"[ERROR] Failed to write diff report: {exc}", err=True)
+            sys.exit(2)
+    elif not quiet:
+        try:
+            click.echo(rendered)
+        except UnicodeEncodeError:
+            encoding = sys.stdout.encoding or "utf-8"
+            safe_text = rendered.encode(encoding, errors="replace").decode(encoding)
+            click.echo(safe_text)
+
+    # Quality gate decision exit code
+    if not diff_res.verdict.passed:
+        sys.exit(1)
+
+    sys.exit(0)
+
+
 if __name__ == "__main__":
     main()
 
