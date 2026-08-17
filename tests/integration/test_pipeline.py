@@ -111,6 +111,17 @@ class TestPipelineSmoke:
             f"Revenue Per Unit and must not be flagged as unused."
         )
 
+    def test_scan_service_pipeline_exact_parity(self):
+        """Verify ScanService produces identical results to manual pipeline."""
+        from pbiscan.service import ScanService
+        fixture_path = GOLDEN_DIR / "test_bidirectional"
+        manual = run_pipeline("test_bidirectional")
+        service_res = ScanService.execute_scan(fixture_path)
+
+        assert len(manual["issues"]) == len(service_res.issues)
+        assert manual["scores"] == service_res.scores
+        assert [i.rule_id for i in manual["issues"]] == [i.rule_id for i in service_res.issues]
+
     def test_cli_fail_under_gate(self):
         """Verify --fail-under exits with 0 on pass and 1 on fail in CLI."""
         from click.testing import CliRunner

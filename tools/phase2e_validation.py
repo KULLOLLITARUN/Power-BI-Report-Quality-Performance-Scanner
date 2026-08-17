@@ -8,13 +8,7 @@ reference breakdown by producer, and classification matrix.
 from pathlib import Path
 import json
 
-from pbiscan.extraction.pbip_reader import PBIPReader
-from pbiscan.canonical.builder import CanonicalBuilder
-from pbiscan.rules.dax import DAX_RULES
-from pbiscan.rules.model import MODEL_RULES
-from pbiscan.rules.report import REPORT_RULES
-
-ALL_RULES = MODEL_RULES + DAX_RULES + REPORT_RULES
+from pbiscan.service import ScanService
 
 def audit_all_projects():
     golden_dir = Path("tests/golden")
@@ -24,10 +18,9 @@ def audit_all_projects():
 
     for p_dir in project_dirs:
         try:
-            reader = PBIPReader()
-            raw = reader.read(p_dir)
-            builder = CanonicalBuilder()
-            report = builder.build(raw)
+            result = ScanService.execute_scan(p_dir)
+            report = result.report
+            issues = result.issues
 
             # Extract semantic references metrics
             sem_idx = report.semantic_references
@@ -39,12 +32,7 @@ def audit_all_projects():
             for r in sem_idx.references:
                 by_source[r.source_type] = by_source.get(r.source_type, 0) + 1
 
-            # Run full engine scan
-            findings = []
-            for rule_fn in ALL_RULES:
-                findings.extend(rule_fn(report))
-
-            unused_findings = [f for f in findings if f.rule_id == "DAX_UNUSED_MEASURE"]
+            unused_findings = [f for f in issues if f.rule_id == "DAX_UNUSED_MEASURE"]
 
             results.append({
                 "name": p_dir.name,
