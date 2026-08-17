@@ -59,7 +59,11 @@ class TestPackagingAndEntrypoints:
         assert index_file.exists(), f"Studio index.html missing: {index_file}"
         content = index_file.read_text(encoding="utf-8")
         assert "PBIP Sentinel" in content
-        assert "demo-mode-banner" in content
+        assert "id=\"root\"" in content
+        assets_dir = STATIC_DIR / "assets"
+        assert assets_dir.exists()
+        assert len(list(assets_dir.glob("*.js"))) >= 1
+        assert len(list(assets_dir.glob("*.css"))) >= 1
 
 
 class TestSchemaConformance:

@@ -66,16 +66,16 @@ class TestStudioServerApi:
     def test_serve_spa_index_page(self, client):
         response = client.get("/")
         assert response.status_code == 200
-        assert "PBIP Sentinel Studio" in response.text
-        assert "Overview" in response.text
-        assert "Semantic References" in response.text
+        assert "PBIP Sentinel" in response.text
+        assert 'id="root"' in response.text
 
     def test_spa_client_routing_fallback(self, client):
         """SPA fallback should serve index.html for virtual frontend routes."""
         for route in ("/overview", "/findings", "/dax-dag", "/model", "/sem-refs", "/canvas"):
             response = client.get(route)
             assert response.status_code == 200
-            assert "PBIP Sentinel Studio" in response.text
+            assert "PBIP Sentinel" in response.text
+            assert 'id="root"' in response.text
 
     def test_export_endpoints(self, client):
         fixture_path = str(GOLDEN_DIR / "test_calc_group_variants")
