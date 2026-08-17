@@ -19,7 +19,6 @@ class BasePatcher(ABC):
         """Phase 1: Examine topology and dependencies; produce auditable PatchEvidence."""
         pass
 
-    @abstractmethod
     def generate_patch(
         self,
         issue: AuditIssue,
@@ -27,5 +26,15 @@ class BasePatcher(ABC):
         model_dir: Path,
     ) -> Optional[Patch]:
         """Phase 2: Generate structured patch chunks with hash anchoring only if preconditions satisfied."""
-        pass
+        return None
+
+    def generate_patches(
+        self,
+        issue: AuditIssue,
+        evidence: PatchEvidence,
+        model_dir: Path,
+    ) -> list[Patch]:
+        """Generate one or more structured patches for the finding."""
+        p = self.generate_patch(issue, evidence, model_dir)
+        return [p] if p else []
 

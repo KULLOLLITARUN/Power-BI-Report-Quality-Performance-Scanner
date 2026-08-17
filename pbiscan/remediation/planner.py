@@ -9,6 +9,7 @@ from pbiscan.remediation.models import (
     PatchLifecycleState,
     RemediationPlan,
 )
+from pbiscan.remediation.patchers.autodate import AutoDatePatcher
 from pbiscan.remediation.patchers.base import BasePatcher
 from pbiscan.remediation.patchers.datasource import DataSourcePatcher
 from pbiscan.remediation.patchers.measure import MeasurePatcher
@@ -23,6 +24,7 @@ class RemediationPlanner:
         self.register_patcher(RelationshipPatcher())
         self.register_patcher(MeasurePatcher())
         self.register_patcher(DataSourcePatcher())
+        self.register_patcher(AutoDatePatcher())
 
     def register_patcher(self, patcher: BasePatcher) -> None:
         """Register a rule-specific patcher."""
@@ -71,16 +73,16 @@ class RemediationPlanner:
                 })
                 continue
 
-            # Phase 2: Generate patch
-            patch = patcher.generate_patch(issue, evidence, model_path)
-            if patch:
-                patches.append(patch)
+            # Phase 2: Generate patch(es)
+            generated = patcher.generate_patches(issue, evidence, model_path)
+            if generated:
+                patches.extend(generated)
             else:
                 skipped_findings.append({
                     "issue_key": f"{rule_id}::{issue.location or ''}",
                     "rule_id": rule_id,
                     "location": issue.location,
-                    "reason": "Patcher was unable to generate a valid replacement chunk",
+                    "reason": "Patcher was unable to generate valid replacement chunk(s)",
                 })
 
         # Conflict detection: check for overlapping line ranges targeting the same file
