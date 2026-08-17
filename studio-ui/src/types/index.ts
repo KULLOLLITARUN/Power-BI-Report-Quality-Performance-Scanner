@@ -97,3 +97,57 @@ export interface BrowseResult {
   directories: { name: string; path: string }[];
   pbip_projects: { name: string; path: string }[];
 }
+
+export interface FindingTransition {
+  state: 'NEW' | 'RESOLVED' | 'PERSISTENT' | 'MODIFIED';
+  finding_id: string;
+  rule_id: string;
+  category: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'WARNING' | 'ADVISORY' | 'LOW';
+  baseline_severity?: string | null;
+  title: string;
+  location?: string | null;
+  evidence: string;
+}
+
+export interface ScoreDrift {
+  baseline_score: number;
+  current_score: number;
+  overall_delta: number;
+  direction: 'IMPROVED' | 'DEGRADED' | 'UNCHANGED';
+  category_deltas: Record<string, number>;
+  baseline_categories: Record<string, number>;
+  current_categories: Record<string, number>;
+}
+
+export interface QualityGateVerdict {
+  passed: boolean;
+  reasons: string[];
+}
+
+export interface QualityGatePolicy {
+  fail_on_regression?: boolean;
+  max_score_drop?: number | null;
+  fail_on_new?: string | null;
+  fail_on_category_regression?: string | null;
+}
+
+export interface DiffCounts {
+  baseline_total: number;
+  current_total: number;
+  new: number;
+  resolved: number;
+  persistent: number;
+  modified: number;
+}
+
+export interface DiffResult {
+  baseline_name: string;
+  current_name: string;
+  score_drift: ScoreDrift;
+  transitions: FindingTransition[];
+  counts: DiffCounts;
+  quality_gate: QualityGateVerdict;
+  policy: QualityGatePolicy;
+}
+

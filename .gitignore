@@ -39,6 +39,10 @@ scan_report*.html
 output*.html
 *.log
 scratch/
+corpus_intelligence.json
+real_world_coverage_audit_v2.json
+diff_*.json
+diff_*.md
 
 # Internal documentation / build notes
 !docs/*.md

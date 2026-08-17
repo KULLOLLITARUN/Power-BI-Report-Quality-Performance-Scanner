@@ -153,3 +153,56 @@ class TestStudioServerApi:
             "location": "Loc"
         })
         assert response.status_code == 404
+
+    def test_studio_diff_api_success(self, client):
+        fixture = str(GOLDEN_DIR / "test_calc_group_variants")
+        resp = client.post("/api/diff", json={
+            "baseline_path": fixture,
+            "current_path": fixture,
+            "fail_on_regression": False,
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "score_drift" in data
+        assert "transitions" in data
+        assert "counts" in data
+        assert "quality_gate" in data
+        assert data["counts"]["new"] == 0
+        assert data["counts"]["resolved"] == 0
+        assert data["quality_gate"]["passed"] is True
+
+    def test_studio_diff_api_with_quality_gate_policy(self, client):
+        fixture1 = str(GOLDEN_DIR / "test_calc_group_variants")
+        fixture2 = str(GOLDEN_DIR / "test_field_parameter_variants")
+        resp = client.post("/api/diff", json={
+            "baseline_path": fixture1,
+            "current_path": fixture2,
+            "fail_on_regression": True,
+            "fail_on_new": "CRITICAL",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "score_drift" in data
+        assert data["quality_gate"]["passed"] is False  # Regressed score
+
+    def test_studio_diff_api_missing_paths_returns_404(self, client):
+        resp_base = client.post("/api/diff", json={
+            "baseline_path": "nonexistent_base_404",
+            "current_path": str(GOLDEN_DIR / "test_calc_group_variants"),
+        })
+        assert resp_base.status_code == 404
+
+        resp_curr = client.post("/api/diff", json={
+            "baseline_path": str(GOLDEN_DIR / "test_calc_group_variants"),
+            "current_path": "nonexistent_curr_404",
+        })
+        assert resp_curr.status_code == 404
+
+    def test_studio_diff_never_returns_demo_fallback(self, client):
+        resp = client.post("/api/diff", json={
+            "baseline_path": "sample_bananas_nonexistent",
+            "current_path": "sample_enterprise_nonexistent",
+        })
+        assert resp.status_code == 404
+        assert resp.json().get("detail") is not None
+

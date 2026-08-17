@@ -7,6 +7,7 @@ import { FindingFilterBar } from './components/FindingFilterBar';
 import { ModelMap } from './components/ModelMap';
 import { DaxExplorer } from './components/DaxExplorer';
 import { PagesViewer } from './components/PagesViewer';
+import { DiffViewer } from './components/DiffViewer';
 import { FileBrowserModal } from './components/FileBrowserModal';
 import { ScanResult } from './types';
 import { useTheme } from './hooks/useTheme';
@@ -25,7 +26,8 @@ import {
   Zap,
   HardDrive,
   FileText,
-  UploadCloud
+  UploadCloud,
+  GitCompare
 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -493,6 +495,36 @@ export const App: React.FC = () => {
                   />
                 </div>
               )}
+
+              {/* Tab 5: Scan Comparison / Diff */}
+              {activeTab === 'diff' && (
+                <div>
+                  <DiffViewer
+                    initialBaselinePath={currentPath}
+                    initialCurrentPath=""
+                  />
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'diff' ? (
+            /* Standalone Diff Screen (when no single scan is active) */
+            <div className="space-y-4">
+              <div className="max-w-5xl mx-auto flex items-center justify-between font-mono text-xs">
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className="px-3 py-1.5 rounded border flex items-center gap-1.5 transition"
+                  style={{
+                    backgroundColor: 'var(--bg-surface)',
+                    borderColor: 'var(--border-hairline)',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+                  <span>Return to Scanner Home</span>
+                </button>
+              </div>
+
+              <DiffViewer />
             </div>
           ) : (
             /* Clean Landing Screen */
@@ -519,7 +551,7 @@ export const App: React.FC = () => {
                   className="text-xs mt-1.5 max-w-lg mx-auto leading-relaxed"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  Drop your <span className="font-mono font-bold" style={{ color: 'var(--accent)' }}>.pbip</span> folder or select an audit report below. 
+                  Drop your <span className="font-mono font-bold" style={{ color: 'var(--accent)' }}>.pbip</span> folder, compare historical scans, or select a test report below. 
                   <br />
                   <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>
                     🔒 100% In-Browser &amp; Private — zero files uploaded to any server.
@@ -573,6 +605,23 @@ export const App: React.FC = () => {
                   >
                     <FolderOpen className="w-4 h-4" />
                     <span>Select Local .pbip Folder</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveTab('diff');
+                    }}
+                    className="py-2 px-4 rounded font-mono font-bold text-xs flex items-center justify-center gap-1.5 transition border"
+                    style={{
+                      backgroundColor: 'var(--bg-surface)',
+                      borderColor: 'var(--border-strong)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <GitCompare className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+                    <span>Compare Two Scans (Diff)</span>
                   </button>
                 </div>
               </div>
