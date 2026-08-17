@@ -12,21 +12,7 @@ import time
 import tracemalloc
 from typing import Any, Optional
 
-from pbiscan.canonical.builder import CanonicalBuilder
-from pbiscan.engine.issue import IssueGenerator
-from pbiscan.engine.scoring import calculate_scores, load_config
-from pbiscan.engine.suppressions import load_suppressions, apply_suppressions
-from pbiscan.extraction.pbip_reader import PBIPReader
-from pbiscan.rules.dax import DAX_RULES
-from pbiscan.rules.model import MODEL_RULES
-from pbiscan.rules.report import REPORT_RULES
-
-
-DEFAULT_CONFIG = {
-    "weights": {"model": 0.35, "dax": 0.25, "report": 0.20, "security": 0.20},
-    "deductions": {"CRITICAL": 15, "HIGH": 10, "MEDIUM": 5, "WARNING": 3, "ADVISORY": 1, "LOW": 2},
-    "thresholds": {"maxVisualsPerPage": 15, "maxSlicersPerPage": 6, "maxCalculatedColumnsPerTable": 4},
-}
+from pbiscan.service import ScanService, DEFAULT_CONFIG
 
 
 def scan_project_with_metrics(pbip_path: Path, config: dict = DEFAULT_CONFIG) -> dict[str, Any]:
@@ -34,37 +20,10 @@ def scan_project_with_metrics(pbip_path: Path, config: dict = DEFAULT_CONFIG) ->
     tracemalloc.start()
     t0 = time.perf_counter()
 
-    reader = PBIPReader()
-    raw = reader.read(pbip_path)
-
-    builder = CanonicalBuilder()
-    report = builder.build(raw)
-
-    thresholds = config.get("thresholds", {})
-    max_visuals = thresholds.get("maxVisualsPerPage", 15)
-    max_slicers = thresholds.get("maxSlicersPerPage", 6)
-    max_calc = thresholds.get("maxCalculatedColumnsPerTable", 4)
-
-    raw_patterns = config.get("dax_suspicious_patterns", [])
-    dax_patterns = [(p["pattern"], p["description"]) for p in raw_patterns] or None
-
-    findings = []
-    for rule in MODEL_RULES:
-        findings.extend(rule(report))
-    findings.extend(DAX_RULES[0](report, patterns=dax_patterns))
-    findings.extend(DAX_RULES[1](report, threshold=max_calc))
-    findings.extend(DAX_RULES[2](report))
-    findings.extend(DAX_RULES[3](report))
-    findings.extend(REPORT_RULES[0](report, max_visuals=max_visuals))
-    findings.extend(REPORT_RULES[1](report, max_slicers=max_slicers))
-
-    gen = IssueGenerator()
-    issues = gen.generate(findings)
-
-    suppressions = load_suppressions(pbip_path)
-    issues = apply_suppressions(issues, suppressions)
-
-    scores = calculate_scores(issues, config)
+    result = ScanService.execute_scan(project_path=pbip_path, config=config)
+    report = result.report
+    issues = result.issues
+    scores = result.scores
 
     t1 = time.perf_counter()
     _, peak_bytes = tracemalloc.get_traced_memory()

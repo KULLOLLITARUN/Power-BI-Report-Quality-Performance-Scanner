@@ -1,14 +1,8 @@
-"""Scan all 11 external real-world PBIP models with PBIP Sentinel v1.4.0."""
+"""Scan all 11 external real-world PBIP models with PBIP Sentinel canonical ScanService."""
 
 import json
 from pathlib import Path
-from pbiscan.extraction.pbip_reader import PBIPReader
-from pbiscan.canonical.builder import CanonicalBuilder
-from pbiscan.rules.dax import DAX_RULES
-from pbiscan.rules.model import MODEL_RULES
-from pbiscan.rules.report import REPORT_RULES
-
-ALL_RULES = MODEL_RULES + DAX_RULES + REPORT_RULES
+from pbiscan.service import ScanService
 
 EXTERNAL_MODELS = [
     Path(r"d:\Projects\Powerbi\Power_BI_Report_Quality_&_Performance_Scanner\pbip_project\world is going bananas.pbip"),
@@ -32,18 +26,13 @@ def scan_models():
             continue
 
         try:
-            reader = PBIPReader()
-            raw = reader.read(model_path)
-            builder = CanonicalBuilder()
-            report = builder.build(raw)
-
-            findings = []
-            for rule in ALL_RULES:
-                findings.extend(rule(report))
+            result = ScanService.execute_scan(model_path)
+            report = result.report
+            issues = result.issues
 
             by_category = {}
-            for f in findings:
-                by_category[f.rule_id] = by_category.get(f.rule_id, 0) + 1
+            for issue in issues:
+                by_category[issue.rule_id] = by_category.get(issue.rule_id, 0) + 1
 
             sem_refs = report.semantic_references
             by_source = {}
@@ -59,11 +48,12 @@ def scan_models():
                 "measures": len(report.dax.measures),
                 "pages": len(report.report.pages),
                 "visuals": sum(len(p.visuals) for p in report.report.pages),
-                "total_findings": len(findings),
+                "total_findings": len(issues),
                 "findings_breakdown": by_category,
                 "total_semantic_refs": len(sem_refs),
                 "active_roots": len(sem_refs.active_root_measure_names()),
                 "refs_by_source": by_source,
+                "scores": result.scores,
                 "status": "PASS",
             })
         except Exception as exc:

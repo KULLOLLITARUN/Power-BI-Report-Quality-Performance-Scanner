@@ -16,17 +16,9 @@ from pathlib import Path
 import click
 
 from pbiscan import __version__
-from pbiscan.canonical.builder import CanonicalBuilder
-from pbiscan.engine.issue import IssueGenerator
-from pbiscan.engine.scoring import calculate_scores, load_config
-from pbiscan.engine.suppressions import load_suppressions, apply_suppressions
-from pbiscan.extraction.pbip_reader import PBIPReader, PBIScanError
-from pbiscan.render.html_report import HtmlRenderer
-from pbiscan.render.sarif_report import SarifRenderer
-from pbiscan.render.junit_report import JUnitRenderer
-from pbiscan.rules.dax import DAX_RULES
-from pbiscan.rules.model import MODEL_RULES
-from pbiscan.rules.report import REPORT_RULES
+from pbiscan.engine.scoring import ConfigError
+from pbiscan.extraction.pbip_reader import PBIScanError
+from pbiscan.service import ScanService, resolve_config
 
 # Default config path (relative to CWD)
 DEFAULT_CONFIG = "rules.config.json"
@@ -62,43 +54,6 @@ def _score_colour(score: float) -> str:
     if score >= 60:
         return "\033[33m"   # yellow
     return "\033[31m"        # red
-
-
-def _run_rules(report, config: dict) -> list:
-    """Execute all 11 rules and return collected findings."""
-    thresholds = config.get("thresholds", {})
-    max_visuals = thresholds.get("maxVisualsPerPage", 15)
-    max_slicers = thresholds.get("maxSlicersPerPage", 6)
-    max_calc = thresholds.get("maxCalculatedColumnsPerTable", 4)
-
-    # Load DAX suspicious patterns from config if present
-    raw_patterns = config.get("dax_suspicious_patterns", [])
-    dax_patterns = [(p["pattern"], p["description"]) for p in raw_patterns] or None
-
-    findings = []
-    for rule in MODEL_RULES:
-        findings.extend(rule(report))
-
-    findings.extend(DAX_RULES[0](report, patterns=dax_patterns))          # D001
-    findings.extend(DAX_RULES[1](report, threshold=max_calc))              # D002
-    findings.extend(DAX_RULES[2](report))                                  # D003
-    findings.extend(DAX_RULES[3](report))                                  # D004
-
-    findings.extend(REPORT_RULES[0](report, max_visuals=max_visuals))     # R001
-    findings.extend(REPORT_RULES[1](report, max_slicers=max_slicers))     # R002
-
-    return findings
-
-
-def _find_default_config() -> str | None:
-    """Find the default config file in CWD or package root."""
-    local = Path(DEFAULT_CONFIG)
-    if local.exists():
-        return str(local)
-    package_root = Path(__file__).parent.parent / DEFAULT_CONFIG
-    if package_root.exists():
-        return str(package_root)
-    return None
 
 
 @click.group()
@@ -173,73 +128,40 @@ def scan(
     # Banner
     if not quiet:
         click.echo(f"\n{_colour('pbiscan', _BOLD)} {_colour(f'v{__version__}', _DIM)} - Power BI Report Quality & Performance Scanner\n")
+        click.echo(f"  Scanning: {_colour(path, _CYAN)}")
 
-    # Resolve config
-    config_path = config or _find_default_config()
-    if not config_path:
-        click.echo("WARNING: No rules.config.json found. Using built-in defaults.", err=True)
-        cfg = {
-            "weights": {"model": 0.35, "dax": 0.25, "report": 0.20, "security": 0.20},
-            "deductions": {"CRITICAL": 15, "HIGH": 10, "MEDIUM": 5, "WARNING": 3, "ADVISORY": 1, "LOW": 2},
-            "thresholds": {"maxVisualsPerPage": 15, "maxSlicersPerPage": 6, "maxCalculatedColumnsPerTable": 4},
-        }
-    else:
-        try:
-            cfg = load_config(config_path)
-            if verbose:
-                click.echo(f"  Config: {config_path}")
-        except Exception as exc:
-            click.echo(f"[ERROR] Config error: {exc}", err=True)
-            sys.exit(1)
-
-    # Step 1 — Extract
+    # Execute Canonical Scan Pipeline
     try:
-        reader = PBIPReader()
-        if not quiet:
-            click.echo(f"  Scanning: {_colour(path, _CYAN)}")
-        raw = reader.read(path)
-        for w in raw.warnings:
-            if not quiet:
-                click.echo(f"  {_colour('[WARN]', _BOLD)}  {w}")
+        result = ScanService.execute_scan(
+            project_path=path,
+            config_path=config,
+        )
+    except ConfigError as exc:
+        click.echo(f"[ERROR] Config error: {exc}", err=True)
+        sys.exit(1)
     except PBIScanError as exc:
         click.echo(f"[ERROR] Extraction failed: {exc}", err=True)
         sys.exit(2)
-
-    # Step 2 — Build canonical model
-    try:
-        builder = CanonicalBuilder()
-        report = builder.build(raw)
-    except PBIScanError as exc:
-        click.echo(f"[ERROR] Canonical model build failed: {exc}", err=True)
+    except Exception as exc:
+        click.echo(f"[ERROR] Scan failed: {exc}", err=True)
         sys.exit(2)
 
+    report = result.report
+    issues = result.issues
+    scores = result.scores
+    overall = result.overall_score
+    cat_scores = result.category_scores
+
     if not quiet:
+        for w in result.warnings:
+            click.echo(f"  {_colour('[WARN]', _BOLD)}  {w}")
+
         click.echo(
             f"  Tables: {_colour(str(len(report.model.tables)), _CYAN)}  "
             f"Relationships: {_colour(str(len(report.model.relationships)), _CYAN)}  "
             f"Measures: {_colour(str(len(report.dax.measures)), _CYAN)}  "
             f"Pages: {_colour(str(len(report.report.pages)), _CYAN)}"
         )
-
-    # Step 3 — Run rules
-    findings = _run_rules(report, cfg)
-    logger.info("Found %d raw findings", len(findings))
-
-    # Step 4 — Generate issues
-    gen = IssueGenerator()
-    issues = gen.generate(findings)
-
-    # Step 4.5 — Apply suppressions
-    suppressions = load_suppressions(path)
-    issues = apply_suppressions(issues, suppressions)
-
-    # Step 5 — Score
-    scores = calculate_scores(issues, cfg)
-    overall = scores["overall"]
-    cat_scores = scores["category_scores"]
-
-    # Step 6 — CLI output
-    if not quiet:
         click.echo("")
         score_col = _score_colour(overall)
         score_disp = f"{int(overall)}" if overall == int(overall) else f"{overall:.1f}"
@@ -274,66 +196,25 @@ def scan(
         else:
             click.echo(f"  {_colour('[PASS] No findings', _GREEN)} - this report looks clean!")
 
-    # Step 7 — Write output file
+    # Write output file if requested
     if out:
         output_path = Path(out)
         try:
             fmt_lower = output_format.lower()
             if fmt_lower == "json":
-                data = {
-                    "report_name": report.report_name,
-                    "scan_timestamp": datetime.now(timezone.utc).isoformat(),
-                    "scanner_version": __version__,
-                    "scores": scores,
-                    "findings": [
-                        {
-                            "rule_id": i.rule_id,
-                            "category": i.category,
-                            "severity": i.severity,
-                            "title": i.title,
-                            "issue": i.issue,
-                            "evidence": i.evidence,
-                            "impact": i.impact,
-                            "recommendation": i.recommendation,
-                            "confidence": i.confidence,
-                            "location": i.location,
-                            "suppressed": i.suppressed,
-                            "suppression_reason": i.suppression_reason,
-                        }
-                        for i in issues
-                    ],
-                }
-                output_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                output_path.write_text(result.to_json(), encoding="utf-8")
             elif fmt_lower == "sarif":
-                sarif_renderer = SarifRenderer()
-                sarif_content = sarif_renderer.render(issues=issues, report_path=str(path))
-                output_path.write_text(sarif_content, encoding="utf-8")
+                output_path.write_text(result.to_sarif(), encoding="utf-8")
             elif fmt_lower == "junit":
-                junit_renderer = JUnitRenderer()
-                junit_content = junit_renderer.render(
-                    issues=issues,
-                    scores=scores,
-                    report_name=report.report_name,
-                )
-                output_path.write_text(junit_content, encoding="utf-8")
+                output_path.write_text(result.to_junit(), encoding="utf-8")
             else:
-                renderer = HtmlRenderer()
-                html = renderer.render(
-                    issues=issues,
-                    scores=scores,
-                    meta={
-                        "report_name": report.report_name,
-                        "scan_timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-                        "scanner_version": __version__,
-                        "source_path": raw.source_path,
-                    },
-                )
-                output_path.write_text(html, encoding="utf-8")
+                timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+                output_path.write_text(result.to_html(timestamp=timestamp), encoding="utf-8")
 
             if not quiet:
-                click.echo(f"\n  Report written: {_colour(str(output_path), _CYAN)}\n")
+                click.echo(f"\n  Report saved: {_colour(str(output_path), _GREEN)}")
         except Exception as exc:
-            click.echo(f"✗ Render error: {exc}", err=True)
+            click.echo(f"[ERROR] Failed to write report: {exc}", err=True)
             sys.exit(1)
     elif not quiet:
         click.echo("")
