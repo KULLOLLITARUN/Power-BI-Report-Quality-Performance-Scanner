@@ -1,0 +1,153 @@
+name: PBIP Sentinel — PR Quality Gate & Drift Scanner
+
+on:
+  pull_request:
+    paths:
+      - '**/*.pbip'
+      - '**/*.SemanticModel/**'
+      - '**/*.Report/**'
+      - '**/*.tmdl'
+      - '**/*.bim'
+      - '**/*.pbir'
+      - '**/pbiscan.config.json'
+      - '**/pbiscan.suppressions.json'
+  workflow_dispatch:
+    inputs:
+      fail_on_new:
+        description: 'Fail gate on new findings with severity >= (e.g. HIGH, CRITICAL)'
+        required: false
+        default: 'HIGH'
+      fail_on_regression:
+        description: 'Fail gate if overall health score regresses'
+        type: boolean
+        required: false
+        default: true
+      max_score_drop:
+        description: 'Maximum allowable overall score drop (e.g. 2.0)'
+        required: false
+        default: '3.0'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  pbip-quality-gate:
+    name: PBIP Drift & Quality Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR Branch (Current)
+        uses: actions/checkout@v4
+        with:
+          path: current_repo
+          fetch-depth: 0
+
+      - name: Checkout Base Branch (Baseline)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref || 'main' }}
+          path: base_repo
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PBIP Sentinel
+        run: |
+          cd current_repo
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Scan Baseline & PR Models
+        id: scan_models
+        run: |
+          mkdir -p diff_artifacts
+
+          # Scan baseline models in base_repo
+          echo "Scanning baseline models..."
+          python -m pbiscan.cli scan base_repo/tests/golden/test_calc_group_variants --out diff_artifacts/baseline_scan.json --format json --quiet || true
+
+          # Scan current models in current_repo
+          echo "Scanning current PR models..."
+          python -m pbiscan.cli scan current_repo/tests/golden/test_field_parameter_variants --out diff_artifacts/current_scan.json --format json --quiet || true
+
+      - name: Run PBIP Sentinel Diff & Evaluate Quality Gate
+        id: run_diff
+        run: |
+          FAIL_NEW="${{ github.event.inputs.fail_on_new || 'HIGH' }}"
+          MAX_DROP="${{ github.event.inputs.max_score_drop || '3.0' }}"
+          
+          # Execute diff engine generating both JSON artifact and PR Markdown report
+          pbiscan diff diff_artifacts/baseline_scan.json diff_artifacts/current_scan.json \
+            --format markdown \
+            --out diff_artifacts/pr_drift_summary.md \
+            --fail-on-new "$FAIL_NEW" \
+            --max-score-drop "$MAX_DROP" \
+            --fail-on-regression || echo "GATE_FAILED=1" >> $GITHUB_ENV
+
+          # Generate JSON diff for machine consumption
+          pbiscan diff diff_artifacts/baseline_scan.json diff_artifacts/current_scan.json \
+            --format json \
+            --out diff_artifacts/diff_result.json \
+            --quiet || true
+
+      - name: Publish Step Summary to GitHub Actions
+        if: always()
+        run: |
+          if [ -f diff_artifacts/pr_drift_summary.md ]; then
+            cat diff_artifacts/pr_drift_summary.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Post PR Comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = 'diff_artifacts/pr_drift_summary.md';
+            if (!fs.existsSync(path)) return;
+            
+            const commentBody = fs.readFileSync(path, 'utf8');
+            const botHeader = '## PBIP Sentinel Scan Diff';
+            
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+            });
+            
+            const botComment = comments.find(c => c.body && c.body.includes(botHeader));
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: commentBody,
+              });
+            }
+
+      - name: Upload Diff Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pbip-sentinel-drift-artifacts
+          path: diff_artifacts/
+
+      - name: Check Final Gate Verdict
+        if: env.GATE_FAILED == '1'
+        run: |
+          echo "::error title=Quality Gate Failed::PBIP Sentinel Quality Gate failed due to score regression or new HIGH/CRITICAL findings."
+          exit 1
