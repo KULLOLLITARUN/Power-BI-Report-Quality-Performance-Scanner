@@ -14,17 +14,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from pbiscan import __version__
-from pbiscan.canonical.builder import CanonicalBuilder
-from pbiscan.engine.issue import IssueGenerator
-from pbiscan.engine.scoring import calculate_scores, load_config
-from pbiscan.engine.suppressions import load_suppressions, apply_suppressions
-from pbiscan.extraction.pbip_reader import PBIPReader, PBIScanError
-from pbiscan.render.html_report import HtmlRenderer
-from pbiscan.render.sarif_report import SarifRenderer
-from pbiscan.render.junit_report import JUnitRenderer
-from pbiscan.rules.dax import DAX_RULES
-from pbiscan.rules.model import MODEL_RULES
-from pbiscan.rules.report import REPORT_RULES
+from pbiscan.extraction.pbip_reader import PBIScanError
+from pbiscan.service import ScanService, resolve_config
 
 app = FastAPI(
     title="pbiscan Studio API",
@@ -144,218 +135,16 @@ async def scan_project(req: ScanRequest):
     if not project_path.exists():
         raise HTTPException(status_code=404, detail=f"Path does not exist: {req.path}")
 
-    # Load configuration
-    config = _get_config(req.config_path)
-
-    # Step 1: Extract
     try:
-        reader = PBIPReader()
-        raw = reader.read(project_path)
+        result = ScanService.execute_scan(
+            project_path=project_path,
+            config_path=req.config_path,
+        )
+        return result.to_dict()
     except PBIScanError as exc:
         raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {exc}")
-
-    # Step 2: Canonical Model
-    builder = CanonicalBuilder()
-    report = builder.build(raw)
-
-    # Step 3: Rule Evaluation
-    thresholds = config.get("thresholds", {})
-    max_visuals = thresholds.get("maxVisualsPerPage", 15)
-    max_slicers = thresholds.get("maxSlicersPerPage", 6)
-    max_calc = thresholds.get("maxCalculatedColumnsPerTable", 4)
-
-    raw_patterns = config.get("dax_suspicious_patterns", [])
-    dax_patterns = [(p["pattern"], p["description"]) for p in raw_patterns] or None
-
-    findings = []
-    for rule in MODEL_RULES:
-        findings.extend(rule(report))
-
-    findings.extend(DAX_RULES[0](report, patterns=dax_patterns))
-    findings.extend(DAX_RULES[1](report, threshold=max_calc))
-    findings.extend(DAX_RULES[2](report))
-    findings.extend(DAX_RULES[3](report))
-
-    findings.extend(REPORT_RULES[0](report, max_visuals=max_visuals))
-    findings.extend(REPORT_RULES[1](report, max_slicers=max_slicers))
-
-    # Step 4: Issue Generation
-    gen = IssueGenerator()
-    issues = gen.generate(findings)
-
-    # Step 4.5: Apply Suppressions
-    suppressions = load_suppressions(project_path)
-    issues = apply_suppressions(issues, suppressions)
-
-    # Step 5: Scoring
-    scores = calculate_scores(issues, config)
-
-    # Serialize structured model objects for frontend
-    table_data = [
-        {
-            "name": t.name,
-            "hidden": t.hidden,
-            "is_date_table": t.is_date_table,
-            "column_count": len(t.columns),
-            "columns": [
-                {
-                    "name": c.name,
-                    "data_type": c.data_type,
-                    "is_unique": c.is_unique,
-                    "in_relationship": c.in_relationship,
-                    "hidden": c.hidden,
-                }
-                for c in t.columns
-            ],
-            "measures_count": sum(1 for m in report.dax.measures if m.table.lower() == t.name.lower()),
-            "calc_cols_count": sum(1 for cc in report.dax.calculated_columns if cc.table.lower() == t.name.lower()),
-        }
-        for t in report.model.tables
-    ]
-
-    rel_data = [
-        {
-            "from_table": r.from_table,
-            "from_column": r.from_column,
-            "to_table": r.to_table,
-            "to_column": r.to_column,
-            "cardinality": r.cardinality,
-            "cross_filter_direction": r.cross_filter_direction,
-            "is_active": r.is_active,
-        }
-        for r in report.model.relationships
-    ]
-
-    measure_data = [
-        {
-            "name": m.name,
-            "table": m.table,
-            "expression": m.expression,
-            "hidden": m.hidden,
-        }
-        for m in report.dax.measures
-    ]
-
-    calc_col_data = [
-        {
-            "name": cc.name,
-            "table": cc.table,
-            "expression": cc.expression,
-            "data_type": cc.data_type,
-        }
-        for cc in report.dax.calculated_columns
-    ]
-
-    # Step 6: Extract Semantic References & DAG info for frontend visualization
-    sem_refs = report.semantic_references
-    sem_ref_data = {
-        "total_count": len(sem_refs),
-        "active_roots": list(sem_refs.active_root_measure_names()),
-        "references": [
-            {
-                "target_name": r.target_name,
-                "target_table": r.target_table,
-                "target_type": r.target_type,
-                "source_type": r.source_type,
-                "source_object": r.source_object,
-                "source_file": r.source_file,
-                "source_expression": r.source_expression,
-                "activates_root": r.activates_root,
-            }
-            for r in sem_refs.references
-        ],
-    }
-
-    # Build DAX DAG node & edge data
-    dax_graph = report.dax_graph
-    dax_nodes = []
-    dax_edges = []
-    if dax_graph:
-        for node_name, node in dax_graph.nodes.items():
-            meas_expr = next((m.expression for m in report.dax.measures if m.name.lower() == node.name.lower()), "")
-            dax_nodes.append({
-                "name": node.name,
-                "table": node.table,
-                "kind": node.kind,
-                "expression": meas_expr,
-                "references": list(dax_graph.references(node.name)),
-                "referenced_by": list(dax_graph.referenced_by(node.name)),
-            })
-            for target in dax_graph.references(node.name):
-                dax_edges.append({
-                    "source": node.name,
-                    "target": target,
-                })
-
-    page_data = [
-        {
-            "name": p.name,
-            "display_name": p.display_name or p.name,
-            "is_hidden": p.is_hidden,
-            "visual_count": p.visual_count,
-            "slicer_count": p.slicer_count,
-            "visuals": [
-                {
-                    "visual_type": v.visual_type,
-                    "measure_refs": v.measure_refs,
-                    "fields_used": v.fields_used,
-                    "is_slicer": v.is_slicer,
-                    "hidden": v.hidden,
-                }
-                for v in p.visuals
-            ],
-        }
-        for p in report.report.pages
-    ]
-
-    issue_data = [
-        {
-            "rule_id": i.rule_id,
-            "category": i.category,
-            "severity": i.severity,
-            "title": i.title,
-            "issue": i.issue,
-            "evidence": i.evidence,
-            "impact": i.impact,
-            "recommendation": i.recommendation,
-            "confidence": i.confidence,
-            "location": i.location,
-            "suppressed": i.suppressed,
-            "suppression_reason": i.suppression_reason,
-        }
-        for i in issues
-    ]
-
-    return {
-        "report_name": report.report_name,
-        "source_path": report.source_path,
-        "scores": scores,
-        "findings": issue_data,
-        "tables": table_data,
-        "relationships": rel_data,
-        "measures": measure_data,
-        "calculated_columns": calc_col_data,
-        "pages": page_data,
-        "semantic_references": sem_ref_data,
-        "dax_graph": {
-            "nodes": dax_nodes,
-            "edges": dax_edges,
-            "has_cycles": bool(dax_graph.find_cycles()) if dax_graph else False,
-            "cycles": dax_graph.find_cycles() if dax_graph else [],
-        },
-        "warnings": raw.warnings,
-        "summary": {
-            "total_findings": len(issues),
-            "table_count": len(table_data),
-            "relationship_count": len(rel_data),
-            "measure_count": len(measure_data),
-            "page_count": len(page_data),
-            "semantic_reference_count": len(sem_refs),
-            "active_root_count": len(sem_refs.active_root_measure_names()),
-        },
-    }
+        raise HTTPException(status_code=500, detail=f"Scan failed: {exc}")
 
 
 @app.post("/api/browse")
@@ -438,64 +227,25 @@ async def export_audit(req: ExportRequest):
     if not proj_path.exists():
         raise HTTPException(status_code=404, detail="Project path does not exist")
 
-    reader = PBIPReader()
-    raw = reader.read(proj_path)
-    builder = CanonicalBuilder()
-    report = builder.build(raw)
-
-    findings = []
-    for r in MODEL_RULES:
-        findings.extend(r(report))
-    findings.extend(DAX_RULES[0](report))
-    findings.extend(DAX_RULES[1](report))
-    findings.extend(DAX_RULES[2](report))
-    findings.extend(DAX_RULES[3](report))
-    findings.extend(REPORT_RULES[0](report))
-    findings.extend(REPORT_RULES[1](report))
-
-    gen = IssueGenerator()
-    issues = gen.generate(findings)
-    suppressions = load_suppressions(proj_path)
-    issues = apply_suppressions(issues, suppressions)
-    scores = calculate_scores(issues, _get_config(req.config_path))
+    try:
+        result = ScanService.execute_scan(
+            project_path=proj_path,
+            config_path=req.config_path,
+        )
+    except PBIScanError as exc:
+        raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Export failed: {exc}")
 
     fmt = req.format.lower()
     if fmt == "json":
-        import json
-        data = {
-            "report_name": report.report_name,
-            "scanner_version": __version__,
-            "scores": scores,
-            "findings": [
-                {
-                    "rule_id": i.rule_id,
-                    "category": i.category,
-                    "severity": i.severity,
-                    "title": i.title,
-                    "evidence": i.evidence,
-                    "impact": i.impact,
-                    "recommendation": i.recommendation,
-                    "confidence": i.confidence,
-                    "location": i.location,
-                    "suppressed": i.suppressed,
-                }
-                for i in issues
-            ],
-        }
-        return {"content": json.dumps(data, indent=2), "mime": "application/json", "filename": f"{report.report_name}-audit.json"}
+        return {"content": result.to_json(), "mime": "application/json", "filename": f"{result.report_name}-audit.json"}
     elif fmt == "sarif":
-        sarif_text = SarifRenderer().render(issues=issues, report_path=req.project_path)
-        return {"content": sarif_text, "mime": "application/json", "filename": f"{report.report_name}.sarif"}
+        return {"content": result.to_sarif(), "mime": "application/json", "filename": f"{result.report_name}.sarif"}
     elif fmt == "junit":
-        junit_text = JUnitRenderer().render(issues=issues, scores=scores, report_name=report.report_name)
-        return {"content": junit_text, "mime": "application/xml", "filename": f"{report.report_name}-junit.xml"}
+        return {"content": result.to_junit(), "mime": "application/xml", "filename": f"{result.report_name}-junit.xml"}
     else:
-        html_text = HtmlRenderer().render(
-            issues=issues,
-            scores=scores,
-            meta={"report_name": report.report_name, "scanner_version": __version__, "source_path": req.project_path, "scan_timestamp": ""},
-        )
-        return {"content": html_text, "mime": "text/html", "filename": f"{report.report_name}-audit.html"}
+        return {"content": result.to_html(), "mime": "text/html", "filename": f"{result.report_name}-audit.html"}
 
 
 # ---------------------------------------------------------------------------

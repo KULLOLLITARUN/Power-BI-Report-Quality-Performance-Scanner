@@ -38,6 +38,8 @@ export const App: React.FC = () => {
   const [isBrowserOpen, setIsBrowserOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
+
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Finding filters
@@ -45,31 +47,41 @@ export const App: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSeverity, setSelectedSeverity] = useState('all');
 
+  // Explicit demo loader
+  const loadExplicitDemo = (type: 'bananas' | 'enterprise') => {
+    setIsDemoMode(true);
+    setError(null);
+    if (type === 'bananas') {
+      setScanResult(SAMPLE_BANANAS_REPORT);
+      setCurrentPath('[DEMO] world is going bananas.pbip');
+    } else {
+      setScanResult(SAMPLE_ENTERPRISE_REPORT);
+      setCurrentPath('[DEMO] Enterprise Sales Analytics.pbip');
+    }
+    setActiveTab('dashboard');
+  };
+
+  // Check URL params on mount for explicit demo activation or path
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const demoParam = params.get('demo');
+    if (demoParam === 'sample_bananas' || demoParam === 'bananas') {
+      loadExplicitDemo('bananas');
+    } else if (demoParam === 'sample_enterprise' || demoParam === 'enterprise') {
+      loadExplicitDemo('enterprise');
+    } else {
+      const initialPath = params.get('path');
+      if (initialPath) {
+        scanPath(initialPath);
+      }
+    }
+  }, []);
+
   const scanPath = async (targetPath: string) => {
     if (!targetPath || !targetPath.trim()) return;
     setLoading(true);
     setError(null);
-
-    // Check if matching sample report
-    if (targetPath.includes('banana') || targetPath.includes('world is going bananas')) {
-      setTimeout(() => {
-        setScanResult(SAMPLE_BANANAS_REPORT);
-        setCurrentPath(targetPath);
-        setActiveTab('dashboard');
-        setLoading(false);
-      }, 200);
-      return;
-    }
-
-    if (targetPath.includes('Enterprise') || targetPath.includes('sales')) {
-      setTimeout(() => {
-        setScanResult(SAMPLE_ENTERPRISE_REPORT);
-        setCurrentPath(targetPath);
-        setActiveTab('dashboard');
-        setLoading(false);
-      }, 200);
-      return;
-    }
+    setIsDemoMode(false);
 
     try {
       const res = await fetch('/api/scan', {
@@ -80,7 +92,7 @@ export const App: React.FC = () => {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || 'Scan failed on local backend');
+        throw new Error(errData.detail || `Scan failed (${res.status}: ${res.statusText})`);
       }
 
       const data: ScanResult = await res.json();
@@ -88,15 +100,10 @@ export const App: React.FC = () => {
       setCurrentPath(targetPath.trim());
       setActiveTab('dashboard');
     } catch (err: any) {
-      console.warn('Backend scan failed, checking client fallback:', err);
-      // If running on static host (Netlify), default to sample report
-      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        setScanResult(SAMPLE_BANANAS_REPORT);
-        setCurrentPath(targetPath.trim());
-        setActiveTab('dashboard');
-      } else {
-        setError(err.message || 'Failed to scan report project');
-      }
+      console.error('Scan error:', err);
+      // Strictly set error state - NEVER fall back to demo data on failed real scans
+      setError(err.message || 'Failed to scan report project');
+      setScanResult(null);
     } finally {
       setLoading(false);
     }
@@ -303,10 +310,42 @@ export const App: React.FC = () => {
           setScanResult(null);
           setCurrentPath('');
           setError(null);
+          setIsDemoMode(false);
         }}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
+
+      {/* Explicit Demo Mode Warning Banner */}
+      {isDemoMode && (
+        <div 
+          className="w-full py-2 px-4 text-center font-mono font-bold text-xs flex items-center justify-center gap-3 shadow-sm border-b"
+          style={{
+            backgroundColor: 'var(--accent)',
+            color: '#FFFFFF',
+            letterSpacing: '0.03em',
+            borderColor: 'rgba(0,0,0,0.15)',
+          }}
+        >
+          <span>⚠️ DEMO MODE — Viewing synthetic sample dataset</span>
+          <button
+            onClick={() => {
+              setIsDemoMode(false);
+              setScanResult(null);
+              setCurrentPath('');
+            }}
+            className="px-2.5 py-0.5 rounded text-[11px] font-bold transition hover:opacity-90"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.4)',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+            }}
+          >
+            Exit Demo
+          </button>
+        </div>
+      )}
 
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">
@@ -548,7 +587,7 @@ export const App: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <button
-                    onClick={() => scanPath('pbip_project/world is going bananas.pbip')}
+                    onClick={() => loadExplicitDemo('bananas')}
                     className="p-3 rounded border text-left transition flex flex-col justify-between hover:border-[var(--accent)]"
                     style={{
                       backgroundColor: 'var(--bg-surface)',
@@ -567,13 +606,13 @@ export const App: React.FC = () => {
                       </div>
                     </div>
                     <div className="mt-2 text-[10px] font-bold flex items-center gap-1" style={{ color: 'var(--accent)' }}>
-                      <span>Launch Interactive Audit</span>
+                      <span>Launch Interactive Demo</span>
                       <ArrowRight className="w-3 h-3" />
                     </div>
                   </button>
 
                   <button
-                    onClick={() => scanPath('pbip_project/Enterprise Sales.pbip')}
+                    onClick={() => loadExplicitDemo('enterprise')}
                     className="p-3 rounded border text-left transition flex flex-col justify-between hover:border-[var(--accent)]"
                     style={{
                       backgroundColor: 'var(--bg-surface)',
