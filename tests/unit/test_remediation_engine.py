@@ -18,6 +18,7 @@ from pbiscan.remediation.models import (
     RemediationSafety,
     compute_file_sha256,
 )
+from pbiscan.remediation.patchers.autodate import AutoDatePatcher
 from pbiscan.remediation.patchers.datasource import DataSourcePatcher
 from pbiscan.remediation.patchers.measure import MeasurePatcher
 from pbiscan.remediation.patchers.relationship import RelationshipPatcher
@@ -60,6 +61,15 @@ def temp_hardcoded_datasource_tmdl(tmp_path: Path) -> Path:
     """Create a temporary copy of test_m_hardcoded_datasource (TMDL)."""
     src = GOLDEN_DIR / "test_m_hardcoded_datasource"
     dest = tmp_path / "test_m_hardcoded_datasource"
+    shutil.copytree(src, dest)
+    return dest
+
+
+@pytest.fixture
+def temp_autodate_tmdl(tmp_path: Path) -> Path:
+    """Create a temporary copy of test_model_auto_datetime_bloat (TMDL)."""
+    src = GOLDEN_DIR / "test_model_auto_datetime_bloat"
+    dest = tmp_path / "test_model_auto_datetime_bloat"
     shutil.copytree(src, dest)
     return dest
 
@@ -423,6 +433,73 @@ class TestDataSourcePatcher:
         
         assert "supported_path_semantics" in evidence.violated_preconditions
         assert patcher.generate_patch(target_issue, evidence, temp_hardcoded_datasource_tmdl) is None
+
+
+class TestAutoDatePatcher:
+    def test_autodate_tmdl_patch_generation_and_evidence(self, temp_autodate_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_autodate_tmdl)
+        autodate_findings = [f for f in scan_res.issues if f.rule_id == "MODEL_AUTO_DATETIME_BLOAT"]
+        assert len(autodate_findings) == 1
+
+        patcher = AutoDatePatcher()
+        evidence = patcher.analyze(autodate_findings[0], scan_res.report, temp_autodate_tmdl)
+
+        assert evidence.rule_id == "MODEL_AUTO_DATETIME_BLOAT"
+        assert evidence.confidence > 0.9
+        assert not evidence.violated_preconditions
+        assert "local_date_tables_detected" in evidence.satisfied_preconditions
+        assert "zero_direct_visual_bindings" in evidence.satisfied_preconditions
+
+        patches = patcher.generate_patches(autodate_findings[0], evidence, temp_autodate_tmdl)
+        assert len(patches) >= 1
+        assert any(p.rule_id == "MODEL_AUTO_DATETIME_BLOAT" for p in patches)
+        assert all(p.safety == RemediationSafety.REVIEW_REQUIRED for p in patches)
+
+    def test_visual_bound_to_local_date_table_blocks_remediation(self, temp_autodate_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_autodate_tmdl)
+
+        # Inject a visual referencing a LocalDateTable column
+        from pbiscan.canonical.model import Page, Visual
+        scan_res.report.report.pages.append(
+            Page(
+                name="TestPage",
+                visuals=[Visual(visual_type="card", page="TestPage", fields_used=["LocalDateTable_12345678.Date"])],
+            )
+        )
+
+        autodate_findings = [f for f in scan_res.issues if f.rule_id == "MODEL_AUTO_DATETIME_BLOAT"]
+        assert len(autodate_findings) == 1
+
+        patcher = AutoDatePatcher()
+        evidence = patcher.analyze(autodate_findings[0], scan_res.report, temp_autodate_tmdl)
+
+        assert "zero_direct_visual_bindings" in evidence.violated_preconditions
+        assert len(patcher.generate_patches(autodate_findings[0], evidence, temp_autodate_tmdl)) == 0
+
+    def test_apply_autodate_remediation_lifecycle_tmdl(self, temp_autodate_tmdl: Path):
+        scan_before = RemediationEngine.analyze(temp_autodate_tmdl)
+        assert any(f.rule_id == "MODEL_AUTO_DATETIME_BLOAT" for f in scan_before.issues)
+        before_score = scan_before.overall_score
+
+        plan = RemediationEngine.plan(
+            temp_autodate_tmdl,
+            scan_before,
+            rule_filter="MODEL_AUTO_DATETIME_BLOAT",
+        )
+        assert len(plan.actionable_patches) >= 1
+
+        validation = RemediationEngine.validate(plan, scan_before)
+        assert validation.accepted is True
+        assert validation.finding_resolved is True
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True)
+        assert success is True
+        assert manifest.decision == "ACCEPTED"
+        assert manifest.after_score >= before_score
+
+        # Verify rescan on modified real workspace has 0 MODEL_AUTO_DATETIME_BLOAT findings
+        scan_after = RemediationEngine.analyze(temp_autodate_tmdl)
+        assert not any(f.rule_id == "MODEL_AUTO_DATETIME_BLOAT" for f in scan_after.issues)
 
 
 class TestRemediationEngineLifecycle:
