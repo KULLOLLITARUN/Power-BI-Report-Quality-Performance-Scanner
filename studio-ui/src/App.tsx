@@ -537,7 +537,7 @@ export const App: React.FC = () => {
                   borderWidth: '2px',
                 }}
                 onClick={() => {
-                  if (folderInputRef.current) folderInputRef.current.click();
+                  handleNativeBrowse('folder');
                 }}
               >
                 <div className="flex flex-col items-center gap-2">
@@ -554,7 +554,7 @@ export const App: React.FC = () => {
                     Drag &amp; Drop .pbip folder here, or click to browse
                   </div>
                   <div className="font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                    Reads TMDL definitions, PBIR layouts, and DAX measures locally
+                    Reads TMDL/BIM definitions, PBIR layouts, and DAX measures locally
                   </div>
                 </div>
 
@@ -563,7 +563,7 @@ export const App: React.FC = () => {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (folderInputRef.current) folderInputRef.current.click();
+                      handleNativeBrowse('folder');
                     }}
                     className="py-2 px-4 rounded font-mono font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
                     style={{
