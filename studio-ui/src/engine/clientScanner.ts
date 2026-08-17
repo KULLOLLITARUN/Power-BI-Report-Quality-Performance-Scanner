@@ -13,18 +13,31 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   const calcCols: CalculatedColumnInfo[] = [];
   const pages: PageInfo[] = [];
   const visualReferences = new Set<string>();
+  const mSources: { table: string; source: string }[] = [];
+
+  // Filter out backup folders, git, and metadata
+  const validFiles = files.filter(f => {
+    const p = f.path.toLowerCase().replace(/\\/g, '/');
+    return !p.includes('/backup/') && !p.startsWith('backup/') && !p.includes('/.git/') && !p.includes('/.pbi/');
+  });
+
+  // Check for model.bim or database.json
+  const bimFile = validFiles.find(f => f.name.toLowerCase() === 'model.bim' || f.name.toLowerCase() === 'database.json');
+  if (bimFile) {
+    parseModelBim(bimFile.content, tables, relationships, measures, calcCols, mSources);
+  }
 
   // 1. Process TMDL files
-  for (const file of files) {
-    const lowerPath = file.path.toLowerCase();
+  for (const file of validFiles) {
+    const lowerPath = file.path.toLowerCase().replace(/\\/g, '/');
     
     // Table TMDL
-    if (lowerPath.includes('.tmdl') && (lowerPath.includes('/tables/') || lowerPath.includes('\\tables\\') || lowerPath.includes('table '))) {
-      parseTableTmdl(file.content, tables, measures, calcCols);
+    if (lowerPath.endsWith('.tmdl') && (lowerPath.includes('/tables/') || lowerPath.includes('table '))) {
+      parseTableTmdl(file.content, tables, measures, calcCols, mSources);
     }
     
     // Relationships TMDL
-    if (lowerPath.includes('relationships.tmdl') || file.content.includes('relationship ')) {
+    if (lowerPath.endsWith('relationships.tmdl') || (lowerPath.endsWith('.tmdl') && file.content.includes('relationship '))) {
       parseRelationshipsTmdl(file.content, relationships);
     }
 
@@ -34,18 +47,18 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
   }
 
-  // 2. Run the 11 quality rules
+  // 2. Run quality rules
   const findings: AuditFinding[] = [];
 
   // M001: Bidirectional
   for (const rel of relationships) {
-    if (rel.cross_filter_direction.toLowerCase().includes('both')) {
+    if (rel.cross_filter_direction?.toLowerCase().includes('both')) {
       findings.push({
         rule_id: 'MODEL_BIDIRECTIONAL',
         category: 'model',
         severity: 'WARNING',
-        title: 'Bidirectional relationship detected',
-        issue: `Relationship between ${rel.from_table}[${rel.from_column}] and ${rel.to_table}[${rel.to_column}] is bidirectional.`,
+        title: 'Bi-directional relationship detected',
+        issue: `Relationship between ${rel.from_table}[${rel.from_column}] and ${rel.to_table}[${rel.to_column}] is bi-directional.`,
         evidence: `${rel.from_table}[${rel.from_column}] <-> ${rel.to_table}[${rel.to_column}] (BothDirections)`,
         impact: 'Bidirectional relationships create ambiguity in filter propagation and increase DAX context transition overhead.',
         recommendation: 'Change to single-directional cross-filtering or evaluate using CROSSFILTER() in DAX.',
@@ -55,23 +68,23 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
 
     // M002: Many-to-Many
-    if (rel.cardinality.toLowerCase().includes('manytomany')) {
+    if (rel.cardinality?.toLowerCase().includes('manytomany') || rel.cardinality?.toLowerCase().includes('both')) {
       findings.push({
         rule_id: 'MODEL_MANY_TO_MANY',
         category: 'model',
-        severity: 'HIGH',
+        severity: 'WARNING',
         title: 'Many-to-many relationship detected',
         issue: `Many-to-many cardinality between ${rel.from_table} and ${rel.to_table}.`,
         evidence: `${rel.from_table}[${rel.from_column}] *..* ${rel.to_table}[${rel.to_column}]`,
         impact: 'Many-to-many relationships rely on hash tables in memory and introduce filter ambiguity.',
         recommendation: 'Introduce a distinct bridge dimension table to resolve into two 1:N relationships.',
         confidence: 100,
-        location: `${rel.from_table} <-> ${rel.to_table}`,
+        location: `${rel.from_table} -> ${rel.to_table}`,
       });
     }
 
     // M003: Inactive Relationships
-    if (!rel.is_active) {
+    if (rel.is_active === false) {
       findings.push({
         rule_id: 'MODEL_INACTIVE_RELATIONSHIP',
         category: 'model',
@@ -87,24 +100,58 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
   }
 
-  // M004: Auto-Date Tables
-  for (const tbl of tables) {
-    if (tbl.is_date_table || tbl.name.toLowerCase().includes('localdatetable') || tbl.name.toLowerCase().includes('datetabletemplate')) {
+  // M004: Hardcoded Data Sources (Power Query M)
+  for (const src of mSources) {
+    const s = src.source;
+    if (
+      s.includes('File.Contents') ||
+      s.includes('Excel.Workbook') ||
+      s.includes('Csv.Document') ||
+      s.includes('Folder.Files') ||
+      /[A-Za-z]:[\\\/]/.test(s) ||
+      s.toLowerCase().includes('c:\\users') ||
+      s.toLowerCase().includes('/users/') ||
+      s.toLowerCase().includes('downloads')
+    ) {
       findings.push({
-        rule_id: 'MODEL_AUTO_DATE_TIME',
+        rule_id: 'M_HARDCODED_DATA_SOURCE',
         category: 'model',
-        severity: 'WARNING',
-        title: 'Auto Date/Time table detected',
-        issue: `Table '${tbl.name}' is an auto-generated Power BI date hierarchy.`,
-        evidence: `Auto-date table '${tbl.name}' found in model.`,
-        impact: 'Auto Date/Time creates hidden tables for every date column, bloating file size and RAM footprint.',
-        recommendation: 'Disable "Auto Date/Time" in Power BI Options and use a single centralized Date dimension.',
+        severity: 'HIGH',
+        title: 'Hardcoded local file path in Power Query data source',
+        issue: `Table '${src.table}' references a hardcoded local machine file path in its M partition query.`,
+        evidence: `Partition M query references local path: ${src.source.substring(0, 120)}...`,
+        impact: 'Hardcoded local file paths fail in automated Power BI Gateway or Cloud Scheduled Refresh.',
+        recommendation: 'Convert hardcoded file paths to Power Query Parameters or SharePoint/OneDrive URLs.',
         confidence: 100,
-        location: `Table: ${tbl.name}`,
+        location: `Table: ${src.table}`,
       });
     }
+  }
 
-    // D002: Excessive Calc Columns
+  // M005: Auto-Date Tables
+  let hasAutoDate = false;
+  for (const tbl of tables) {
+    if (tbl.is_date_table || tbl.name.toLowerCase().includes('localdatetable') || tbl.name.toLowerCase().includes('datetabletemplate')) {
+      hasAutoDate = true;
+    }
+  }
+  if (hasAutoDate) {
+    findings.push({
+      rule_id: 'MODEL_AUTO_DATETIME_BLOAT',
+      category: 'model',
+      severity: 'MEDIUM',
+      title: 'Auto Date/Time feature enabled generating hidden tables',
+      issue: 'Semantic model contains auto-generated LocalDateTable_* hidden date hierarchies.',
+      evidence: 'Model contains LocalDateTable_* tables generated by default Auto Date/Time.',
+      impact: 'Auto Date/Time creates hidden tables for every date column, bloating file size and RAM footprint.',
+      recommendation: 'Disable "Auto Date/Time" in Power BI Options and use a single centralized Date dimension.',
+      confidence: 100,
+      location: 'Model',
+    });
+  }
+
+  // D002: Excessive Calc Columns
+  for (const tbl of tables) {
     if (tbl.calc_cols_count > 4) {
       findings.push({
         rule_id: 'DAX_EXCESSIVE_CALC_COLUMNS',
@@ -124,18 +171,25 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   // D001: Suspicious DAX Patterns
   for (const m of measures) {
     const expr = m.expression;
-    if (expr.includes('FILTER(ALL(') || expr.includes('filter(all(') || expr.includes('FILTER( ALL(')) {
+    if (
+      expr.includes('FILTER(ALL(') ||
+      expr.includes('filter(all(') ||
+      expr.includes('FILTER( ALL(') ||
+      /\/\s*0\b/.test(expr) ||
+      /\/0/.test(expr) ||
+      expr.includes('DIVIDE') === false && expr.includes('/') && !expr.includes('//')
+    ) {
       findings.push({
         rule_id: 'DAX_SUSPICIOUS_PATTERN',
         category: 'dax',
         severity: 'ADVISORY',
-        title: 'Suspicious FILTER(ALL(...)) table scan pattern',
-        issue: `Measure '${m.name}' contains FILTER(ALL(Table)) full-table scan.`,
-        evidence: `${m.name} = ${m.expression}`,
-        impact: 'FILTER(ALL(Table)) bypasses Storage Engine optimization and forces Formula Engine materialization.',
-        recommendation: 'Replace with KEEPFILTERS() or column-level filtering.',
-        confidence: 65,
-        location: `${m.table}[${m.name}]`,
+        title: 'Suspicious DAX pattern detected',
+        issue: `Measure '${m.name}' contains unhandled division or table scan pattern.`,
+        evidence: `${m.name} = ${m.expression.substring(0, 100)}`,
+        impact: 'Unsafe division can yield #INFINITY and unoptimized scans increase Formula Engine latency.',
+        recommendation: 'Use DIVIDE() for safe division and avoid full table scans.',
+        confidence: 80,
+        location: `Measure: ${m.name}`,
       });
     }
   }
@@ -174,18 +228,18 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     const isReferencedInOtherMeasures = measures.some((other) => other.name !== m.name && other.expression.includes(nameRef));
     const isReferencedInVisuals = visualReferences.has(m.name) || Array.from(visualReferences).some(vr => vr.includes(m.name));
 
-    if (!isReferencedInOtherMeasures && !isReferencedInVisuals && visualReferences.size > 0) {
+    if (!isReferencedInOtherMeasures && !isReferencedInVisuals) {
       findings.push({
         rule_id: 'DAX_UNUSED_MEASURE',
         category: 'dax',
         severity: 'ADVISORY',
         title: 'Potentially unused measure',
         issue: `Measure '${m.name}' is not placed in any report visuals and not referenced by other measures.`,
-        evidence: `Measure '${m.name}' in ${m.table}: 0 downstream references found.`,
+        evidence: `Measure '${m.name}' in ${m.table}: 0 downstream visual or DAX references found.`,
         impact: 'Unused measures bloat the model field list.',
         recommendation: 'Review and remove or hide if not needed for ad-hoc analysis.',
-        confidence: 95,
-        location: `${m.table}[${m.name}]`,
+        confidence: 90,
+        location: `Measure: ${m.name}`,
       });
     }
   }
@@ -230,33 +284,136 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     source_path: projectName,
     scores,
     findings,
-    tables: tables.length > 0 ? tables : [{ name: "Model", hidden: false, is_date_table: false, column_count: 5, measures_count: measures.length, calc_cols_count: calcCols.length, columns: [] }],
+    tables: tables.filter(t => !t.name.toLowerCase().includes('localdatetable') && !t.name.toLowerCase().includes('datetabletemplate')),
     relationships,
     measures,
     calculated_columns: calcCols,
-    pages: pages.length > 0 ? pages : [{ name: "ReportSection1", display_name: "Overview", is_hidden: false, visual_count: 8, slicer_count: 2 }],
+    pages,
     warnings: [],
     summary: {
       total_findings: findings.length,
-      table_count: tables.length,
-      relationship_count: relationships.length,
-      measure_count: measures.length,
-      page_count: pages.length,
+      tables_count: tables.length,
+      measures_count: measures.length,
+      relationships_count: relationships.length,
+      pages_count: pages.length,
     },
   };
 }
 
-function parseTableTmdl(content: string, tables: TableInfo[], measures: MeasureInfo[], calcCols: CalculatedColumnInfo[]) {
+function parseModelBim(
+  content: string,
+  tables: TableInfo[],
+  relationships: RelationshipInfo[],
+  measures: MeasureInfo[],
+  calcCols: CalculatedColumnInfo[],
+  mSources: { table: string; source: string }[]
+) {
+  try {
+    const data = JSON.parse(content);
+    const model = data.model || data;
+
+    if (model.tables && Array.isArray(model.tables)) {
+      for (const t of model.tables) {
+        const colList: any[] = [];
+        let tMeasures = 0;
+        let tCalcCols = 0;
+
+        if (t.columns && Array.isArray(t.columns)) {
+          for (const col of t.columns) {
+            if (col.type === 'calculated' || col.expression) {
+              tCalcCols++;
+              calcCols.push({
+                name: col.name,
+                table: t.name,
+                expression: Array.isArray(col.expression) ? col.expression.join('\n') : (col.expression || ""),
+                data_type: col.dataType || 'string',
+              });
+            } else {
+              colList.push({
+                name: col.name,
+                data_type: col.dataType || 'string',
+                is_unique: col.isKey || false,
+                in_relationship: false,
+                hidden: col.isHidden || false,
+              });
+            }
+          }
+        }
+
+        if (t.measures && Array.isArray(t.measures)) {
+          for (const m of t.measures) {
+            tMeasures++;
+            measures.push({
+              name: m.name,
+              table: t.name,
+              expression: Array.isArray(m.expression) ? m.expression.join('\n') : (m.expression || ""),
+              hidden: m.isHidden || false,
+            });
+          }
+        }
+
+        if (t.partitions && Array.isArray(t.partitions)) {
+          for (const part of t.partitions) {
+            if (part.source && part.source.expression) {
+              const expr = Array.isArray(part.source.expression) ? part.source.expression.join('\n') : part.source.expression;
+              mSources.push({ table: t.name, source: expr });
+            }
+          }
+        }
+
+        tables.push({
+          name: t.name,
+          hidden: t.isHidden || false,
+          is_date_table: t.name.toLowerCase().includes('localdatetable') || t.name.toLowerCase().includes('date'),
+          column_count: colList.length,
+          columns: colList,
+          measures_count: tMeasures,
+          calc_cols_count: tCalcCols,
+        });
+      }
+    }
+
+    if (model.relationships && Array.isArray(model.relationships)) {
+      for (const r of model.relationships) {
+        relationships.push({
+          from_table: r.fromTable || "",
+          from_column: r.fromColumn || "",
+          to_table: r.toTable || "",
+          to_column: r.toColumn || "",
+          cardinality: r.cardinality || (r.fromCardinality && r.toCardinality ? `${r.fromCardinality}To${r.toCardinality}` : 'manyToOne'),
+          cross_filter_direction: r.crossFilteringBehavior === 'bothDirections' ? 'both' : (r.crossFilteringBehavior || 'single'),
+          is_active: r.isActive !== false,
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Failed to parse model.bim JSON:", e);
+  }
+}
+
+function parseTableTmdl(
+  content: string,
+  tables: TableInfo[],
+  measures: MeasureInfo[],
+  calcCols: CalculatedColumnInfo[],
+  mSources: { table: string; source: string }[]
+) {
   const lines = content.split('\n');
   let currentTable = "UnknownTable";
   let columns: any[] = [];
   let tableMeasures = 0;
   let tableCalcCols = 0;
+  let inPartition = false;
+  let partitionSource = "";
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (line.startsWith('table ') || line.startsWith('table\t')) {
       currentTable = line.substring(6).replace(/['"]/g, '').trim();
+    } else if (line.startsWith('partition ') || line.startsWith('partition\t')) {
+      inPartition = true;
+    } else if (inPartition) {
+      partitionSource += line + "\n";
     } else if (line.startsWith('column ') || line.startsWith('column\t')) {
       const colName = line.substring(7).split('=')[0].trim();
       if (line.includes('=')) {
@@ -275,7 +432,6 @@ function parseTableTmdl(content: string, tables: TableInfo[], measures: MeasureI
         measureName = measureHeader.split('=')[0].trim();
         expr = measureHeader.split('=').slice(1).join('=').trim();
       }
-      // If multi-line
       let j = i + 1;
       while (j < lines.length && (lines[j].startsWith('\t') || lines[j].startsWith('    ') || lines[j].startsWith('  ') || lines[j].trim().startsWith('//'))) {
         if (!lines[j].trim().startsWith('lineageTag') && !lines[j].trim().startsWith('formatString')) {
@@ -290,6 +446,10 @@ function parseTableTmdl(content: string, tables: TableInfo[], measures: MeasureI
         hidden: false,
       });
     }
+  }
+
+  if (partitionSource) {
+    mSources.push({ table: currentTable, source: partitionSource });
   }
 
   tables.push({
@@ -344,14 +504,18 @@ function parseReportArtifact(name: string, content: string, pages: PageInfo[], v
   try {
     const data = JSON.parse(content);
     if (data.sections && Array.isArray(data.sections)) {
+      // Deduplicate pages by section name
+      const existingNames = new Set(pages.map(p => p.name));
       for (const s of data.sections) {
+        if (existingNames.has(s.name)) continue;
+        existingNames.add(s.name);
+
         const visualCount = s.visualContainers?.length || 0;
         let slicerCount = 0;
         if (s.visualContainers) {
           for (const vc of s.visualContainers) {
             const configStr = vc.config || "";
             if (configStr.includes('"slicer"') || configStr.includes('slicer')) slicerCount++;
-            // Extract measure refs
             const match = configStr.match(/\[([^\]]+)\]/g);
             if (match) {
               match.forEach((m: string) => visualReferences.add(m.replace(/[\[\]]/g, '')));
@@ -378,22 +542,24 @@ function calculateClientScores(findings: AuditFinding[]): ScoreData {
   let reportDeductions = 0;
 
   for (const f of findings) {
-    let pts = 5;
-    if (f.severity === 'CRITICAL') pts = 15;
-    else if (f.severity === 'HIGH') pts = 10;
-    else if (f.severity === 'MEDIUM') pts = 5;
-    else if (f.severity === 'WARNING') pts = 3;
-    else if (f.severity === 'ADVISORY') pts = 1;
+    let ded = 5;
+    if (f.severity === 'CRITICAL') ded = 15;
+    else if (f.severity === 'HIGH') ded = 10;
+    else if (f.severity === 'MEDIUM') ded = 5;
+    else if (f.severity === 'WARNING') ded = 3;
+    else if (f.severity === 'ADVISORY' || f.severity === 'LOW') ded = 1;
 
-    if (f.category === 'model') modelDeductions += pts;
-    else if (f.category === 'dax') daxDeductions += pts;
-    else if (f.category === 'report') reportDeductions += pts;
+    if (f.category === 'model') modelDeductions += ded;
+    else if (f.category === 'dax') daxDeductions += ded;
+    else if (f.category === 'report') reportDeductions += ded;
   }
 
   const modelScore = Math.max(0, 100 - modelDeductions);
   const daxScore = Math.max(0, 100 - daxDeductions);
   const reportScore = Math.max(0, 100 - reportDeductions);
-  const overall = Number((modelScore * 0.35 + daxScore * 0.25 + reportScore * 0.20 + 100 * 0.20).toFixed(1));
+
+  // Weights: model 0.35, dax 0.25, report 0.20 (normalized across active categories)
+  const overall = Number(((modelScore * 0.35 + daxScore * 0.25 + reportScore * 0.20) / 0.80).toFixed(1));
 
   return {
     overall,
@@ -401,7 +567,6 @@ function calculateClientScores(findings: AuditFinding[]): ScoreData {
       model: modelScore,
       dax: daxScore,
       report: reportScore,
-      security: 100,
     },
   };
 }
