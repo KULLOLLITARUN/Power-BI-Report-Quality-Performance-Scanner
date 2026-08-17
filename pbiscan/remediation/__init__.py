@@ -11,12 +11,14 @@ from pbiscan.remediation.models import (
     RemediationManifest,
     RemediationPlan,
     RemediationSafety,
+    compute_scan_fingerprint,
 )
 from pbiscan.remediation.patchers.autodate import AutoDatePatcher
 from pbiscan.remediation.patchers.datasource import DataSourcePatcher
 from pbiscan.remediation.patchers.measure import MeasurePatcher
 from pbiscan.remediation.patchers.relationship import RelationshipPatcher
 from pbiscan.remediation.planner import RemediationPlanner
+from pbiscan.remediation.store import RemediationAuditStore
 from pbiscan.remediation.validator import SandboxValidator
 
 __all__ = [
@@ -31,10 +33,12 @@ __all__ = [
     "PatchLifecycleState",
     "PatchValidationResult",
     "RelationshipPatcher",
+    "RemediationAuditStore",
     "RemediationEngine",
     "RemediationManifest",
     "RemediationPlan",
     "RemediationPlanner",
     "RemediationSafety",
     "SandboxValidator",
+    "compute_scan_fingerprint",
 ]
