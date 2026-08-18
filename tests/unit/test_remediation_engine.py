@@ -755,12 +755,12 @@ class TestCliFixCommand:
         # Filter on matching rule
         res_match = runner.invoke(main, ["fix", str(temp_bidirectional_bim), "--rule", "MODEL_BIDIRECTIONAL"])
         assert res_match.exit_code == 3
-        assert "Planned Patches:  1" in res_match.output
+        assert "Proposals Found: 1" in res_match.output or "PROPOSAL:" in res_match.output
 
         # Filter on non-matching rule
         res_nomatch = runner.invoke(main, ["fix", str(temp_bidirectional_bim), "--rule", "DAX_UNUSED_MEASURE"])
         assert res_nomatch.exit_code == 0
-        assert "Planned Patches:  0" in res_nomatch.output
+        assert "Proposals Found: 0" in res_nomatch.output
 
     def test_cli_fix_clean_model_returns_exit_0(self, tmp_path: Path):
         clean_model = tmp_path / "clean_model"
@@ -769,7 +769,7 @@ class TestCliFixCommand:
         runner = CliRunner()
         res = runner.invoke(main, ["fix", str(clean_model)])
         assert res.exit_code == 0
-        assert "Planned Patches:  0" in res.output
+        assert "Proposals Found: 0" in res.output
 
     def test_cli_fix_invalid_path_returns_exit_2(self):
         runner = CliRunner()

@@ -411,6 +411,18 @@ def diff(
     help="Apply validated remediation patches to disk (default is dry-run plan only).",
 )
 @click.option(
+    "--interactive", "-i",
+    is_flag=True,
+    help="Interactively review and approve each remediation patch before applying.",
+)
+@click.option(
+    "--patch-id", "-p",
+    "patch_ids",
+    multiple=True,
+    type=str,
+    help="Filter remediation to specific patch ID(s) (can specify multiple).",
+)
+@click.option(
     "--backup/--no-backup",
     default=True,
     show_default=True,
@@ -450,6 +462,8 @@ def diff(
 def fix(
     path: str,
     apply: bool,
+    interactive: bool,
+    patch_ids: tuple[str, ...],
     backup: bool,
     rule: Optional[str],
     config: Optional[str],
@@ -457,8 +471,9 @@ def fix(
     out: Optional[str],
     quiet: bool,
 ) -> None:
-    """Analyze, plan, and safely apply verified remediation patches to a PBIP model."""
+    """Analyze, plan, review, and safely apply verified remediation patches to a PBIP model."""
     from pbiscan.remediation.engine import RemediationEngine
+    from pbiscan.render.remediation_console import RemediationConsoleRenderer
 
     model_path = Path(path)
     if not model_path.exists():
@@ -472,20 +487,70 @@ def fix(
         # Phase 2: Remediation Plan
         plan = RemediationEngine.plan(model_path, scan_res, rule_filter=rule)
 
+        # Selective patch ID filter if specified
+        if patch_ids:
+            plan = plan.filter_by_patch_ids(patch_ids)
+            if not plan.patches:
+                click.echo(f"[WARN] No matching patches found for specified ID(s): {', '.join(patch_ids)}", err=True)
+
         # Phase 3: Sandbox Validation Loop
         validation = RemediationEngine.validate(plan, scan_res, config_path=config)
     except Exception as exc:
         click.echo(f"[ERROR] Remediation planning failed: {exc}", err=True)
         sys.exit(2)
 
+    # Interactive Review Mode
+    if interactive and plan.actionable_patches:
+        approved_patch_ids: list[str] = []
+        if not quiet:
+            click.echo(RemediationConsoleRenderer.render_header(model_path.name, len(plan.actionable_patches), scan_res.overall_score))
+
+        for idx, patch in enumerate(plan.actionable_patches, 1):
+            if not quiet:
+                click.echo(RemediationConsoleRenderer.render_patch_card(
+                    patch, idx, len(plan.actionable_patches), validation.after_score, validation.before_score
+                ))
+
+            # Prompt user
+            choice = click.prompt(
+                f"  Apply patch {patch.patch_id}? [y=yes, n=no, a=all remaining, q=quit]",
+                type=str,
+                default="n",
+                show_default=False,
+            ).strip().lower()
+
+            if choice in ("y", "yes"):
+                approved_patch_ids.append(patch.patch_id)
+            elif choice in ("a", "all"):
+                approved_patch_ids.extend([p.patch_id for p in plan.actionable_patches[idx - 1:]])
+                break
+            elif choice in ("q", "quit"):
+                click.echo("\nRemediation aborted by user.")
+                sys.exit(0)
+
+        if not approved_patch_ids:
+            click.echo("\nNo patches approved. Exiting without modifying disk.")
+            sys.exit(0)
+
+        # Re-plan and re-validate only approved subset
+        plan = plan.filter_by_patch_ids(approved_patch_ids)
+        validation = RemediationEngine.validate(plan, scan_res, config_path=config)
+        apply = True  # Proceed to apply the approved subset
+
     # Phase 4: Apply or Plan Preview
     if apply:
+        if not plan.actionable_patches:
+            if not quiet:
+                click.echo(_colour("\nNo actionable patches to apply.", _GREEN))
+            sys.exit(0)
+
         try:
             success, manifest = RemediationEngine.apply(
                 plan=plan,
                 validation_result=validation,
                 backup=backup,
                 config_path=config,
+                original_scan=scan_res,
             )
         except Exception as exc:
             click.echo(f"[ERROR] Remediation apply failed with unexpected exception: {exc}", err=True)
@@ -498,7 +563,10 @@ def fix(
             if not quiet:
                 click.echo(f"\n  Remediation manifest saved: {_colour(str(out), _GREEN)}")
         elif not quiet:
-            click.echo(rendered)
+            if output_format.lower() == "console":
+                click.echo(RemediationConsoleRenderer.render_summary(plan, validation))
+            else:
+                click.echo(rendered)
 
         if success:
             if not quiet:
@@ -510,7 +578,24 @@ def fix(
             sys.exit(1)
     else:
         # Plan-only (Safe Default)
-        rendered = RemediationEngine.render_preview(plan, validation, output_format)
+        if output_format.lower() == "json":
+            out_data = {
+                "model_path": str(plan.model_path),
+                "validation": validation.to_dict(),
+                "plan": plan.to_dict(),
+            }
+            rendered = json.dumps(out_data, indent=2)
+        elif output_format.lower() == "markdown":
+            rendered = RemediationEngine.render_preview(plan, validation, "markdown")
+        else:
+            # Console cards + summary
+            header = RemediationConsoleRenderer.render_header(model_path.name, len(plan.actionable_patches), scan_res.overall_score)
+            cards = [
+                RemediationConsoleRenderer.render_patch_card(p, i, len(plan.actionable_patches), validation.after_score, validation.before_score)
+                for i, p in enumerate(plan.actionable_patches, 1)
+            ]
+            summary = RemediationConsoleRenderer.render_summary(plan, validation)
+            rendered = f"{header}\n" + "\n".join(cards) + f"\n{summary}"
 
         if out:
             Path(out).write_text(rendered, encoding="utf-8")

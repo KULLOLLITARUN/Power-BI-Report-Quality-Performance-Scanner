@@ -172,6 +172,19 @@ class RemediationPlan:
     def applied_patches(self) -> list[Patch]:
         return [p for p in self.patches if p.state == PatchLifecycleState.APPLIED]
 
+    def filter_by_patch_ids(self, patch_ids: list[str] | set[str]) -> RemediationPlan:
+        """Create a new RemediationPlan containing only the specified patch IDs."""
+        id_set = {pid.strip() for pid in patch_ids}
+        filtered_patches = [p for p in self.patches if p.patch_id in id_set]
+        return RemediationPlan(
+            model_path=self.model_path,
+            patches=filtered_patches,
+            conflicts=[c for c in self.conflicts if any(pid in id_set for pid in c.patch_ids)],
+            skipped_findings=self.skipped_findings,
+            unsupported_findings=self.unsupported_findings,
+            created_at=self.created_at,
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "model_path": str(self.model_path),
