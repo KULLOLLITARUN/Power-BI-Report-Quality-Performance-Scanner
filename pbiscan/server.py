@@ -405,7 +405,6 @@ async def mcp_status():
 
     import os
     groq_key = os.environ.get("GROQ_API_KEY")
-    masked_key = f"{groq_key[:6]}...{groq_key[-4:]}" if groq_key and len(groq_key) > 10 else ("Configured" if groq_key else None)
     groq_model = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 
     return {
@@ -415,7 +414,6 @@ async def mcp_status():
         "server_command": "pbiscan",
         "server_args": ["mcp"],
         "groq_configured": bool(groq_key),
-        "groq_masked_key": masked_key,
         "groq_model": groq_model,
     }
 
@@ -483,32 +481,6 @@ async def mcp_rules():
     import json as json_mod
     from pbiscan.mcp.resources import get_rules_catalog_json
     return json_mod.loads(get_rules_catalog_json())
-
-
-@app.get("/api/mcp/config-snippets")
-async def mcp_config_snippets():
-    """Generate ready-to-paste MCP client configuration snippets for common
-    AI agent hosts, using the actual command a user would run locally."""
-    server_entry = {"command": "pbiscan", "args": ["mcp"]}
-
-    return {
-        "claude_desktop": {
-            "file": "claude_desktop_config.json",
-            "snippet": {"mcpServers": {"pbip-sentinel": server_entry}},
-        },
-        "cursor": {
-            "file": ".cursor/mcp.json",
-            "snippet": {"mcpServers": {"pbip-sentinel": server_entry}},
-        },
-        "claude_code_cli": {
-            "file": None,
-            "snippet": "claude mcp add pbip-sentinel -- pbiscan mcp",
-        },
-        "vscode_cline_roo": {
-            "file": "cline_mcp_settings.json",
-            "snippet": {"mcpServers": {"pbip-sentinel": server_entry}},
-        },
-    }
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,6 @@ interface McpStatus {
   server_command: string;
   server_args: string[];
   groq_configured?: boolean;
-  groq_masked_key?: string | null;
   groq_model?: string;
 }
 
@@ -25,18 +24,6 @@ interface McpToolsResponse {
   tools: McpTool[];
 }
 
-interface ConfigSnippetEntry {
-  file: string | null;
-  snippet: any;
-}
-
-interface McpConfigSnippets {
-  claude_desktop: ConfigSnippetEntry;
-  cursor: ConfigSnippetEntry;
-  claude_code_cli: ConfigSnippetEntry;
-  vscode_cline_roo: ConfigSnippetEntry;
-}
-
 interface RuleEntry {
   rule_id: string;
   category: string;
@@ -46,19 +33,18 @@ interface RuleEntry {
   recommendation: string;
 }
 
-interface AgentIntegrationPanelProps {
-  hasBackend?: boolean;
+interface DaxRewriteResult {
+  ai_generated: boolean;
+  ai_model?: string;
+  suggested_rewrite?: string;
+  rewrite_explanation?: string;
+  recommendation?: string;
+  advisory_note?: string;
+  error?: string;
 }
 
-const HOST_LABELS: Record<keyof McpConfigSnippets, string> = {
-  claude_desktop: 'Claude Desktop',
-  cursor: 'Cursor',
-  claude_code_cli: 'Claude Code (CLI)',
-  vscode_cline_roo: 'VS Code (Cline / Roo-Code)',
-};
-
-function formatSnippet(entry: ConfigSnippetEntry): string {
-  return typeof entry.snippet === 'string' ? entry.snippet : JSON.stringify(entry.snippet, null, 2);
+interface AgentIntegrationPanelProps {
+  hasBackend?: boolean;
 }
 
 const CopyButton: React.FC<{ text: string }> = ({ text }) => {
@@ -86,17 +72,17 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
 export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ hasBackend = false }) => {
   const [status, setStatus] = useState<McpStatus | null>(null);
   const [tools, setTools] = useState<McpToolsResponse | null>(null);
-  const [snippets, setSnippets] = useState<McpConfigSnippets | null>(null);
   const [rules, setRules] = useState<Record<string, RuleEntry> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [daxInput, setDaxInput] = useState('DIVIDE(SUM(Sales[Amount]), SUM(Sales[Units]))');
-  const [daxOutput, setDaxOutput] = useState<any>(null);
+  const [daxInput, setDaxInput] = useState('SUM(Sales[Amount]) / SUM(Sales[Units])');
+  const [daxOutput, setDaxOutput] = useState<DaxRewriteResult | null>(null);
   const [daxLoading, setDaxLoading] = useState(false);
 
   const handleTestGroq = async () => {
     if (!daxInput.trim()) return;
     setDaxLoading(true);
+    setDaxOutput(null);
     try {
       const res = await fetch('/api/dax/rewrite', {
         method: 'POST',
@@ -104,13 +90,13 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
         body: JSON.stringify({
           rule_id: 'DAX_SUSPICIOUS_PATTERN',
           dax_expression: daxInput,
-          evidence: 'Division without safe 3rd parameter fallback',
+          evidence: '',
         }),
       });
       const data = await res.json();
       setDaxOutput(data);
     } catch (e: any) {
-      setDaxOutput({ error: e.message || 'Failed to call Groq AI' });
+      setDaxOutput({ ai_generated: false, error: e.message || 'Failed to call Groq' });
     } finally {
       setDaxLoading(false);
     }
@@ -121,15 +107,13 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
 
     (async () => {
       try {
-        const [statusRes, toolsRes, snippetsRes, rulesRes] = await Promise.all([
+        const [statusRes, toolsRes, rulesRes] = await Promise.all([
           fetch('/api/mcp/status').then((r) => r.json()),
           fetch('/api/mcp/tools').then((r) => r.json()),
-          fetch('/api/mcp/config-snippets').then((r) => r.json()),
           fetch('/api/mcp/rules').then((r) => r.json()),
         ]);
         setStatus(statusRes);
         setTools(toolsRes);
-        setSnippets(snippetsRes);
         setRules(rulesRes.rules);
       } catch (err: any) {
         setError(err.message || 'Failed to load Agent / MCP integration data');
@@ -152,8 +136,8 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
           </div>
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
             [Web Workbench Mode] MCP server configuration requires a local Python backend.
-            Run <code>pbiscan studio "path/to/your.pbip"</code> locally to see live tool status,
-            copyable AI-agent config snippets, and the full rule catalog here.
+            Run <code>pbiscan studio "path/to/your.pbip"</code> locally to see live tool status
+            and the Groq-backed DAX rewrite advisor here.
           </p>
         </div>
       </div>
@@ -174,9 +158,9 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
           </h2>
         </div>
         <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          Connect an AI agent host (Claude Desktop, Cursor, Claude Code) to this deterministic engine over the
-          Model Context Protocol. The core scanner remains 100% deterministic and AI-free — the agent only ever
-          calls the same tools this panel inspects below.
+          Run <code>pbiscan mcp</code> to expose this deterministic engine over the Model Context Protocol.
+          The core scanner remains 100% deterministic and AI-free — Groq is used only by the one advisory
+          tool inspected below, and only when a <code>GROQ_API_KEY</code> is configured.
         </p>
       </div>
 
@@ -202,7 +186,7 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
             <span className="text-base">⚡</span>
             <div>
               <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                Groq AI DAX Optimization Engine
+                Groq DAX Rewrite Advisor
               </h3>
               <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                 Model: <code>{status?.groq_model || 'openai/gpt-oss-120b'}</code>
@@ -212,30 +196,31 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
           {status?.groq_configured ? (
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold" style={{ backgroundColor: 'var(--accent-glow)', color: 'var(--accent)' }}>
               <CircleCheck className="w-3.5 h-3.5" />
-              <span>Connected ({status.groq_masked_key})</span>
+              <span>Configured</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px]" style={{ backgroundColor: 'var(--bg-canvas)', color: 'var(--text-muted)' }}>
-              <span>Not Configured (.env)</span>
+              <span>Not configured — set GROQ_API_KEY in .env</span>
             </div>
           )}
         </div>
 
         <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
-          Groq AI analyzes flagged DAX formulas on-demand to produce high-performance, non-visual-breaking rewrites.
+          This is the only place AI touches pbiscan: an advisory, read-only suggestion for a flagged DAX
+          expression. Nothing here is ever applied automatically — it's text for you to review.
         </p>
 
-        {/* Live Interactive Test */}
+        {/* Live interactive test */}
         <div className="p-3 rounded border" style={{ backgroundColor: 'var(--bg-canvas)', borderColor: 'var(--border-hairline)' }}>
           <div className="text-xs font-bold mb-1.5" style={{ color: 'var(--text-primary)' }}>
-            Live DAX Rewrite Test:
+            Try a DAX Rewrite
           </div>
           <div className="flex gap-2 mb-2">
             <input
               type="text"
               value={daxInput}
               onChange={(e) => setDaxInput(e.target.value)}
-              placeholder="e.g. DIVIDE(SUM(Sales[Amount]), SUM(Sales[Units]))"
+              placeholder="e.g. SUM(Sales[Amount]) / SUM(Sales[Units])"
               className="flex-1 px-2.5 py-1.5 text-xs rounded border bg-transparent font-mono"
               style={{ borderColor: 'var(--border-hairline)', color: 'var(--text-primary)' }}
             />
@@ -249,7 +234,7 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
                 opacity: daxLoading ? 0.7 : 1,
               }}
             >
-              {daxLoading ? 'Rewriting with Groq...' : '⚡ Ask Groq to Rewrite'}
+              {daxLoading ? 'Asking Groq...' : '⚡ Suggest Rewrite'}
             </button>
           </div>
 
@@ -258,33 +243,45 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
               className="p-3 rounded border text-xs mt-2 space-y-2"
               style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-hairline)' }}
             >
-              {daxOutput.recommendation && (
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
-                    Suggested Rewrite:
-                  </div>
-                  <pre
-                    className="p-2 rounded mt-1 overflow-x-auto font-mono text-xs"
-                    style={{ backgroundColor: 'var(--bg-canvas)', color: 'var(--text-primary)' }}
-                  >
-                    {daxOutput.recommendation}
-                  </pre>
-                </div>
+              {daxOutput.error && (
+                <div style={{ color: 'var(--severity-critical)' }}>{daxOutput.error}</div>
               )}
-              {daxOutput.explanation && (
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                    Why this is better:
+
+              {daxOutput.ai_generated && daxOutput.suggested_rewrite ? (
+                <>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
+                      Suggested Rewrite ({daxOutput.ai_model})
+                    </div>
+                    <pre
+                      className="p-2 rounded mt-1 overflow-x-auto font-mono text-xs"
+                      style={{ backgroundColor: 'var(--bg-canvas)', color: 'var(--text-primary)' }}
+                    >
+                      {daxOutput.suggested_rewrite}
+                    </pre>
                   </div>
-                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                    {daxOutput.explanation}
+                  {daxOutput.rewrite_explanation && (
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                        Why this is better
+                      </div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                        {daxOutput.rewrite_explanation}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                !daxOutput.error && (
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                      {status?.groq_configured ? 'Groq unavailable — static guidance' : 'Static guidance (Groq not configured)'}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      {daxOutput.recommendation}
+                    </div>
                   </div>
-                </div>
-              )}
-              {daxOutput.advisory_note && !daxOutput.explanation && (
-                <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                  {daxOutput.advisory_note}
-                </div>
+                )
               )}
             </div>
           )}
@@ -319,41 +316,6 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
         ) : (
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Loading...</span>
         )}
-      </div>
-
-      {/* Config snippets */}
-      <div className="p-4 rounded-lg border" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-hairline)' }}>
-        <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Client Configuration</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {snippets &&
-            (Object.keys(HOST_LABELS) as (keyof McpConfigSnippets)[]).map((key) => {
-              const entry = snippets[key];
-              const text = formatSnippet(entry);
-              return (
-                <div
-                  key={key}
-                  className="p-3 rounded border"
-                  style={{ backgroundColor: 'var(--bg-canvas)', borderColor: 'var(--border-hairline)' }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <div className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{HOST_LABELS[key]}</div>
-                      {entry.file && (
-                        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{entry.file}</div>
-                      )}
-                    </div>
-                    <CopyButton text={text} />
-                  </div>
-                  <pre
-                    className="text-[10px] p-2 rounded overflow-x-auto"
-                    style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-secondary)' }}
-                  >
-                    {text}
-                  </pre>
-                </div>
-              );
-            })}
-        </div>
       </div>
 
       {/* Tool safety matrix */}

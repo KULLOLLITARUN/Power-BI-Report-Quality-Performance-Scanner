@@ -270,6 +270,21 @@ class TestAgentMcpIntegrationApi:
         assert data["server_args"] == ["mcp"]
         assert data["python_executable"]
 
+    def test_mcp_status_never_exposes_groq_key_material(self, client, monkeypatch):
+        """The status endpoint must report only a boolean groq_configured flag —
+        never any substring of the real GROQ_API_KEY value, even partially."""
+        real_key = "gsk_supersecretvaluethatmustneverleak1234567890"
+        monkeypatch.setenv("GROQ_API_KEY", real_key)
+        resp = client.get("/api/mcp/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["groq_configured"] is True
+        assert "groq_masked_key" not in data
+        body_text = resp.text
+        assert real_key not in body_text
+        assert real_key[:6] not in body_text
+        assert real_key[-4:] not in body_text
+
     def test_mcp_tools_matches_real_server_classification(self, client):
         resp = client.get("/api/mcp/tools")
         assert resp.status_code == 200
@@ -284,13 +299,15 @@ class TestAgentMcpIntegrationApi:
             assert tool_map[name]["read_only"] is False
             assert tool_map[name]["destructive"] is True
 
-    def test_mcp_config_snippets_reference_real_command(self, client):
+    def test_mcp_config_snippets_endpoint_removed(self, client):
+        """Multi-host (Claude/Cursor/VS Code) config-snippet material was removed
+        by explicit user decision — pbiscan's Agent/MCP surface is Groq-only.
+        The route falls through to the SPA catch-all rather than 404ing, so
+        assert on content instead of status code."""
         resp = client.get("/api/mcp/config-snippets")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["claude_desktop"]["snippet"]["mcpServers"]["pbip-sentinel"]["command"] == "pbiscan"
-        assert data["claude_desktop"]["snippet"]["mcpServers"]["pbip-sentinel"]["args"] == ["mcp"]
-        assert "pbiscan mcp" in data["claude_code_cli"]["snippet"]
+        assert resp.headers.get("content-type", "").startswith("text/html") or resp.status_code == 404
+        assert b"claude_desktop" not in resp.content
+        assert b"mcpServers" not in resp.content
 
     def test_mcp_rules_matches_static_catalog(self, client):
         resp = client.get("/api/mcp/rules")

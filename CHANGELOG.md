@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.1] - 2026-08-22
+
+### Changed
+- **Studio UI's Agent/MCP tab is now Groq-only, by explicit decision**: removed the multi-host client configuration material (Claude Desktop, Cursor, Claude Code CLI, VS Code Cline/Roo-Code snippets and the `/api/mcp/config-snippets` endpoint that generated them). The tab now covers only the actual pbiscan surface: environment status, the live tool safety matrix, the rule catalog explorer, and the interactive Groq DAX rewrite tester.
+- **Fixed a display bug in the Groq DAX rewrite tester** (`AgentIntegrationPanel.tsx`): it read `daxOutput.recommendation`/`daxOutput.explanation`, which don't exist on the tool's actual response shape — so it always showed the static advisory text instead of the real AI-generated rewrite, and never showed the explanation at all. Now reads `suggested_rewrite`/`rewrite_explanation` when `ai_generated` is true, falling back to the static `recommendation` only when Groq wasn't used.
+
+### Security
+- **`/api/mcp/status` no longer exposes any fragment of the real `GROQ_API_KEY`.** It previously returned a `groq_masked_key` field built from the key's first 6 and last 4 characters — real key material served over a local HTTP endpoint. The endpoint now reports only a `groq_configured` boolean.
+
 ## [1.11.0] - 2026-08-22
 
 ### Added
