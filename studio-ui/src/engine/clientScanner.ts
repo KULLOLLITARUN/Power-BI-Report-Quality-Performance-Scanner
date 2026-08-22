@@ -1,9 +1,24 @@
 import { ScanResult, AuditFinding, TableInfo, RelationshipInfo, MeasureInfo, CalculatedColumnInfo, PageInfo, ScoreData } from '../types';
+import {
+  SemanticReferenceIndex,
+  CalcItem,
+  extractCalcGroupReferences,
+  extractFieldParamReferences,
+  extractRlsTmdlReferences,
+  extractRlsBimReferences,
+  extractMeasureNamesFromExprTree,
+} from './semanticReferences';
+import { buildDaxGraph } from './daxGraph';
 
 export interface DroppedFile {
   name: string;
   path: string;
   content: string;
+}
+
+interface CalcGroupEntry {
+  table: string;
+  items: CalcItem[];
 }
 
 export function parseDroppedPbip(files: DroppedFile[], projectName: string = "uploaded_report.pbip"): ScanResult {
@@ -12,8 +27,9 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   const measures: MeasureInfo[] = [];
   const calcCols: CalculatedColumnInfo[] = [];
   const pages: PageInfo[] = [];
-  const visualReferences = new Set<string>();
   const mSources: { table: string; source: string }[] = [];
+  const calcGroupEntries: CalcGroupEntry[] = [];
+  const roleReferences: ReturnType<typeof extractRlsTmdlReferences> = [];
 
   // Filter out backup folders, git, and metadata
   const validFiles = files.filter(f => {
@@ -23,27 +39,47 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
 
   // Check for model.bim or database.json
   const bimFile = validFiles.find(f => f.name.toLowerCase() === 'model.bim' || f.name.toLowerCase() === 'database.json');
+  let bimRoles: any[] = [];
   if (bimFile) {
-    parseModelBim(bimFile.content, tables, relationships, measures, calcCols, mSources);
+    bimRoles = parseModelBim(bimFile.content, tables, relationships, measures, calcCols, mSources, calcGroupEntries);
   }
+
+  const reportJsonFiles: DroppedFile[] = [];
+  const pageJsonFiles: DroppedFile[] = [];
+  const visualJsonFiles: DroppedFile[] = [];
 
   // 1. Process TMDL files
   for (const file of validFiles) {
     const lowerPath = file.path.toLowerCase().replace(/\\/g, '/');
-    
+
+    // RLS role TMDL (definition/roles/*.tmdl) — must be checked before the
+    // generic table-TMDL branch below, since role files don't start with `table `.
+    if (lowerPath.endsWith('.tmdl') && lowerPath.includes('/roles/')) {
+      const roleName = file.name.replace(/\.tmdl$/i, '');
+      roleReferences.push(...extractRlsTmdlReferences(roleName, file.content, file.path));
+      continue;
+    }
+
     // Table TMDL
     if (lowerPath.endsWith('.tmdl') && (lowerPath.includes('/tables/') || lowerPath.includes('table '))) {
-      parseTableTmdl(file.content, tables, measures, calcCols, mSources);
+      parseTableTmdl(file.content, tables, measures, calcCols, mSources, calcGroupEntries);
     }
-    
+
     // Relationships TMDL
     if (lowerPath.endsWith('relationships.tmdl') || (lowerPath.endsWith('.tmdl') && file.content.includes('relationship '))) {
       parseRelationshipsTmdl(file.content, relationships);
     }
 
-    // Report JSON / PBIR
-    if (lowerPath.endsWith('report.json') || lowerPath.endsWith('definition.pbir') || lowerPath.includes('page.json') || lowerPath.includes('visual.json')) {
-      parseReportArtifact(file.name, file.content, pages, visualReferences);
+    // Modern PBIR: page.json / visual.json are collected and grouped after this
+    // loop (a visual.json's page isn't known until all files have been seen).
+    // Legacy report.json is self-contained (sections + visualContainers) and
+    // collected too, processed in the same post-pass.
+    if (lowerPath.endsWith('page.json')) {
+      pageJsonFiles.push(file);
+    } else if (lowerPath.endsWith('visual.json')) {
+      visualJsonFiles.push(file);
+    } else if (lowerPath.endsWith('report.json')) {
+      reportJsonFiles.push(file);
     }
   }
 
@@ -62,6 +98,46 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
       }
     }
   }
+
+  // Build the Unified Semantic Reference Index (mirrors
+  // pbiscan.canonical.builder.CanonicalBuilder._build_semantic_references):
+  // Calculation Group DAX, Field Parameter NAMEOF() bindings, and RLS
+  // tablePermission expressions all activate DAX reachability roots the same
+  // way a visual binding does.
+  const semanticRefs = new SemanticReferenceIndex();
+
+  for (const entry of calcGroupEntries) {
+    semanticRefs.addMany(extractCalcGroupReferences(entry.table, entry.items, `${entry.table}.tmdl`));
+  }
+
+  const knownMeasureNames = new Set(measures.map((m) => m.name));
+  const knownColumnNames = new Set(tables.flatMap((t) => t.columns.map((c: any) => c.name)));
+  for (const src of mSources) {
+    semanticRefs.addMany(
+      extractFieldParamReferences(src.table, src.source, knownMeasureNames, knownColumnNames, `${src.table} partition`)
+    );
+  }
+
+  semanticRefs.addMany(roleReferences);
+  if (bimRoles.length) {
+    semanticRefs.addMany(extractRlsBimReferences(bimRoles, 'model.bim'));
+  }
+
+  // Build page/visual data (measure refs + hidden-page-aware visual/slicer counts)
+  // from whichever report format is present — legacy report.json or modern PBIR
+  // page.json + visual.json files.
+  const visualMeasureRefs = new Set<string>();
+  processLegacyReportJson(reportJsonFiles, pages, visualMeasureRefs);
+  processModernPbirPages(pageJsonFiles, visualJsonFiles, pages, visualMeasureRefs);
+
+  // Build the DAX dependency graph (measures + calculated columns) for
+  // multi-hop, cycle-safe D004 reachability — mirrors
+  // pbiscan.canonical.dax_graph.build_dax_graph.
+  const daxGraph = buildDaxGraph(
+    measures.map((m) => ({ name: m.name, table: m.table, expression: m.expression })),
+    calcCols.map((c) => ({ name: c.name, table: c.table, expression: c.expression }))
+  );
+  const activeRootMeasures = new Set<string>([...visualMeasureRefs, ...semanticRefs.activeRootMeasureNames()]);
 
   // 2. Run quality rules
   const findings: AuditFinding[] = [];
@@ -289,13 +365,13 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
   }
 
-  // D004: Unused Measures
+  // D004: Unused Measures (mirrors pbiscan.rules.dax.check_unused_measures — multi-hop,
+  // cycle-safe DaxDependencyGraph.is_reachable_from_visual against the combined root set
+  // of visual bindings + calc group / field parameter / RLS semantic references, instead
+  // of a shallow one-hop cross-measure regex scan.)
   for (const m of measures) {
-    const nameRef = `[${m.name}]`;
-    const isReferencedInOtherMeasures = measures.some((other) => other.name !== m.name && other.expression.includes(nameRef));
-    const isReferencedInVisuals = visualReferences.has(m.name) || Array.from(visualReferences).some(vr => vr.includes(m.name));
-
-    if (!isReferencedInOtherMeasures && !isReferencedInVisuals) {
+    const isUsed = daxGraph.isReachableFromVisual(m.name, activeRootMeasures);
+    if (!isUsed) {
       findings.push({
         rule_id: 'DAX_UNUSED_MEASURE',
         category: 'dax',
@@ -311,8 +387,11 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
   }
 
-  // R001 & R002: Visual & Slicer Bloat
+  // R001 & R002: Visual & Slicer Bloat (hidden pages excluded, mirrors
+  // pbiscan.rules.report — both check_visual_bloat and check_slicer_bloat skip
+  // pages where visibility != 0)
   for (const p of pages) {
+    if (p.is_hidden) continue;
     if (p.visual_count > 15) {
       findings.push({
         rule_id: 'REPORT_VISUAL_BLOAT',
@@ -377,14 +456,16 @@ function _detectIsUnique(col: any): boolean {
   return false;
 }
 
+/** Returns the model.bim `model.roles` array (raw TMSL) for RLS extraction. */
 function parseModelBim(
   content: string,
   tables: TableInfo[],
   relationships: RelationshipInfo[],
   measures: MeasureInfo[],
   calcCols: CalculatedColumnInfo[],
-  mSources: { table: string; source: string }[]
-) {
+  mSources: { table: string; source: string }[],
+  calcGroupEntries: CalcGroupEntry[]
+): any[] {
   try {
     const data = JSON.parse(content);
     const model = data.model || data;
@@ -438,6 +519,23 @@ function parseModelBim(
           }
         }
 
+        // Calculation Group items (TMSL: table.calculationGroup.calculationItems[]).
+        // NOTE: pbiscan's own BIM extractor has the same behavior mirrored here —
+        // it doesn't map the raw TMSL `formatStringDefinition` key into the
+        // extractor's `format_string`/`format_string_definition` fields, so
+        // format-string-embedded bracket references are only picked up for
+        // TMDL-sourced calc groups, not BIM-sourced ones. Matched here for parity.
+        const calcGroup = t.calculationGroup;
+        if (calcGroup && Array.isArray(calcGroup.calculationItems)) {
+          calcGroupEntries.push({
+            table: t.name,
+            items: calcGroup.calculationItems.map((item: any) => ({
+              name: item.name || 'UnknownItem',
+              expression: Array.isArray(item.expression) ? item.expression.join('\n') : (item.expression || ''),
+            })),
+          });
+        }
+
         tables.push({
           name: t.name,
           hidden: t.isHidden || false,
@@ -463,8 +561,11 @@ function parseModelBim(
         });
       }
     }
+
+    return Array.isArray(model.roles) ? model.roles : [];
   } catch (e) {
     console.error("Failed to parse model.bim JSON:", e);
+    return [];
   }
 }
 
@@ -479,7 +580,8 @@ function parseTableTmdl(
   tables: TableInfo[],
   measures: MeasureInfo[],
   calcCols: CalculatedColumnInfo[],
-  mSources: { table: string; source: string }[]
+  mSources: { table: string; source: string }[],
+  calcGroupEntries: CalcGroupEntry[]
 ) {
   const lines = content.split('\n');
   let currentTable = "UnknownTable";
@@ -488,6 +590,7 @@ function parseTableTmdl(
   let tableCalcCols = 0;
   let inPartition = false;
   let partitionSource = "";
+  let calcItems: CalcItem[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
@@ -541,11 +644,51 @@ function parseTableTmdl(
         expression: expr || "BLANK()",
         hidden: false,
       });
+    } else if (line.startsWith('calculationItem ') || line.startsWith('calculationItem\t')) {
+      const itemDepth = _leadingTabDepth(rawLine);
+      const itemHeader = line.substring(16).trim();
+      let itemName = itemHeader;
+      const bodyLines: string[] = [];
+      if (itemHeader.includes('=')) {
+        itemName = itemHeader.split('=')[0].trim();
+        const inlineExpr = itemHeader.split('=').slice(1).join('=').trim();
+        if (inlineExpr) bodyLines.push(inlineExpr);
+      }
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() !== '' && _leadingTabDepth(lines[j]) > itemDepth) {
+        const propLine = lines[j].trim();
+        if (!propLine.startsWith('lineageTag') && !propLine.startsWith('//')) {
+          bodyLines.push(propLine);
+        }
+        j++;
+      }
+      // A `formatStringDefinition = ...` (or possibly multi-line) property sits
+      // inline within the captured body — split there into expression vs format string.
+      const fmtIdx = bodyLines.findIndex((l) => /^formatStringDefinition\s*[:=]/.test(l));
+      let expression: string;
+      let formatString: string | undefined;
+      if (fmtIdx === -1) {
+        expression = bodyLines.join('\n');
+      } else {
+        expression = bodyLines.slice(0, fmtIdx).join('\n');
+        const fmtLines = bodyLines.slice(fmtIdx);
+        const sep = fmtLines[0].includes('=') ? '=' : ':';
+        fmtLines[0] = fmtLines[0].split(sep).slice(1).join(sep).trim();
+        formatString = fmtLines.join('\n');
+      }
+      calcItems.push({
+        name: itemName.replace(/['"[\]]/g, ''),
+        expression,
+        format_string: formatString,
+      });
     }
   }
 
   if (partitionSource) {
     mSources.push({ table: currentTable, source: partitionSource });
+  }
+  if (calcItems.length) {
+    calcGroupEntries.push({ table: currentTable, items: calcItems });
   }
 
   tables.push({
@@ -596,39 +739,174 @@ function parseRelationshipsTmdl(content: string, relationships: RelationshipInfo
   }
 }
 
-function parseReportArtifact(name: string, content: string, pages: PageInfo[], visualReferences: Set<string>) {
-  try {
-    const data = JSON.parse(content);
-    if (data.sections && Array.isArray(data.sections)) {
-      // Deduplicate pages by section name
-      const existingNames = new Set(pages.map(p => p.name));
+// ---------------------------------------------------------------------------
+// Report/visual parsing — legacy report.json and modern PBIR page.json/visual.json
+// ---------------------------------------------------------------------------
+
+/** Legacy format: a single report.json with `sections[].visualContainers[]`.
+ * Mirrors PBIPReader._parse_single_visual_container: measure refs come from
+ * prototypeQuery.Select[], projections{}, AND a full recursive AST walk of the
+ * parsed visual config (objects.title/subTitle/referenceLabel/conditional
+ * formatting/filters — not just a crude bracket-text scan). */
+function processLegacyReportJson(files: DroppedFile[], pages: PageInfo[], visualMeasureRefs: Set<string>) {
+  for (const file of files) {
+    try {
+      const data = JSON.parse(file.content);
+      if (!data.sections || !Array.isArray(data.sections)) continue;
+
+      const existingNames = new Set(pages.map((p) => p.name));
       for (const s of data.sections) {
         if (existingNames.has(s.name)) continue;
         existingNames.add(s.name);
 
-        const visualCount = s.visualContainers?.length || 0;
         let slicerCount = 0;
-        if (s.visualContainers) {
-          for (const vc of s.visualContainers) {
-            const configStr = vc.config || "";
-            if (configStr.includes('"slicer"') || configStr.includes('slicer')) slicerCount++;
-            const match = configStr.match(/\[([^\]]+)\]/g);
-            if (match) {
-              match.forEach((m: string) => visualReferences.add(m.replace(/[\[\]]/g, '')));
+        const containers = Array.isArray(s.visualContainers) ? s.visualContainers : [];
+        for (const vc of containers) {
+          const configStr = vc.config || "{}";
+          let config: any = {};
+          if (typeof configStr === 'string') {
+            try {
+              config = JSON.parse(configStr);
+            } catch {
+              config = {};
+            }
+          } else {
+            config = configStr;
+          }
+
+          const singleVisual = config.singleVisual || {};
+          const visualType = (singleVisual.visualType || '').toLowerCase();
+          if (visualType === 'slicer') slicerCount++;
+
+          const pq = singleVisual.prototypeQuery || {};
+          for (const selectItem of pq.Select || []) {
+            if (selectItem.Measure) {
+              const prop = selectItem.Measure.Property;
+              if (prop) visualMeasureRefs.add(prop);
             }
           }
+
+          const projections = singleVisual.projections || {};
+          if (projections && typeof projections === 'object') {
+            for (const items of Object.values(projections)) {
+              if (Array.isArray(items)) {
+                for (const item of items as any[]) {
+                  const qref = item?.queryRef;
+                  if (qref) {
+                    const clean = qref.includes('.') ? qref.split('.').slice(1).join('.') : qref;
+                    visualMeasureRefs.add(clean);
+                  }
+                }
+              }
+            }
+          }
+
+          for (const m of extractMeasureNamesFromExprTree(config)) visualMeasureRefs.add(m);
         }
+
+        const visibility = typeof s.visibility === 'number' ? s.visibility : 0;
         pages.push({
           name: s.name || `Section_${pages.length + 1}`,
           display_name: s.displayName || `Page ${pages.length + 1}`,
-          is_hidden: !s.ordinal && s.ordinal !== 0 ? false : s.isHidden || false,
-          visual_count: visualCount,
+          is_hidden: visibility !== 0,
+          visual_count: containers.length,
           slicer_count: slicerCount,
         });
       }
+    } catch {
+      // Non-JSON or malformed report.json — skip.
     }
-  } catch (e) {
-    // Non-JSON or simple PBIR fragment
+  }
+}
+
+/** Modern PBIR format: page.json (page metadata) and visual.json (one file per
+ * visual, under pages/<pageId>/visuals/<visualId>/visual.json) are separate
+ * files, so visuals can't be attributed to a page until all files are seen. */
+function processModernPbirPages(
+  pageFiles: DroppedFile[],
+  visualFiles: DroppedFile[],
+  pages: PageInfo[],
+  visualMeasureRefs: Set<string>
+) {
+  if (!pageFiles.length && !visualFiles.length) return;
+
+  const pageIdFromPath = (path: string): string => {
+    const segments = path.replace(/\\/g, '/').split('/');
+    const idx = segments.findIndex((s) => s.toLowerCase() === 'pages');
+    if (idx !== -1 && idx + 1 < segments.length) return segments[idx + 1];
+    // Fallback: parent directory name.
+    return segments[segments.length - 2] || 'UnknownPage';
+  };
+
+  interface PageAgg {
+    displayName: string;
+    isHidden: boolean;
+    visualCount: number;
+    slicerCount: number;
+  }
+  const pageMap = new Map<string, PageAgg>();
+
+  for (const file of pageFiles) {
+    const pageId = pageIdFromPath(file.path);
+    try {
+      const data = JSON.parse(file.content);
+      const visibility = typeof data.visibility === 'number' ? data.visibility : 0;
+      pageMap.set(pageId, {
+        displayName: data.displayName || pageId,
+        isHidden: visibility !== 0,
+        visualCount: 0,
+        slicerCount: 0,
+      });
+    } catch {
+      pageMap.set(pageId, { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0 });
+    }
+  }
+
+  for (const file of visualFiles) {
+    const pageId = pageIdFromPath(file.path);
+    let agg = pageMap.get(pageId);
+    if (!agg) {
+      agg = { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0 };
+      pageMap.set(pageId, agg);
+    }
+    agg.visualCount++;
+
+    try {
+      const raw = JSON.parse(file.content);
+      const visualNode = raw.visual || {};
+      const visualType = (visualNode.visualType || '').toLowerCase();
+      if (visualType === 'slicer') agg.slicerCount++;
+
+      // queryState projections (mirrors PBIPReader._extract_measure_refs_from_pbir_query)
+      const queryState = visualNode.query?.queryState || {};
+      for (const bucket of Object.values(queryState)) {
+        const projections = (bucket as any)?.projections;
+        if (Array.isArray(projections)) {
+          for (const proj of projections) {
+            const prop = proj?.field?.Measure?.Property;
+            if (prop) visualMeasureRefs.add(prop);
+          }
+        }
+      }
+
+      // Full recursive AST walk (objects.referenceLabel/title/subTitle/conditional
+      // formatting/filters, etc.) — mirrors PBIPReader._extract_measure_names_from_expr_tree.
+      for (const m of extractMeasureNamesFromExprTree(raw)) visualMeasureRefs.add(m);
+    } catch {
+      // Malformed visual.json — counted above, just skip measure-ref extraction.
+    }
+  }
+
+  const existingNames = new Set(pages.map((p) => p.name));
+  for (const [pageId, agg] of pageMap.entries()) {
+    if (existingNames.has(pageId)) continue;
+    pages.push({
+      name: pageId,
+      display_name: agg.displayName,
+      is_hidden: agg.isHidden,
+      visual_count: agg.visualCount,
+      slicer_count: agg.slicerCount,
+    });
   }
 }
 
