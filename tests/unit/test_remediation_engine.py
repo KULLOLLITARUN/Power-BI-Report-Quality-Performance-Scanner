@@ -13,7 +13,6 @@ from pbiscan.remediation.backup import BackupManager
 from pbiscan.remediation.engine import RemediationEngine
 from pbiscan.remediation.models import (
     PatchLifecycleState,
-    PatchValidationResult,
     RemediationPlan,
     RemediationSafety,
     compute_file_sha256,
@@ -22,9 +21,7 @@ from pbiscan.remediation.patchers.autodate import AutoDatePatcher
 from pbiscan.remediation.patchers.datasource import DataSourcePatcher
 from pbiscan.remediation.patchers.measure import MeasurePatcher
 from pbiscan.remediation.patchers.relationship import RelationshipPatcher
-from pbiscan.remediation.planner import RemediationPlanner
-from pbiscan.remediation.validator import SandboxValidator
-from pbiscan.service import ScanResult, ScanService
+from pbiscan.service import ScanService
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden"
 
@@ -66,11 +63,55 @@ def temp_hardcoded_datasource_tmdl(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def temp_hardcoded_datasource_bim(tmp_path: Path) -> Path:
+    """Create a temporary BIM-format project with a hardcoded local workstation
+    path in a table's M partition source, for exercising DataSourcePatcher's
+    BIM code path (the TMDL fixture above only exercises the TMDL path)."""
+    src = GOLDEN_DIR / "test_bidirectional"
+    dest = tmp_path / "test_hardcoded_datasource_bim"
+    shutil.copytree(src, dest)
+
+    bim_file = dest / "fixture.SemanticModel" / "model.bim"
+    data = json.loads(bim_file.read_text(encoding="utf-8"))
+    for table in data["model"]["tables"]:
+        if table["name"] == "Sales":
+            table["partitions"][0]["source"]["expression"] = (
+                'let Source = Csv.Document(File.Contents("C:\\Users\\Dev\\Downloads\\Sales.csv"), '
+                '[Delimiter=",", Columns=3]) in Source'
+            )
+    bim_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return dest
+
+
+@pytest.fixture
 def temp_autodate_tmdl(tmp_path: Path) -> Path:
     """Create a temporary copy of test_model_auto_datetime_bloat (TMDL)."""
     src = GOLDEN_DIR / "test_model_auto_datetime_bloat"
     dest = tmp_path / "test_model_auto_datetime_bloat"
     shutil.copytree(src, dest)
+    return dest
+
+
+@pytest.fixture
+def temp_autodate_bim(tmp_path: Path) -> Path:
+    """Create a temporary BIM-format project with an auto-generated LocalDateTable_*
+    table, for exercising AutoDatePatcher's BIM code path (the TMDL fixture above
+    only exercises the TMDL path)."""
+    src = GOLDEN_DIR / "test_bidirectional"
+    dest = tmp_path / "test_autodate_bim"
+    shutil.copytree(src, dest)
+
+    bim_file = dest / "fixture.SemanticModel" / "model.bim"
+    data = json.loads(bim_file.read_text(encoding="utf-8"))
+    data["model"]["tables"].append({
+        "name": "LocalDateTable_12345678",
+        "isHidden": True,
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date", "isHidden": True}],
+        "partitions": [
+            {"name": "LocalDateTable_12345678", "mode": "import", "source": {"type": "calculated", "expression": "Calendar()"}}
+        ],
+    })
+    bim_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
     return dest
 
 
@@ -133,6 +174,45 @@ class TestRelationshipPatcher:
         assert patch.file_path.name == "relationships.tmdl"
         assert len(patch.chunks) == 1
         assert "oneDirection" in patch.chunks[0].replacement_text
+
+
+class TestMeasurePatcherLocationParsing:
+    """_parse_issue_location has 3 independent fallback formats depending on which
+    part of the codebase constructed the AuditIssue (CLI vs. Studio vs. SARIF renderers
+    all phrase location/evidence slightly differently) — each must resolve to the
+    correct (measure, table) pair."""
+
+    def test_parses_measure_colon_format_with_table_from_evidence(self):
+        issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE", category="dax", severity="ADVISORY",
+            title="t", issue="i", impact="x", recommendation="r", confidence=95,
+            evidence="Measure 'Base Amount' [Sales]: not referenced by any report visual.",
+            location="Measure: Base Amount",
+        )
+        name, table = MeasurePatcher()._parse_issue_location(issue)
+        assert name == "Base Amount"
+        assert table == "Sales"
+
+    def test_parses_bracket_qualified_format(self):
+        issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE", category="dax", severity="ADVISORY",
+            title="t", issue="i", impact="x", recommendation="r", confidence=95,
+            evidence="", location="'Sales'[Base Amount]",
+        )
+        name, table = MeasurePatcher()._parse_issue_location(issue)
+        assert name == "Base Amount"
+        assert table == "Sales"
+
+    def test_falls_back_to_evidence_only_format(self):
+        issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE", category="dax", severity="ADVISORY",
+            title="t", issue="i", impact="x", recommendation="r", confidence=95,
+            evidence="Measure 'Base Amount' [Sales]: unused",
+            location="",
+        )
+        name, table = MeasurePatcher()._parse_issue_location(issue)
+        assert name == "Base Amount"
+        assert table == "Sales"
 
 
 class TestMeasurePatcher:
@@ -434,6 +514,79 @@ class TestDataSourcePatcher:
         assert "supported_path_semantics" in evidence.violated_preconditions
         assert patcher.generate_patch(target_issue, evidence, temp_hardcoded_datasource_tmdl) is None
 
+    def test_hardcoded_datasource_bim_patch_generation_and_evidence(self, temp_hardcoded_datasource_bim: Path):
+        scan_res = ScanService.execute_scan(temp_hardcoded_datasource_bim)
+        target_issue = next(f for f in scan_res.issues if f.rule_id == "M_HARDCODED_DATA_SOURCE")
+
+        patcher = DataSourcePatcher()
+        evidence = patcher.analyze(target_issue, scan_res.report, temp_hardcoded_datasource_bim)
+        assert not evidence.violated_preconditions
+
+        patch = patcher.generate_patch(target_issue, evidence, temp_hardcoded_datasource_bim)
+        assert patch is not None
+        assert patch.file_path.name == "model.bim"
+        assert len(patch.chunks) == 1
+        assert "DataFolderPath" in patch.chunks[0].replacement_text
+        assert "Downloads" in patch.chunks[0].original_text and "Sales.csv" in patch.chunks[0].original_text
+
+        # The replacement line must itself still be valid JSON text — this is what
+        # generate_patch got wrong before the JSON-escaping fix (it left a stray
+        # unescaped backslash, corrupting the file on write).
+        replaced_content = (temp_hardcoded_datasource_bim / "fixture.SemanticModel" / "model.bim").read_text(
+            encoding="utf-8"
+        ).replace(patch.chunks[0].original_text, patch.chunks[0].replacement_text)
+        parsed = json.loads(replaced_content)
+        patched_expr = next(
+            t["partitions"][0]["source"]["expression"]
+            for t in parsed["model"]["tables"] if t["name"] == "Sales"
+        )
+        assert patched_expr == 'let Source = Csv.Document(File.Contents(DataFolderPath & "\\Sales.csv"), [Delimiter=",", Columns=3]) in Source'
+
+    def test_apply_hardcoded_datasource_remediation_lifecycle_bim(self, temp_hardcoded_datasource_bim: Path):
+        scan_before = RemediationEngine.analyze(temp_hardcoded_datasource_bim)
+        ds_before = [f for f in scan_before.issues if f.rule_id == "M_HARDCODED_DATA_SOURCE"]
+        assert len(ds_before) == 1
+
+        plan = RemediationEngine.plan(
+            temp_hardcoded_datasource_bim,
+            scan_before,
+            rule_filter="M_HARDCODED_DATA_SOURCE",
+        )
+        assert len(plan.actionable_patches) == 1
+
+        validation = RemediationEngine.validate(plan, scan_before)
+        assert validation.accepted is True
+        assert validation.finding_resolved is True
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True)
+        assert success is True
+        assert manifest.decision == "ACCEPTED"
+
+        scan_after = RemediationEngine.analyze(temp_hardcoded_datasource_bim)
+        assert not any(f.rule_id == "M_HARDCODED_DATA_SOURCE" for f in scan_after.issues)
+
+    def test_unmatched_table_blocks_hardcoded_datasource_remediation(self, temp_hardcoded_datasource_tmdl: Path):
+        scan_res = ScanService.execute_scan(temp_hardcoded_datasource_tmdl)
+
+        fake_issue = AuditIssue(
+            rule_id="M_HARDCODED_DATA_SOURCE",
+            category="model",
+            severity="HIGH",
+            title="Hardcoded data source",
+            issue="Hardcoded data source",
+            evidence="Table 'DoesNotExist' contains hardcoded path",
+            impact="None",
+            recommendation="Parameterize",
+            confidence=95,
+            location="Table: DoesNotExist",
+        )
+
+        patcher = DataSourcePatcher()
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_hardcoded_datasource_tmdl)
+        assert "table_identified" in evidence.violated_preconditions
+        assert "target_file_located" in evidence.violated_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, temp_hardcoded_datasource_tmdl) is None
+
 
 class TestAutoDatePatcher:
     def test_autodate_tmdl_patch_generation_and_evidence(self, temp_autodate_tmdl: Path):
@@ -542,6 +695,46 @@ class TestAutoDatePatcher:
 
         # Verify rescan on modified real workspace has 0 MODEL_AUTO_DATETIME_BLOAT findings
         scan_after = RemediationEngine.analyze(temp_autodate_tmdl)
+        assert not any(f.rule_id == "MODEL_AUTO_DATETIME_BLOAT" for f in scan_after.issues)
+
+    def test_autodate_bim_patch_generation_and_evidence(self, temp_autodate_bim: Path):
+        scan_res = ScanService.execute_scan(temp_autodate_bim)
+        autodate_findings = [f for f in scan_res.issues if f.rule_id == "MODEL_AUTO_DATETIME_BLOAT"]
+        assert len(autodate_findings) == 1
+
+        patcher = AutoDatePatcher()
+        evidence = patcher.analyze(autodate_findings[0], scan_res.report, temp_autodate_bim)
+        assert not evidence.violated_preconditions
+
+        patches = patcher.generate_patches(autodate_findings[0], evidence, temp_autodate_bim)
+        assert len(patches) == 1
+        assert patches[0].file_path.name == "model.bim"
+
+        patched_content = json.loads(patches[0].chunks[0].replacement_text)
+        table_names = [t["name"] for t in patched_content["model"]["tables"]]
+        assert "LocalDateTable_12345678" not in table_names
+        assert "Sales" in table_names
+
+    def test_apply_autodate_remediation_lifecycle_bim(self, temp_autodate_bim: Path):
+        scan_before = RemediationEngine.analyze(temp_autodate_bim)
+        assert any(f.rule_id == "MODEL_AUTO_DATETIME_BLOAT" for f in scan_before.issues)
+
+        plan = RemediationEngine.plan(
+            temp_autodate_bim,
+            scan_before,
+            rule_filter="MODEL_AUTO_DATETIME_BLOAT",
+        )
+        assert len(plan.actionable_patches) == 1
+
+        validation = RemediationEngine.validate(plan, scan_before)
+        assert validation.accepted is True
+        assert validation.finding_resolved is True
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True)
+        assert success is True
+        assert manifest.decision == "ACCEPTED"
+
+        scan_after = RemediationEngine.analyze(temp_autodate_bim)
         assert not any(f.rule_id == "MODEL_AUTO_DATETIME_BLOAT" for f in scan_after.issues)
 
 
@@ -677,8 +870,7 @@ class TestRemediationEngineLifecycle:
         import copy
         p2 = copy.deepcopy(p1)
         p2.patch_id = "REM-MODEL_BIDIRECTIONAL-DUPLICATE"
-        
-        planner = RemediationPlanner()
+
         plan_with_two = RemediationPlan(
             model_path=temp_bidirectional_bim,
             patches=[p1, p2],
@@ -718,6 +910,131 @@ class TestRemediationEngineLifecycle:
         assert m_dict["engine_version"] is not None
         assert len(m_dict["patches"]) == 1
         assert m_dict["patches"][0]["state"] == "APPLIED"
+
+
+class TestRemediationEngineFailureRollbackPaths:
+    """Covers RemediationEngine.apply's transactional rollback branches — disk-write
+    failure, final-verification crash/regression, and audit-persistence failure —
+    the exact paths responsible for protecting a user's on-disk project from a bad
+    remediation, none of which were previously exercised by any test."""
+
+    def test_disk_write_error_rolls_back_and_restores_original_content(self, temp_bidirectional_bim: Path, monkeypatch):
+        bim_file = temp_bidirectional_bim / "fixture.SemanticModel" / "model.bim"
+        orig_content = bim_file.read_text(encoding="utf-8")
+
+        scan_res = RemediationEngine.analyze(temp_bidirectional_bim)
+        plan = RemediationEngine.plan(temp_bidirectional_bim, scan_res)
+        validation = RemediationEngine.validate(plan, scan_res)
+        assert validation.accepted is True
+
+        from pbiscan.remediation.validator import SandboxValidator
+        monkeypatch.setattr(
+            SandboxValidator, "apply_patches_to_dir",
+            classmethod(lambda cls, patches, target_dir: ["simulated disk write failure"]),
+        )
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan_res)
+        assert success is False
+        assert manifest.decision == "ROLLED_BACK"
+        assert manifest.rollback_executed is True
+        assert any("Disk write error" in r for r in manifest.rejection_reasons)
+        assert bim_file.read_text(encoding="utf-8") == orig_content
+
+    def test_final_verification_exception_rolls_back(self, temp_bidirectional_bim: Path, monkeypatch):
+        bim_file = temp_bidirectional_bim / "fixture.SemanticModel" / "model.bim"
+        orig_content = bim_file.read_text(encoding="utf-8")
+
+        scan_res = RemediationEngine.analyze(temp_bidirectional_bim)
+        plan = RemediationEngine.plan(temp_bidirectional_bim, scan_res)
+        validation = RemediationEngine.validate(plan, scan_res)
+        assert validation.accepted is True
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("simulated final verification crash")
+
+        # original_scan is supplied, so the only remaining internal execute_scan
+        # call inside apply() is the post-write final verification scan.
+        monkeypatch.setattr(ScanService, "execute_scan", staticmethod(_boom))
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan_res)
+        assert success is False
+        assert manifest.decision == "ROLLED_BACK"
+        assert manifest.rollback_executed is True
+        assert any("Final verification failed" in r for r in manifest.rejection_reasons)
+        assert bim_file.read_text(encoding="utf-8") == orig_content
+
+    def test_final_score_regression_triggers_rollback(self, temp_bidirectional_bim: Path, monkeypatch):
+        bim_file = temp_bidirectional_bim / "fixture.SemanticModel" / "model.bim"
+        orig_content = bim_file.read_text(encoding="utf-8")
+
+        scan_res = RemediationEngine.analyze(temp_bidirectional_bim)
+        plan = RemediationEngine.plan(temp_bidirectional_bim, scan_res)
+        validation = RemediationEngine.validate(plan, scan_res)
+        assert validation.accepted is True
+
+        real_execute_scan = ScanService.execute_scan
+
+        def _regress_on_final_scan(*args, **kwargs):
+            result = real_execute_scan(*args, **kwargs)
+            result.scores["overall"] = validation.before_score - 50
+            return result
+
+        monkeypatch.setattr(ScanService, "execute_scan", staticmethod(_regress_on_final_scan))
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan_res)
+        assert success is False
+        assert manifest.decision == "ROLLED_BACK"
+        assert any("regressed below baseline" in r for r in manifest.rejection_reasons)
+        assert bim_file.read_text(encoding="utf-8") == orig_content
+
+    def test_audit_persistence_failure_rolls_back(self, temp_bidirectional_bim: Path, monkeypatch):
+        bim_file = temp_bidirectional_bim / "fixture.SemanticModel" / "model.bim"
+        orig_content = bim_file.read_text(encoding="utf-8")
+
+        scan_res = RemediationEngine.analyze(temp_bidirectional_bim)
+        plan = RemediationEngine.plan(temp_bidirectional_bim, scan_res)
+        validation = RemediationEngine.validate(plan, scan_res)
+        assert validation.accepted is True
+
+        from pbiscan.remediation.store import RemediationAuditStore
+
+        def _raise_disk_full(cls, manifest, target_dir):
+            raise OSError("simulated disk full")
+
+        monkeypatch.setattr(RemediationAuditStore, "save_manifest", classmethod(_raise_disk_full))
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan_res)
+        assert success is False
+        assert manifest.decision == "ROLLED_BACK"
+        assert manifest.audit_saved is False
+        assert "simulated disk full" in manifest.audit_error
+        assert bim_file.read_text(encoding="utf-8") == orig_content
+
+    def test_render_preview_json_format(self, temp_bidirectional_bim: Path):
+        scan_res = RemediationEngine.analyze(temp_bidirectional_bim)
+        plan = RemediationEngine.plan(temp_bidirectional_bim, scan_res)
+        validation = RemediationEngine.validate(plan, scan_res)
+
+        out = RemediationEngine.render_preview(plan, validation, output_format="json")
+        parsed = json.loads(out)
+        assert parsed["model_path"] == str(plan.model_path)
+        assert "validation" in parsed
+        assert "plan" in parsed
+
+    def test_render_preview_console_shows_rejection_reasons(self, temp_bidirectional_bim: Path):
+        scan_res = RemediationEngine.analyze(temp_bidirectional_bim)
+        plan = RemediationEngine.plan(temp_bidirectional_bim, scan_res)
+        assert len(plan.patches) == 1
+        plan.patches[0].chunks[0].original_text_hash = "0" * 64
+
+        validation = RemediationEngine.validate(plan, scan_res)
+        assert validation.accepted is False
+        assert validation.rejection_reasons
+
+        out = RemediationEngine.render_preview(plan, validation, output_format="console")
+        assert "Rejection Reasons:" in out
+        for reason in validation.rejection_reasons:
+            assert reason in out
 
 
 class TestCliFixCommand:

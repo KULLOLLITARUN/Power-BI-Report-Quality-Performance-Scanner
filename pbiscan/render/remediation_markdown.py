@@ -6,7 +6,6 @@ from typing import Optional
 
 from pbiscan import __version__
 from pbiscan.remediation.models import (
-    Patch,
     PatchValidationResult,
     RemediationPlan,
     RemediationSafety,
@@ -33,7 +32,7 @@ class RemediationMarkdownRenderer:
             gate_badge = "🟢 **CLEAN (No Remediation Required)**"
 
         lines: list[str] = [
-            f"## 🛡️ PBIP Sentinel — Safe Remediation Proposal",
+            "## 🛡️ PBIP Sentinel — Safe Remediation Proposal",
             "",
             f"> **Automated code quality & performance proposal for `{model_display_name}`**",
             "",
@@ -61,7 +60,7 @@ class RemediationMarkdownRenderer:
             risk_badge = "🟢 LOW" if patch.evidence.semantic_risk == "LOW" else ("🟡 MEDIUM" if patch.evidence.semantic_risk == "MEDIUM" else "🔴 HIGH")
             safety_badge = "🛡️ Safe Automated" if patch.safety == RemediationSafety.SAFE_AUTO else "⚠️ Review Required"
             
-            lines.append(f"<details>")
+            lines.append("<details>")
             lines.append(f"<summary><b>🔧 [{idx}/{actionable_count}] <code>{patch.patch_id}</code> — {patch.rule_id} ({patch.file_path.name})</b></summary>")
             lines.append("")
             lines.append("| Property | Detail |")
@@ -87,7 +86,7 @@ class RemediationMarkdownRenderer:
                 lines.extend([d.rstrip("\n") for d in diff])
             lines.append("```")
             lines.append("")
-            lines.append(f"**Apply locally:**")
+            lines.append("**Apply locally:**")
             lines.append("```bash")
             lines.append(f"pbiscan fix \"{model_display_name}\" --patch-id {patch.patch_id} --apply")
             lines.append("```")
@@ -105,10 +104,10 @@ class RemediationMarkdownRenderer:
             "",
             "To review and apply these validated fixes in your local workspace, run:",
             "```bash",
-            f"# Interactive review (step-by-step approval):",
+            "# Interactive review (step-by-step approval):",
             f"pbiscan fix \"{model_display_name}\" --interactive",
             "",
-            f"# Or apply all validated safe fixes at once:",
+            "# Or apply all validated safe fixes at once:",
             f"pbiscan fix \"{model_display_name}\" --apply",
             "```",
             "",

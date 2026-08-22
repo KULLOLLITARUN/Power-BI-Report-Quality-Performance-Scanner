@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from typing import Optional
 
 from pbiscan.remediation.models import (
@@ -85,7 +84,7 @@ class RemediationConsoleRenderer:
             lines.append(f"  │ {_color('Affected Objects:', _DIM)} {', '.join(patch.evidence.affected_objects[:3])}")
 
         # Render Diff Preview
-        lines.append(f"  │")
+        lines.append("  │")
         lines.append(f"  │ {_color('Proposed Diff:', _BOLD)}")
         for chunk_idx, chunk in enumerate(patch.chunks, 1):
             lines.append(f"  │   {_color(f'@@ Lines {chunk.start_line}..{chunk.end_line} @@', _CYAN)}")

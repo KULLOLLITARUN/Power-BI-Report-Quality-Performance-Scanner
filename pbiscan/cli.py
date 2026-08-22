@@ -12,13 +12,14 @@ import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import click
 
 from pbiscan import __version__
 from pbiscan.engine.scoring import ConfigError
 from pbiscan.extraction.pbip_reader import PBIScanError
-from pbiscan.service import ScanService, resolve_config
+from pbiscan.service import ScanService
 
 # Default config path (relative to CWD)
 DEFAULT_CONFIG = "rules.config.json"
@@ -123,8 +124,6 @@ def scan(
     else:
         logging.basicConfig(level=logging.WARNING, format="%(levelname)s  %(message)s", stream=sys.stderr)
 
-    logger = logging.getLogger(__name__)
-
     # Banner
     if not quiet:
         click.echo(f"\n{_colour('pbiscan', _BOLD)} {_colour(f'v{__version__}', _DIM)} - Power BI Report Quality & Performance Scanner\n")
@@ -148,7 +147,6 @@ def scan(
 
     report = result.report
     issues = result.issues
-    scores = result.scores
     overall = result.overall_score
     cat_scores = result.category_scores
 

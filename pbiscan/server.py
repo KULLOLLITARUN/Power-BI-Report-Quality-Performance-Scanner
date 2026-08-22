@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from pbiscan import __version__
 from pbiscan.diff import DiffService, QualityGatePolicy
 from pbiscan.extraction.pbip_reader import PBIScanError
-from pbiscan.service import ScanService, resolve_config
+from pbiscan.service import ScanService
 
 app = FastAPI(
     title="pbiscan Studio API",
@@ -121,21 +121,6 @@ async def open_native_dialog(req: Optional[DialogRequest] = None):
     import asyncio
     mode = req.mode if req else "file"
     return await asyncio.to_thread(_show_dialog_sync, mode)
-
-
-def _get_config(config_path: Optional[str] = None) -> dict:
-    """Helper to load config or return default weights/deductions."""
-    cfg_file = config_path or "rules.config.json"
-    if Path(cfg_file).exists():
-        try:
-            return load_config(cfg_file)
-        except Exception:
-            pass
-    return {
-        "weights": {"model": 0.35, "dax": 0.25, "report": 0.20, "security": 0.20},
-        "deductions": {"CRITICAL": 15, "HIGH": 10, "MEDIUM": 5, "WARNING": 3, "ADVISORY": 1, "LOW": 2},
-        "thresholds": {"maxVisualsPerPage": 15, "maxSlicersPerPage": 6, "maxCalculatedColumnsPerTable": 4},
-    }
 
 
 @app.post("/api/scan")

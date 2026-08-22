@@ -47,6 +47,22 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
   }
 
+  // Post-process: compute in_relationship signal by matching columns to relationship
+  // endpoints (mirrors pbiscan.canonical.builder.CanonicalBuilder._build_columns).
+  // Runs after both the model.bim pass and the TMDL pass so it applies to either source.
+  {
+    const relColumnKeys = new Set<string>();
+    for (const rel of relationships) {
+      relColumnKeys.add(`${rel.from_table.toLowerCase()}|${rel.from_column.toLowerCase()}`);
+      relColumnKeys.add(`${rel.to_table.toLowerCase()}|${rel.to_column.toLowerCase()}`);
+    }
+    for (const tbl of tables) {
+      for (const col of tbl.columns) {
+        col.in_relationship = relColumnKeys.has(`${tbl.name.toLowerCase()}|${col.name.toLowerCase()}`);
+      }
+    }
+  }
+
   // 2. Run quality rules
   const findings: AuditFinding[] = [];
 
@@ -83,36 +99,89 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
       });
     }
 
-    // M003: Inactive Relationships
-    if (rel.is_active === false) {
+  }
+
+  // M005: Fact-to-fact relationships (mirrors pbiscan.rules.model.check_fact_to_fact)
+  {
+    const measureTables = new Set(measures.map((m) => m.table));
+    const dimHints = ['dim', 'dimension', 'lookup', 'ref', 'reference', 'bridge'];
+    for (const rel of relationships) {
+      const fromHasMeasures = measureTables.has(rel.from_table);
+      const toHasMeasures = measureTables.has(rel.to_table);
+      if (!fromHasMeasures || !toHasMeasures) continue;
+
+      const fromLooksLikeDim = dimHints.some((h) => rel.from_table.toLowerCase().includes(h));
+      const toLooksLikeDim = dimHints.some((h) => rel.to_table.toLowerCase().includes(h));
+
+      if (!fromLooksLikeDim && !toLooksLikeDim) {
+        findings.push({
+          rule_id: 'MODEL_FACT_TO_FACT',
+          category: 'model',
+          severity: 'ADVISORY',
+          title: 'Potential fact-to-fact relationship detected',
+          issue: `Both '${rel.from_table}' and '${rel.to_table}' contain measures and neither matches a dimension naming pattern.`,
+          evidence: `${rel.from_table} -> ${rel.to_table}: both tables contain measures and neither matches a dimension naming pattern.`,
+          impact: 'Direct relationships between transactional fact tables can produce inconsistent aggregation results.',
+          recommendation: 'Introduce a shared dimension table to relate these facts, or confirm the relationship is intentional.',
+          confidence: 60,
+          location: `${rel.from_table} -> ${rel.to_table}`,
+        });
+      }
+    }
+  }
+
+  // M003: No dedicated Date table (mirrors pbiscan.rules.model.check_no_date_table)
+  if (tables.length > 0) {
+    const dateNameHints = ['date', 'dim_date', 'dimdate', 'calendar', 'dim_calendar', 'time', 'dim_time'];
+    const hasDateTable = tables.some(
+      (t) => t.is_date_table || dateNameHints.some((h) => t.name.toLowerCase().includes(h))
+    );
+    if (!hasDateTable) {
       findings.push({
-        rule_id: 'MODEL_INACTIVE_RELATIONSHIP',
+        rule_id: 'MODEL_NO_DATE_TABLE',
         category: 'model',
-        severity: 'ADVISORY',
-        title: 'Inactive relationship in model',
-        issue: `Inactive relationship between ${rel.from_table} and ${rel.to_table}.`,
-        evidence: `${rel.from_table}[${rel.from_column}] .. ${rel.to_table}[${rel.to_column}] (Inactive)`,
-        impact: 'Inactive relationships require USERELATIONSHIP() to activate.',
-        recommendation: 'Verify if this inactive link is referenced in DAX, or remove if obsolete.',
-        confidence: 100,
-        location: `${rel.from_table} .. ${rel.to_table}`,
+        severity: 'WARNING',
+        title: 'No dedicated Date dimension table found',
+        issue: 'No table is marked as a Date Table and no table matches date-dimension naming or data-category signals.',
+        evidence: `Tables found: ${tables.map((t) => t.name).join(', ')}`,
+        impact: 'Without a marked Date table, time-intelligence DAX functions (e.g. TOTALYTD, SAMEPERIODLASTYEAR) may behave unpredictably.',
+        recommendation: 'Mark a dedicated table as the Date Table in Model view, or create one if missing.',
+        confidence: 70,
+        location: undefined,
       });
     }
   }
 
-  // M004: Hardcoded Data Sources (Power Query M)
+  // M004: High-cardinality columns (mirrors pbiscan.rules.model.check_high_cardinality)
+  for (const tbl of tables) {
+    for (const col of tbl.columns) {
+      const dtype = (col.data_type || '').toLowerCase();
+      if ((dtype === 'string' || dtype === 'text') && col.is_unique && !col.in_relationship) {
+        findings.push({
+          rule_id: 'MODEL_HIGH_CARDINALITY',
+          category: 'model',
+          severity: 'ADVISORY',
+          title: 'Potential high-cardinality column',
+          issue: `Column '${tbl.name}[${col.name}]' is a unique string/text column not used in any relationship.`,
+          evidence: `${tbl.name}[${col.name}]: dataType=${col.data_type}, isUnique=${col.is_unique}, inRelationship=${col.in_relationship}`,
+          impact: 'High-cardinality string columns inflate VertiPaq dictionary size and memory footprint.',
+          recommendation: 'Consider removing, hashing, or splitting the column if it is not needed for reporting.',
+          confidence: 87,
+          location: `${tbl.name}[${col.name}]`,
+        });
+      }
+    }
+  }
+
+  // M006: Hardcoded Data Sources (Power Query M)
+  // Mirrors pbiscan.rules.model._LOCAL_USER_PATH_PATTERN exactly — requires a quoted
+  // drive-letter path through a known local workstation folder (users/documents/desktop/
+  // downloads/temp/tmp), or a quoted /users//home/ path. A bare "C:\" or "https://" is
+  // NOT enough (the latter false-positived against the old ad hoc substring checks).
+  const LOCAL_USER_PATH_PATTERN = /["'](?:[a-zA-Z]:[\\/](?:users|documents|desktop|downloads|temp|tmp)[^"']*|(?:\/users\/|\/home\/)[^"']*)["']/i;
   for (const src of mSources) {
     const s = src.source;
-    if (
-      s.includes('File.Contents') ||
-      s.includes('Excel.Workbook') ||
-      s.includes('Csv.Document') ||
-      s.includes('Folder.Files') ||
-      /[A-Za-z]:[\\\/]/.test(s) ||
-      s.toLowerCase().includes('c:\\users') ||
-      s.toLowerCase().includes('/users/') ||
-      s.toLowerCase().includes('downloads')
-    ) {
+    if (LOCAL_USER_PATH_PATTERN.test(s)) {
       findings.push({
         rule_id: 'M_HARDCODED_DATA_SOURCE',
         category: 'model',
@@ -128,13 +197,9 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
   }
 
-  // M005: Auto-Date Tables
-  let hasAutoDate = false;
-  for (const tbl of tables) {
-    if (tbl.is_date_table || tbl.name.toLowerCase().includes('localdatetable') || tbl.name.toLowerCase().includes('datetabletemplate')) {
-      hasAutoDate = true;
-    }
-  }
+  // M007: Auto-Date Tables (mirrors pbiscan.rules.model.check_auto_datetime_bloat —
+  // only LocalDateTable_* prefixed tables count, not any table with "date" in its name)
+  const hasAutoDate = tables.some((tbl) => tbl.name.toLowerCase().startsWith('localdatetable_'));
   if (hasAutoDate) {
     findings.push({
       rule_id: 'MODEL_AUTO_DATETIME_BLOAT',
@@ -168,29 +233,31 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
   }
 
-  // D001: Suspicious DAX Patterns
+  // D001: Suspicious DAX Patterns (mirrors pbiscan.rules.dax.check_suspicious_dax —
+  // driven purely by the three regex patterns in rules.config.json; one finding per
+  // measure, first match wins. No ad hoc "naked division" or "/0" heuristics.)
+  const SUSPICIOUS_DAX_PATTERNS: [RegExp, string][] = [
+    [/FILTER\s*\(\s*ALL\s*\(/is, 'FILTER(ALL(...)) — consider CALCULATE with filter arguments'],
+    [/\bEARLIER\s*\(/is, 'EARLIER() — legacy iterator function; consider VAR/RETURN instead'],
+    [/CALCULATE\s*\(.*?CALCULATE\s*\(/is, 'Nested CALCULATE() — verify context-transition behaviour'],
+  ];
   for (const m of measures) {
-    const expr = m.expression;
-    if (
-      expr.includes('FILTER(ALL(') ||
-      expr.includes('filter(all(') ||
-      expr.includes('FILTER( ALL(') ||
-      /\/\s*0\b/.test(expr) ||
-      /\/0/.test(expr) ||
-      expr.includes('DIVIDE') === false && expr.includes('/') && !expr.includes('//')
-    ) {
-      findings.push({
-        rule_id: 'DAX_SUSPICIOUS_PATTERN',
-        category: 'dax',
-        severity: 'ADVISORY',
-        title: 'Suspicious DAX pattern detected',
-        issue: `Measure '${m.name}' contains unhandled division or table scan pattern.`,
-        evidence: `${m.name} = ${m.expression.substring(0, 100)}`,
-        impact: 'Unsafe division can yield #INFINITY and unoptimized scans increase Formula Engine latency.',
-        recommendation: 'Use DIVIDE() for safe division and avoid full table scans.',
-        confidence: 80,
-        location: `Measure: ${m.name}`,
-      });
+    for (const [pattern, description] of SUSPICIOUS_DAX_PATTERNS) {
+      if (pattern.test(m.expression)) {
+        findings.push({
+          rule_id: 'DAX_SUSPICIOUS_PATTERN',
+          category: 'dax',
+          severity: 'ADVISORY',
+          title: 'Suspicious DAX pattern detected',
+          issue: `Measure '${m.name}' [${m.table}]: ${description}`,
+          evidence: `Measure '${m.name}' [${m.table}]: ${description}`,
+          impact: 'Indicates a pattern worth reviewing; does not by itself prove a performance problem.',
+          recommendation: 'Review the flagged expression against the suggested alternative pattern.',
+          confidence: 65,
+          location: `Measure: ${m.name}`,
+        });
+        break;
+      }
     }
   }
 
@@ -292,12 +359,22 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     warnings: [],
     summary: {
       total_findings: findings.length,
-      tables_count: tables.length,
-      measures_count: measures.length,
-      relationships_count: relationships.length,
-      pages_count: pages.length,
+      table_count: tables.length,
+      measure_count: measures.length,
+      relationship_count: relationships.length,
+      page_count: pages.length,
     },
   };
+}
+
+function _detectIsUnique(col: any): boolean {
+  if (col.isUnique || col.isKey) return true;
+  if (Array.isArray(col.annotations)) {
+    for (const ann of col.annotations) {
+      if (ann.name === 'PBI_IsUnique' && String(ann.value).toLowerCase() === 'true') return true;
+    }
+  }
+  return false;
 }
 
 function parseModelBim(
@@ -332,7 +409,7 @@ function parseModelBim(
               colList.push({
                 name: col.name,
                 data_type: col.dataType || 'string',
-                is_unique: col.isKey || false,
+                is_unique: _detectIsUnique(col),
                 in_relationship: false,
                 hidden: col.isHidden || false,
               });
@@ -391,6 +468,12 @@ function parseModelBim(
   }
 }
 
+function _leadingTabDepth(rawLine: string): number {
+  let n = 0;
+  while (n < rawLine.length && rawLine[n] === '\t') n++;
+  return n;
+}
+
 function parseTableTmdl(
   content: string,
   tables: TableInfo[],
@@ -407,7 +490,8 @@ function parseTableTmdl(
   let partitionSource = "";
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const rawLine = lines[i];
+    const line = rawLine.trim();
     if (line.startsWith('table ') || line.startsWith('table\t')) {
       currentTable = line.substring(6).replace(/['"]/g, '').trim();
     } else if (line.startsWith('partition ') || line.startsWith('partition\t')) {
@@ -415,6 +499,11 @@ function parseTableTmdl(
     } else if (inPartition) {
       partitionSource += line + "\n";
     } else if (line.startsWith('column ') || line.startsWith('column\t')) {
+      // NOTE: pbiscan's own TMDL extractor does not parse `isKey`/annotations into a
+      // uniqueness signal today (only the model.bim/database.json JSON path does via
+      // _detect_is_unique) — so is_unique intentionally stays false here for strict
+      // parity with the Python engine, even though this under-detects MODEL_HIGH_CARDINALITY
+      // for TMDL-sourced projects. Fixing that is a Python-side gap, not a TS one.
       const colName = line.substring(7).split('=')[0].trim();
       if (line.includes('=')) {
         tableCalcCols++;
@@ -424,6 +513,7 @@ function parseTableTmdl(
         columns.push({ name: colName, data_type: 'string', is_unique: false, in_relationship: false, hidden: false });
       }
     } else if (line.startsWith('measure ') || line.startsWith('measure\t')) {
+      const measureDepth = _leadingTabDepth(rawLine);
       tableMeasures++;
       const measureHeader = line.substring(8).trim();
       let measureName = measureHeader;
@@ -432,10 +522,16 @@ function parseTableTmdl(
         measureName = measureHeader.split('=')[0].trim();
         expr = measureHeader.split('=').slice(1).join('=').trim();
       }
+      // Only lines MORE indented than the `measure` declaration itself belong to this
+      // measure's body/metadata; a sibling `measure`/`column`/`partition` line at the
+      // same depth ends it. (A prior version used a bare tab-prefix check, which never
+      // stopped at sibling declarations and silently concatenated every subsequent
+      // measure's DAX into the current one's expression.)
       let j = i + 1;
-      while (j < lines.length && (lines[j].startsWith('\t') || lines[j].startsWith('    ') || lines[j].startsWith('  ') || lines[j].trim().startsWith('//'))) {
-        if (!lines[j].trim().startsWith('lineageTag') && !lines[j].trim().startsWith('formatString')) {
-          expr += (expr ? '\n' : '') + lines[j].trim();
+      while (j < lines.length && lines[j].trim() !== '' && _leadingTabDepth(lines[j]) > measureDepth) {
+        const propLine = lines[j].trim();
+        if (!propLine.startsWith('lineageTag') && !propLine.startsWith('formatString') && !propLine.startsWith('//')) {
+          expr += (expr ? '\n' : '') + propLine;
         }
         j++;
       }

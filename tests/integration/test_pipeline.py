@@ -1,8 +1,6 @@
 """Integration tests — full pipeline: PBIP → extraction → canonical → rules → issues → scoring."""
 from __future__ import annotations
-import json
 from pathlib import Path
-import pytest
 from pbiscan.extraction.pbip_reader import PBIPReader
 from pbiscan.canonical.builder import CanonicalBuilder
 from pbiscan.engine.issue import IssueGenerator

@@ -20,7 +20,7 @@ from pbiscan.canonical.model import CanonicalReport
 from pbiscan.engine.issue import AuditIssue, IssueGenerator
 from pbiscan.engine.scoring import calculate_scores, load_config
 from pbiscan.engine.suppressions import load_suppressions, apply_suppressions
-from pbiscan.extraction.pbip_reader import PBIPReader, PBIScanError
+from pbiscan.extraction.pbip_reader import PBIPReader
 from pbiscan.render.html_report import HtmlRenderer
 from pbiscan.render.sarif_report import SarifRenderer
 from pbiscan.render.junit_report import JUnitRenderer
@@ -95,7 +95,7 @@ class ScanResult:
     scores: dict[str, Any]
     config: dict[str, Any]
     scanner_version: str = __version__
-    warnings: list[str] = None
+    warnings: Optional[list[str]] = None
 
     def __post_init__(self):
         if self.warnings is None:

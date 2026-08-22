@@ -2,7 +2,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Workbench-pbip--sentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbip-sentinel.netlify.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Tests: 244 Passing](https://img.shields.io/badge/Tests-244%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
+[![Tests: 411 Passing](https://img.shields.io/badge/Tests-411%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![Python: 3.10 | 3.11 | 3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue?style=for-the-badge&logo=python&logoColor=white)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![SARIF: OASIS v2.1.0](https://img.shields.io/badge/SARIF-OASIS%20v2.1.0-blueviolet?style=for-the-badge)](https://sarifweb.azurewebsites.net/)
 
@@ -19,6 +19,8 @@ It inspects semantic model definitions (**TMDL** / **TMSL**), DAX calculation ex
 
 - 🛡️ **OASIS SARIF v2.1.0 & JUnit XML Native**: Integrates directly with **GitHub Code Scanning** security alerts, **Azure DevOps**, and **Jenkins**.
 - 🚦 **CI/CD Quality Gates**: Enforce automated branch-merge policies with `--fail-under <score>` and `--fail-on <severity>`.
+- 🩹 **Safe Remediation Engine** (`pbiscan fix`): Plans and, on request, applies reversible fixes for `MODEL_BIDIRECTIONAL`, `DAX_UNUSED_MEASURE`, `M_HARDCODED_DATA_SOURCE`, and `MODEL_AUTO_DATETIME_BLOAT` — with automatic timestamped backups, an interactive review mode, and a `--fail-on-remediation-available` CI gate.
+- 🔀 **Historical Scan Diff** (`pbiscan diff`): Compares two scans and reports new/resolved/persistent findings plus score drift, with `--fail-on-regression` and related quality-gate flags for PR checks.
 - 🕸️ **Transitive DAX Graph Reachability**: Cycle-safe dependency DAG that distinguishes truly unreferenced measures from internal calculation building blocks.
 - 📑 **Unified Semantic Reference Index**: Accurately tracks measure usage across PBIR Visuals, Calculation Groups (`SELECTEDMEASURE`), Field Parameters, and Row-Level Security (RLS) filters.
 - 💻 **Interactive Studio Web UI**: Fast local web application (`pbiscan studio`) featuring an interactive DAX canvas DAG, Model Topology explorer, before/after TMDL remediation diff previews, and 1-click suppressions.
@@ -36,7 +38,7 @@ PBIP Sentinel follows a strict **Observation $\to$ Proof $\to$ Implementation** 
 | **Real Customer Models Audited** | **11 Models** | Enterprise models across Sales, HR, Finance, and Retail |
 | **Classified Findings** | **94 / 94 True Positives** | 100% precision with **0 false positives** |
 | **Crash Rate** | **0.00%** | Zero crashes or unhandled exceptions across the corpus |
-| **Automated Test Suite** | **244 / 244 Passing** | Unit tests, golden fixtures, and API contracts (`2.4s` execution) |
+| **Automated Test Suite** | **411 / 411 Passing** | Unit tests, golden fixtures, cross-engine parity, and API contracts (`~13s` execution) |
 
 ---
 
@@ -114,6 +116,28 @@ pbiscan scan "path/to/my_report.pbip" \
   --fail-under 85 \
   --fail-on HIGH
 ```
+
+### 5. Historical Diff Between Two Scans
+```bash
+# Fail if the overall score regresses, or a new HIGH+ finding was introduced
+pbiscan diff "baseline_scan.json" "path/to/my_report.pbip" \
+  --fail-on-regression \
+  --fail-on-new HIGH \
+  --format markdown --out "pr_comment.md"
+```
+
+### 6. Safe Remediation (`pbiscan fix`)
+```bash
+# Preview a remediation plan (dry-run, no files touched)
+pbiscan fix "path/to/my_report.pbip"
+
+# Interactively review and apply only the patches you approve
+pbiscan fix "path/to/my_report.pbip" --interactive --apply
+
+# CI governance gate: fail the build if any safe fix is available but unapplied
+pbiscan fix "path/to/my_report.pbip" --fail-on-remediation-available --quiet
+```
+Supports `MODEL_BIDIRECTIONAL`, `DAX_UNUSED_MEASURE`, `M_HARDCODED_DATA_SOURCE`, and `MODEL_AUTO_DATETIME_BLOAT`. Applying patches creates a timestamped backup directory first and validates each patch against a fresh scan fingerprint before touching disk.
 
 ---
 
@@ -237,9 +261,11 @@ PBIP Project (.pbip / TMDL / TMSL / PBIR)
 ## 🧪 Automated Testing
 
 ```bash
-# Run all 244 unit, golden contract, and integration tests
+# Run all 377 unit, golden contract, and integration tests
 pytest tests/ -v
 ```
+
+If Node.js and `studio-ui`'s dependencies (`npm install` inside `studio-ui/`) are available, an additional 34 cross-engine parity tests run automatically, diffing the in-browser `clientScanner.ts` engine's findings against the Python `ScanService` for every golden fixture — this is what keeps the Netlify Studio Workbench's results honest against `pbiscan scan`.
 
 ---
 

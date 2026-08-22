@@ -1,6 +1,5 @@
 """Unit tests — report rules R001 and R002."""
 from __future__ import annotations
-import pytest
 from pbiscan.canonical.model import CanonicalReport, DaxDictionary, ModelGraph, Page, ReportDOM, Visual
 from pbiscan.rules.report import check_visual_bloat, check_slicer_bloat, REPORT_RULES
 
