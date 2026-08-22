@@ -151,15 +151,16 @@ def scan(
     cat_scores = result.category_scores
 
     if not quiet:
-        for w in result.warnings:
+        for w in (result.warnings or []):
             click.echo(f"  {_colour('[WARN]', _BOLD)}  {w}")
 
-        click.echo(
-            f"  Tables: {_colour(str(len(report.model.tables)), _CYAN)}  "
-            f"Relationships: {_colour(str(len(report.model.relationships)), _CYAN)}  "
-            f"Measures: {_colour(str(len(report.dax.measures)), _CYAN)}  "
-            f"Pages: {_colour(str(len(report.report.pages)), _CYAN)}"
-        )
+        if report:
+            click.echo(
+                f"  Tables: {_colour(str(len(report.model.tables)), _CYAN)}  "
+                f"Relationships: {_colour(str(len(report.model.relationships)), _CYAN)}  "
+                f"Measures: {_colour(str(len(report.dax.measures)), _CYAN)}  "
+                f"Pages: {_colour(str(len(report.report.pages)), _CYAN)}"
+            )
         click.echo("")
         score_col = _score_colour(overall)
         score_disp = f"{int(overall)}" if overall == int(overall) else f"{overall:.1f}"
@@ -493,7 +494,7 @@ def fix(
 
         # Selective patch ID filter if specified
         if patch_ids:
-            plan = plan.filter_by_patch_ids(patch_ids)
+            plan = plan.filter_by_patch_ids(list(patch_ids))
             if not plan.patches:
                 click.echo(f"[WARN] No matching patches found for specified ID(s): {', '.join(patch_ids)}", err=True)
 

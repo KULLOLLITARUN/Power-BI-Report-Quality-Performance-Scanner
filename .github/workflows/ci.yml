@@ -28,6 +28,10 @@ jobs:
         run: |
           ruff check pbiscan/ tests/
 
+      - name: Run mypy
+        run: |
+          mypy pbiscan/
+
   test:
     name: Regression Suite (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

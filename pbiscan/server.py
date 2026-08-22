@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -119,7 +119,7 @@ def _show_dialog_sync(mode: str) -> dict:
 async def open_native_dialog(req: Optional[DialogRequest] = None):
     """Open native Windows file/folder picker dialog asynchronously."""
     import asyncio
-    mode = req.mode if req else "file"
+    mode = req.mode if (req and req.mode) else "file"
     return await asyncio.to_thread(_show_dialog_sync, mode)
 
 
@@ -194,7 +194,7 @@ async def add_suppression(req: SuppressRequest):
     supp_dir = proj_path if proj_path.is_dir() else proj_path.parent
     supp_file = supp_dir / "pbiscan.suppressions.json"
 
-    data = {"suppressions": []}
+    data: dict[str, Any] = {"suppressions": []}
     if supp_file.exists():
         try:
             import json as json_mod

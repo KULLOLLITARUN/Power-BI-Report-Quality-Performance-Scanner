@@ -1159,3 +1159,133 @@ class TestCliFixCommand:
         res = runner.invoke(main, ["fix", "nonexistent_model_dir_xyz"])
         assert res.exit_code == 2
 
+
+class TestPatcherAdversarialAndEdgeCoverage:
+    """Targeted coverage tests for patcher edge-case branches, fallbacks, and preconditions."""
+
+    def test_relationship_patcher_not_found_and_not_bidirectional(self, temp_bidirectional_bim: Path):
+        scan_res = RemediationEngine.analyze(temp_bidirectional_bim)
+        patcher = RelationshipPatcher()
+
+        # 1. Location not in model
+        fake_issue = AuditIssue(
+            rule_id="MODEL_BIDIRECTIONAL",
+            category="model",
+            severity="WARNING",
+            title="Bi-directional",
+            issue="Test",
+            evidence="Evidence",
+            impact="Impact",
+            recommendation="Rec",
+            confidence=100,
+            location="GhostTable[ID] <-> OtherTable[ID]",
+        )
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_bidirectional_bim)
+        assert "relationship_identified" in evidence.violated_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, temp_bidirectional_bim) is None
+
+        # 2. Location parsing fallbacks
+        f1, c1, t1, c2 = patcher._parse_location("TableA[ColA] <-> TableB[ColB]")
+        assert f1 == "TableA" and t1 == "TableB"
+        f2, c2, t2, c2_2 = patcher._parse_location("InvalidGarbageLocation")
+        assert f2 == ""
+
+        # 3. Patching text when relationship is not found in content
+        assert patcher._patch_tmdl("relationship rel1\n\tfromColumn: A\n\ttoColumn: B\n", "X", "A", "Y", "B") is None
+        assert patcher._patch_bim(json.dumps({"model": {"relationships": []}}), "X", "A", "Y", "B") is None
+
+    def test_measure_patcher_missing_measure_and_fallbacks(self, temp_unusedmeasure_bim: Path):
+        scan_res = RemediationEngine.analyze(temp_unusedmeasure_bim)
+        patcher = MeasurePatcher()
+
+        fake_issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE",
+            category="dax",
+            severity="WARNING",
+            title="Unused Measure",
+            issue="Test",
+            evidence="Evidence",
+            impact="Impact",
+            recommendation="Rec",
+            confidence=100,
+            location="Measure: NonExistentMeasureName",
+        )
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_unusedmeasure_bim)
+        assert "measure_identified" in evidence.violated_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, temp_unusedmeasure_bim) is None
+
+        # TMDL and BIM chunk helpers with unmatched measure
+        assert patcher._patch_tmdl("table Sales\n\tmeasure Existing = 1\n", "GhostMeasure") is None
+        assert patcher._patch_bim(json.dumps({"model": {"tables": [{"name": "T", "measures": []}]}}), "T", "Ghost") is None
+
+    def test_datasource_patcher_missing_table_and_fallbacks(self, temp_hardcoded_datasource_tmdl: Path):
+        scan_res = RemediationEngine.analyze(temp_hardcoded_datasource_tmdl)
+        patcher = DataSourcePatcher()
+
+        fake_issue = AuditIssue(
+            rule_id="M_HARDCODED_DATA_SOURCE",
+            category="model",
+            severity="WARNING",
+            title="Hardcoded Source",
+            issue="Test",
+            evidence='File.Contents("C:\\test.csv")',
+            impact="Impact",
+            recommendation="Rec",
+            confidence=100,
+            location="Table: GhostTable",
+        )
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_hardcoded_datasource_tmdl)
+        assert "table_identified" in evidence.violated_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, temp_hardcoded_datasource_tmdl) is None
+
+        # TMDL and BIM chunk helpers with unmatched content
+        assert patcher._patch_tmdl("table Sales\n\tpartition P = m\n\t\tSource = Sql.Database()\n") is None
+        assert patcher._patch_bim(json.dumps({"model": {"tables": []}}), "GhostTable") is None
+
+    def test_autodate_patcher_missing_table_and_fallbacks(self, temp_bidirectional_tmdl: Path, tmp_path: Path):
+        scan_res = RemediationEngine.analyze(temp_bidirectional_tmdl)
+        patcher = AutoDatePatcher()
+
+        fake_issue = AuditIssue(
+            rule_id="MODEL_AUTO_DATETIME_BLOAT",
+            category="model",
+            severity="WARNING",
+            title="Auto Date Bloat",
+            issue="Test",
+            evidence="LocalDateTable_Ghost",
+            impact="Impact",
+            recommendation="Rec",
+            confidence=100,
+            location="Table: LocalDateTable_NonExistent",
+        )
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_bidirectional_tmdl)
+        assert "local_date_tables_detected" in evidence.violated_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, temp_bidirectional_tmdl) is None
+
+        # Test BIM helper on empty model
+        dummy_bim = tmp_path / "empty_model.bim"
+        dummy_bim.write_text(json.dumps({"model": {"tables": []}}), encoding="utf-8")
+        assert patcher._patch_bim(dummy_bim, evidence) is None
+
+    def test_validator_with_nonexistent_model_path(self, tmp_path: Path):
+        from pbiscan.remediation.validator import SandboxValidator
+        from pbiscan.service import ScanResult
+        plan = RemediationPlan(
+            model_path=tmp_path / "nonexistent_dir_404",
+            created_at="2026-01-01T00:00:00Z",
+            patches=[],
+            conflicts=[],
+        )
+        fake_scan = ScanResult(
+            report_name="Test",
+            source_path=str(tmp_path / "nonexistent_dir_404"),
+            report=None,
+            issues=[],
+            scores={"overall": 100.0},
+            config={},
+        )
+        res = SandboxValidator.validate_plan(plan, fake_scan)
+        assert res.accepted is True
+        assert res.after_score == 100.0
+
+

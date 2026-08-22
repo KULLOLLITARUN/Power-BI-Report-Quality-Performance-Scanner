@@ -82,6 +82,23 @@ class AuditIssue:
     suppressed: bool = False
     suppression_reason: Optional[str] = None
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize issue for JSON and Studio API responses."""
+        return {
+            "rule_id": self.rule_id,
+            "category": self.category,
+            "severity": self.severity,
+            "title": self.title,
+            "issue": self.issue,
+            "evidence": self.evidence,
+            "impact": self.impact,
+            "recommendation": self.recommendation,
+            "confidence": self.confidence,
+            "location": self.location,
+            "suppressed": self.suppressed,
+            "suppression_reason": self.suppression_reason,
+        }
+
 
 # Alias for canonical engine contract
 Issue = AuditIssue

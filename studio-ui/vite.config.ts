@@ -24,6 +24,13 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: path.resolve(__dirname, 'index.html'),
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-xyflow': ['@xyflow/react', 'dagre'],
+          'vendor-icons': ['lucide-react'],
+        },
+      },
     },
   },
 });
