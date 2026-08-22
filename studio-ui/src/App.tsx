@@ -102,7 +102,7 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  const scanPath = async (targetPath: string) => {
+  const scanPath = async (targetPath: string, preserveTab: boolean = false) => {
     if (!targetPath || !targetPath.trim()) return;
 
     if (!hasBackend) {
@@ -135,7 +135,9 @@ export const App: React.FC = () => {
       const data: ScanResult = await res.json();
       setScanResult(data);
       setCurrentPath(targetPath.trim());
-      setActiveTab('dashboard');
+      if (!preserveTab) {
+        setActiveTab('dashboard');
+      }
     } catch (err: any) {
       console.error('Scan error:', err);
       // Strictly set error state - NEVER fall back to demo data on failed real scans
@@ -550,7 +552,7 @@ export const App: React.FC = () => {
                     currentScore={scanResult.scores?.overall || 100}
                     findings={scanResult.findings || []}
                     hasBackend={hasBackend}
-                    onProjectRefreshed={() => scanPath(currentPath)}
+                    onProjectRefreshed={() => scanPath(currentPath, true)}
                   />
                 </div>
               )}

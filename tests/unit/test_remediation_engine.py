@@ -1,6 +1,7 @@
 """Comprehensive unit and adversarial test suite for PBIP Sentinel Safe Remediation Engine."""
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -134,6 +135,36 @@ class TestRemediationCoreModelsAndBackup:
         assert BackupManager.verify_restoration(backup_dir, temp_bidirectional_bim)
         restored_hash = compute_file_sha256(temp_bidirectional_bim / "fixture.SemanticModel" / "model.bim")
         assert restored_hash == orig_hash
+
+    def test_compute_file_sha256_does_not_crash_on_non_utf8_bytes(self, tmp_path: Path):
+        """Regression: compute_file_sha256 previously read files as UTF-8 text before
+        hashing, so any file with a non-UTF-8 byte anywhere (e.g. a legacy-codepage
+        character in an unrelated table) raised UnicodeDecodeError. Since this hash
+        is used to fingerprint whole-project backups (BackupManager.get_backup_metadata
+        hashes every file under the project, not just ones pbiscan patches), it must
+        work on arbitrary bytes, not just valid UTF-8 text."""
+        f = tmp_path / "legacy_codepage.tmdl"
+        f.write_bytes(b"/// legacy byte: \xcb\n")
+        digest = compute_file_sha256(f)
+        assert len(digest) == 64
+        assert digest == hashlib.sha256(f.read_bytes()).hexdigest()
+
+    def test_backup_metadata_survives_unrelated_non_utf8_file_in_project(self, temp_bidirectional_bim: Path):
+        """End-to-end regression for the reported bug: a real project containing one
+        unrelated file with a non-UTF-8 byte (e.g. a table saved with a legacy-codepage
+        DisplayName) must not crash RemediationEngine.apply's backup step."""
+        stray = temp_bidirectional_bim / "fixture.SemanticModel" / "StrayNotes.tmdl"
+        stray.write_bytes(b"/// Comment with legacy byte: \xcb\n")
+
+        scan_res = RemediationEngine.analyze(temp_bidirectional_bim)
+        plan = RemediationEngine.plan(temp_bidirectional_bim, scan_res)
+        validation = RemediationEngine.validate(plan, scan_res)
+        assert validation.accepted is True
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan_res)
+        assert success is True
+        assert manifest.decision == "ACCEPTED"
+        assert manifest.backup_hash
 
 
 class TestRelationshipPatcher:
@@ -776,6 +807,41 @@ class TestCombinedEnterpriseMultiPatcherCertification:
         after_rules = {f.rule_id for f in scan_after.issues}
         assert "MODEL_BIDIRECTIONAL" not in after_rules
         assert scan_after.overall_score > before_score
+
+
+class TestRemediationPlannerResilience:
+    """A crash analyzing/patching ONE finding (e.g. a file with a byte that isn't
+    valid UTF-8 slipping past extraction, or any other patcher-internal error)
+    must not abort planning for every OTHER finding in the project."""
+
+    def test_one_patcher_crash_does_not_abort_plan_for_other_findings(
+        self, temp_hardcoded_datasource_tmdl: Path, monkeypatch
+    ):
+        scan_res = ScanService.execute_scan(temp_hardcoded_datasource_tmdl)
+        ds_findings = [f for f in scan_res.issues if f.rule_id == "M_HARDCODED_DATA_SOURCE"]
+        assert len(ds_findings) == 2  # LocalOrders & DownloadsCustomers
+
+        real_analyze = DataSourcePatcher.analyze
+
+        def _crash_on_local_orders(self, issue, report, model_dir):
+            if "LocalOrders" in (issue.location or ""):
+                raise RuntimeError("simulated patcher crash")
+            return real_analyze(self, issue, report, model_dir)
+
+        monkeypatch.setattr(DataSourcePatcher, "analyze", _crash_on_local_orders)
+
+        plan = RemediationEngine.plan(temp_hardcoded_datasource_tmdl, scan_res)
+
+        # The crashing finding is skipped with a clear reason...
+        crashed = [
+            s for s in plan.skipped_findings
+            if "LocalOrders" in (s.get("location") or "") and "crashed" in s.get("reason", "")
+        ]
+        assert len(crashed) == 1
+
+        # ...but the OTHER finding still produced a valid patch.
+        assert len(plan.actionable_patches) == 1
+        assert "DownloadsCustomers" in (plan.actionable_patches[0].evidence.affected_objects[0])
 
 
 class TestRemediationEngineLifecycle:
