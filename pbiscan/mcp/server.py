@@ -8,9 +8,11 @@ from typing import Any, Optional
 
 try:
     from mcp.server.fastmcp import FastMCP  # type: ignore[import-not-found]
+    from mcp.types import ToolAnnotations  # type: ignore[import-not-found]
     MCP_AVAILABLE = True
 except ImportError:
     FastMCP = None  # type: ignore
+    ToolAnnotations = None  # type: ignore
     MCP_AVAILABLE = False
 
 from pbiscan.mcp.prompts import (
@@ -51,6 +53,17 @@ def create_server() -> Any:
         ),
     )
 
+    read_only_annotations = (
+        ToolAnnotations(readOnlyHint=True, destructiveHint=False)
+        if ToolAnnotations is not None
+        else None
+    )
+    destructive_annotations = (
+        ToolAnnotations(readOnlyHint=False, destructiveHint=True)
+        if ToolAnnotations is not None
+        else None
+    )
+
     # -----------------------------------------------------------------------
     # Resources (URI-Addressable Static Rule Catalog)
     # -----------------------------------------------------------------------
@@ -88,7 +101,7 @@ def create_server() -> Any:
     # Read-Only Tools (Zero Mutation)
     # -----------------------------------------------------------------------
 
-    @mcp.tool(name="scan_model")
+    @mcp.tool(name="scan_model", annotations=read_only_annotations)
     def scan_model(path: str, config_path: Optional[str] = None) -> dict[str, Any]:
         """Scan a Power BI project (PBIP directory) and return structured quality findings and scores.
 
@@ -96,7 +109,7 @@ def create_server() -> Any:
         """
         return handle_scan_model(path=path, config_path=config_path)
 
-    @mcp.tool(name="diff_models")
+    @mcp.tool(name="diff_models", annotations=read_only_annotations)
     def diff_models(
         baseline_path: str,
         current_path: str,
@@ -112,7 +125,7 @@ def create_server() -> Any:
             policy=policy,
         )
 
-    @mcp.tool(name="get_measure_lineage")
+    @mcp.tool(name="get_measure_lineage", annotations=read_only_annotations)
     def get_measure_lineage(path: str, measure_name: str) -> dict[str, Any]:
         """Inspect dependency lineage, inbound callers, and visual reachability for a DAX measure.
 
@@ -120,7 +133,7 @@ def create_server() -> Any:
         """
         return handle_get_measure_lineage(path=path, measure_name=measure_name)
 
-    @mcp.tool(name="plan_remediation")
+    @mcp.tool(name="plan_remediation", annotations=read_only_annotations)
     def plan_remediation(path: str, rule_filter: Optional[str] = None) -> dict[str, Any]:
         """Generate a candidate safe remediation plan with Before/After score projections and diffs.
 
@@ -128,7 +141,7 @@ def create_server() -> Any:
         """
         return handle_plan_remediation(path=path, rule_filter=rule_filter)
 
-    @mcp.tool(name="list_suppressions")
+    @mcp.tool(name="list_suppressions", annotations=read_only_annotations)
     def list_suppressions(path: str) -> dict[str, Any]:
         """List all active finding suppressions in pbiscan.suppressions.json for a project.
 
@@ -136,7 +149,7 @@ def create_server() -> Any:
         """
         return handle_list_suppressions(path=path)
 
-    @mcp.tool(name="suggest_dax_rewrite")
+    @mcp.tool(name="suggest_dax_rewrite", annotations=read_only_annotations)
     def suggest_dax_rewrite(
         rule_id: str,
         dax_expression: str,
@@ -156,7 +169,7 @@ def create_server() -> Any:
     # Destructive / File Mutation Tools (Host Confirmation Prompt Triggered)
     # -----------------------------------------------------------------------
 
-    @mcp.tool(name="apply_remediation")
+    @mcp.tool(name="apply_remediation", annotations=destructive_annotations)
     def apply_remediation(path: str, patch_ids: list[str]) -> dict[str, Any]:
         """Apply approved candidate remediation patches with SHA-256 validation, backups, and audit store.
 
@@ -164,7 +177,7 @@ def create_server() -> Any:
         """
         return handle_apply_remediation(path=path, patch_ids=patch_ids)
 
-    @mcp.tool(name="add_suppression")
+    @mcp.tool(name="add_suppression", annotations=destructive_annotations)
     def add_suppression(
         path: str,
         rule_id: str,

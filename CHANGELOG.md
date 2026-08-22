@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.1] - 2026-08-22
+
+### Fixed
+- **MCP dependency ceiling pinned to `mcp>=1.2.0,<2.0.0`**: Prevents installation of breaking `mcp 2.0.0` which renamed and restructured `FastMCP`.
+- **Enforced protocol-level `ToolAnnotations`**: Added explicit `ToolAnnotations(readOnlyHint=True, destructiveHint=False)` on read-only tools and `ToolAnnotations(readOnlyHint=False, destructiveHint=True)` on destructive tools (`apply_remediation`, `add_suppression`), ensuring MCP host confirmation gates trigger natively.
+- **Dev dependency inclusion & integration testing**: Added `mcp` to dev dependencies and added `test_tool_annotations_protocol_guarantees` in `tests/unit/test_mcp_server.py` to assert runtime tool annotation integrity directly against a running FastMCP server instance.
+
+---
+
 ## [1.9.0] - 2026-08-22
 
 ### Added

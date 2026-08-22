@@ -205,3 +205,45 @@ class TestMcpCliAndServerFactory:
         res = runner.invoke(main, ["mcp", "--help"])
         assert res.exit_code == 0
         assert "Start the PBIP Sentinel Model Context Protocol (MCP) server" in res.output
+
+    def test_tool_annotations_protocol_guarantees(self):
+        import asyncio
+        from pbiscan.mcp.server import MCP_AVAILABLE, create_server
+
+        if not MCP_AVAILABLE:
+            pytest.skip("mcp package is not installed")
+
+        server = create_server()
+
+        async def _check_tools():
+            tools = await server.list_tools()
+            tool_map = {t.name: t for t in tools}
+
+            # Expected read-only tools
+            read_only_tools = [
+                "scan_model",
+                "diff_models",
+                "get_measure_lineage",
+                "plan_remediation",
+                "list_suppressions",
+                "suggest_dax_rewrite",
+            ]
+            for name in read_only_tools:
+                assert name in tool_map, f"Missing tool {name}"
+                assert tool_map[name].annotations is not None, f"Tool {name} has None annotations"
+                assert tool_map[name].annotations.readOnlyHint is True
+                assert tool_map[name].annotations.destructiveHint is False
+
+            # Expected destructive tools (host approval gate triggers)
+            destructive_tools = [
+                "apply_remediation",
+                "add_suppression",
+            ]
+            for name in destructive_tools:
+                assert name in tool_map, f"Missing tool {name}"
+                assert tool_map[name].annotations is not None, f"Tool {name} has None annotations"
+                assert tool_map[name].annotations.readOnlyHint is False
+                assert tool_map[name].annotations.destructiveHint is True
+
+        asyncio.run(_check_tools())
+
