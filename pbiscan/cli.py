@@ -455,6 +455,11 @@ def diff(
     help="Output file path for remediation plan / manifest.",
 )
 @click.option(
+    "--fail-on-remediation-available",
+    is_flag=True,
+    help="CI Governance: Exit with code 1 if safe actionable remediation is available.",
+)
+@click.option(
     "--quiet", "-q",
     is_flag=True,
     help="Suppress stdout console output.",
@@ -469,6 +474,7 @@ def fix(
     config: Optional[str],
     output_format: str,
     out: Optional[str],
+    fail_on_remediation_available: bool,
     quiet: bool,
 ) -> None:
     """Analyze, plan, review, and safely apply verified remediation patches to a PBIP model."""
@@ -605,6 +611,10 @@ def fix(
             click.echo(rendered)
 
         if plan.actionable_patches:
+            if fail_on_remediation_available:
+                if not quiet:
+                    click.echo(_colour("\n✖ CI Quality Gate: Safe remediation is available but unapplied (--fail-on-remediation-available).", _RED), err=True)
+                sys.exit(1)
             # Exit 3: Plan-only / Review required
             sys.exit(3)
         else:
