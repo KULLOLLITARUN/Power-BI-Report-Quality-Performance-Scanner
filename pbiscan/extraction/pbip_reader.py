@@ -172,7 +172,11 @@ class PBIPReader:
         report_dir = self._find_report_dir(root)
 
         # Parse model
-        tables, relationships, roles, tmdl_roles, warnings = [], [], [], [], []
+        tables: list[RawTable] = []
+        relationships: list[RawRelationship] = []
+        roles: list[dict[str, Any]] = []
+        tmdl_roles: list[dict[str, Any]] = []
+        warnings: list[str] = []
         if semantic_model_dir:
             tables, relationships, roles, tmdl_roles, w = self._parse_semantic_model(semantic_model_dir)
             warnings.extend(w)

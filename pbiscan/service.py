@@ -24,9 +24,17 @@ from pbiscan.extraction.pbip_reader import PBIPReader
 from pbiscan.render.html_report import HtmlRenderer
 from pbiscan.render.sarif_report import SarifRenderer
 from pbiscan.render.junit_report import JUnitRenderer
-from pbiscan.rules.dax import DAX_RULES
+from pbiscan.rules.dax import (
+    check_suspicious_dax,
+    check_excessive_calc_columns,
+    check_duplicate_measures,
+    check_unused_measures,
+)
 from pbiscan.rules.model import MODEL_RULES
-from pbiscan.rules.report import REPORT_RULES
+from pbiscan.rules.report import (
+    check_visual_bloat,
+    check_slicer_bloat,
+)
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "weights": {"model": 0.35, "dax": 0.25, "report": 0.20, "security": 0.20},
@@ -90,7 +98,7 @@ class ScanResult:
 
     report_name: str
     source_path: str
-    report: CanonicalReport
+    report: Optional[CanonicalReport]
     issues: list[AuditIssue]
     scores: dict[str, Any]
     config: dict[str, Any]
@@ -115,6 +123,15 @@ class ScanResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize structured audit and model metadata for Studio API and JSON consumers."""
+        if not self.report:
+            return {
+                "report_name": self.report_name,
+                "source_path": self.source_path,
+                "scores": self.scores,
+                "findings": [i.to_dict() for i in self.issues],
+                "scanner_version": self.scanner_version,
+                "warnings": self.warnings,
+            }
         report = self.report
 
         table_data = [
@@ -363,13 +380,13 @@ class ScanService:
         for rule in MODEL_RULES:
             findings.extend(rule(report))
 
-        findings.extend(DAX_RULES[0](report, patterns=dax_patterns))          # D001
-        findings.extend(DAX_RULES[1](report, threshold=max_calc))              # D002
-        findings.extend(DAX_RULES[2](report))                                  # D003
-        findings.extend(DAX_RULES[3](report))                                  # D004
+        findings.extend(check_suspicious_dax(report, patterns=dax_patterns))               # D001
+        findings.extend(check_excessive_calc_columns(report, threshold=max_calc))          # D002
+        findings.extend(check_duplicate_measures(report))                                  # D003
+        findings.extend(check_unused_measures(report))                                     # D004
 
-        findings.extend(REPORT_RULES[0](report, max_visuals=max_visuals))     # R001
-        findings.extend(REPORT_RULES[1](report, max_slicers=max_slicers))     # R002
+        findings.extend(check_visual_bloat(report, max_visuals=max_visuals))              # R001
+        findings.extend(check_slicer_bloat(report, max_slicers=max_slicers))              # R002
 
         # Step 4: Issue Generation
         gen = IssueGenerator()

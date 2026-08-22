@@ -9,7 +9,7 @@ Extracts semantic references from Field Parameter calculated tables:
 from __future__ import annotations
 
 import re
-from typing import Optional
+from typing import Literal, Optional
 
 from pbiscan.canonical.references import SemanticReference
 
@@ -43,22 +43,25 @@ def extract_field_param_references(
     if not partition_expression or "NAMEOF" not in partition_expression.upper():
         return []
 
-    meas_set = {m.lower() for m in known_measure_names} if known_measure_names else set()
-    col_set = {c.lower() for c in known_column_names} if known_column_names else set()
+    meas_set = {m.lower() for m in known_measure_names} if known_measure_names else None
+    col_set = {c.lower() for c in known_column_names} if known_column_names else None
 
     # Determine if 4-tuple grouped parameter table
     is_grouped = bool(re.search(r",\s*\"[^\"]+\"\s*\)\s*\}", partition_expression))
-    source_type = "field_parameter_grouped" if is_grouped else "field_parameter"
+    source_type: Literal["field_parameter", "field_parameter_grouped"] = (
+        "field_parameter_grouped" if is_grouped else "field_parameter"
+    )
 
     references: list[SemanticReference] = []
 
     for match in _NAMEOF_PATTERN.finditer(partition_expression):
         tbl_quoted, tbl_unquoted, entity_name = match.groups()
-        target_tbl = tbl_quoted or tbl_unquoted
+        target_tbl = tbl_quoted or tbl_unquoted or ""
         entity_clean = entity_name.strip()
         entity_lower = entity_clean.lower()
 
         # Strict Entity Discrimination: Measure vs Column
+        target_type: Literal["measure", "column", "table", "unresolved"]
         if meas_set and entity_lower in meas_set:
             target_type = "measure"
             activates_root = True

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -42,6 +43,16 @@ class RemediationPlanner:
         unsupported_findings: list[dict] = []
 
         report = scan_result.report
+        if report is None:
+            return RemediationPlan(
+                model_path=model_path,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                patches=[],
+                conflicts=[],
+                skipped_findings=[{"reason": "ScanResult contains no canonical report object"}],
+                unsupported_findings=[],
+            )
+
         issues = scan_result.unsuppressed_issues
 
         for issue in issues:
