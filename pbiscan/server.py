@@ -291,6 +291,112 @@ async def diff_audit(req: DiffRequest):
         raise HTTPException(status_code=500, detail=f"Diff failed: {exc}")
 
 
+# ---------------------------------------------------------------------------
+# Remediation Subsystem Endpoints
+# ---------------------------------------------------------------------------
+
+class RemediationPlanRequest(BaseModel):
+    project_path: str
+    config_path: Optional[str] = None
+    rule_filter: Optional[str] = None
+
+
+class RemediationApplyRequest(BaseModel):
+    project_path: str
+    patch_ids: Optional[list[str]] = None
+    backup: bool = True
+    config_path: Optional[str] = None
+
+
+@app.post("/api/remediation/plan")
+async def plan_remediation(req: RemediationPlanRequest):
+    """Analyze and generate candidate safe remediation plan with sandbox validation."""
+    proj_path = Path(req.project_path)
+    if not proj_path.exists():
+        raise HTTPException(status_code=404, detail=f"Project path does not exist: {req.project_path}")
+
+    try:
+        from pbiscan.remediation.engine import RemediationEngine
+        scan_res = RemediationEngine.analyze(proj_path, config_path=req.config_path)
+        plan = RemediationEngine.plan(proj_path, scan_res, rule_filter=req.rule_filter)
+        validation = RemediationEngine.validate(plan, scan_res, config_path=req.config_path)
+        return {
+            "plan": plan.to_dict(),
+            "validation": validation.to_dict(),
+            "baseline_score": scan_res.overall_score,
+            "project_name": proj_path.name,
+        }
+    except PBIScanError as exc:
+        raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Remediation planning failed: {exc}")
+
+
+@app.post("/api/remediation/apply")
+async def apply_remediation(req: RemediationApplyRequest):
+    """Apply approved remediation patches with atomic backup, sandbox re-verification, and audit trail."""
+    proj_path = Path(req.project_path)
+    if not proj_path.exists():
+        raise HTTPException(status_code=404, detail=f"Project path does not exist: {req.project_path}")
+
+    try:
+        from pbiscan.remediation.engine import RemediationEngine
+        scan_res = RemediationEngine.analyze(proj_path, config_path=req.config_path)
+        plan = RemediationEngine.plan(proj_path, scan_res)
+        if req.patch_ids:
+            plan = plan.filter_by_patch_ids(req.patch_ids)
+        validation = RemediationEngine.validate(plan, scan_res, config_path=req.config_path)
+        success, manifest = RemediationEngine.apply(
+            plan=plan,
+            validation_result=validation,
+            backup=req.backup,
+            config_path=req.config_path,
+            original_scan=scan_res,
+        )
+        return {
+            "success": success,
+            "manifest": manifest.to_dict(),
+        }
+    except PBIScanError as exc:
+        raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Remediation apply failed: {exc}")
+
+
+@app.get("/api/remediation/history")
+async def get_remediation_history(project_path: str):
+    """Fetch all past remediation audit manifests for a project."""
+    proj_path = Path(project_path)
+    if not proj_path.exists():
+        raise HTTPException(status_code=404, detail=f"Project path does not exist: {project_path}")
+
+    try:
+        from pbiscan.remediation.store import RemediationAuditStore
+        history = RemediationAuditStore.list_manifests(proj_path)
+        return {"history": history}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve remediation history: {exc}")
+
+
+@app.get("/api/remediation/manifest/{manifest_id}")
+async def get_remediation_manifest(manifest_id: str, project_path: str):
+    """Retrieve full detail for a specific remediation audit manifest."""
+    proj_path = Path(project_path)
+    if not proj_path.exists():
+        raise HTTPException(status_code=404, detail=f"Project path does not exist: {project_path}")
+
+    try:
+        from pbiscan.remediation.store import RemediationAuditStore
+        manifest = RemediationAuditStore.get_manifest(manifest_id, proj_path)
+        if not manifest:
+            raise HTTPException(status_code=404, detail=f"Remediation manifest not found: {manifest_id}")
+        return manifest.to_dict()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve manifest: {exc}")
+
+
 
 # ---------------------------------------------------------------------------
 # SPA Static File Fallback Handler
