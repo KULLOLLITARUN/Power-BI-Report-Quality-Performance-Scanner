@@ -1,7 +1,6 @@
 """Relationship patcher for MODEL_BIDIRECTIONAL."""
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Optional, Tuple
@@ -15,7 +14,6 @@ from pbiscan.remediation.models import (
     PatchLifecycleState,
     RemediationSafety,
     compute_file_sha256,
-    compute_sha256,
 )
 from pbiscan.remediation.patchers.base import BasePatcher
 

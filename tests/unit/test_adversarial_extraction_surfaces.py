@@ -6,8 +6,6 @@ and NEVER emits a false-positive DAX_UNUSED_MEASURE finding.
 """
 
 import json
-from pathlib import Path
-import pytest
 
 from pbiscan.canonical.builder import CanonicalBuilder
 from pbiscan.extraction.pbip_reader import PBIPReader

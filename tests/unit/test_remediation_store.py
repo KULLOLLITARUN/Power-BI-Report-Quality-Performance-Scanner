@@ -1,9 +1,7 @@
 """Unit tests for RemediationAuditStore and RemediationManifest operations."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
-import pytest
 
 from pbiscan.canonical.model import CanonicalReport
 from pbiscan.engine.issue import AuditIssue
@@ -13,7 +11,7 @@ from pbiscan.remediation.models import (
 )
 from pbiscan.remediation.store import RemediationAuditStore
 from pbiscan.remediation.engine import RemediationEngine
-from pbiscan.service import ScanResult, ScanService
+from pbiscan.service import ScanResult
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden"
 

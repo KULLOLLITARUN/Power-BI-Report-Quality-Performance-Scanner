@@ -1,11 +1,8 @@
 """Unit tests for the suppression engine (engine/suppressions.py) and scoring integration."""
 from __future__ import annotations
-import json
-import pytest
-from pathlib import Path
-from pbiscan.engine.issue import Issue, AuditIssue
-from pbiscan.engine.suppressions import SuppressionRule, load_suppressions, apply_suppressions
-from pbiscan.engine.scoring import score_category, calculate_scores
+from pbiscan.engine.issue import Issue
+from pbiscan.engine.suppressions import SuppressionRule, apply_suppressions
+from pbiscan.engine.scoring import score_category
 
 
 class TestSuppressionRule:

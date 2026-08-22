@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pbiscan"
-version = "1.4.0"
+version = "1.7.2"
 description = "Power BI Report Quality & Performance Scanner — static analysis for PBIP projects"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,6 +24,7 @@ dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
     "httpx>=0.27.0",
+    "ruff>=0.16",
 ]
 
 [project.scripts]
@@ -43,3 +44,12 @@ pbiscan = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
+
+[tool.ruff.lint]
+# Deliberately conservative: pyflakes (F) + core pycodestyle errors (E4/E7/E9) only.
+# E402 is excluded because canonical/builder.py and canonical/model.py use deferred
+# module-level imports at the bottom of the file to avoid circular imports — that's
+# intentional, not an ordering mistake. E501 (line length) isn't enforced anywhere
+# else in this codebase, so flagging it here would just be noise on existing lines.
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E402", "E501"]

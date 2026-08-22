@@ -3,13 +3,9 @@
 Tests minimal empty models, corrupted metadata, and CLI error boundaries.
 """
 
-from pathlib import Path
-import pytest
 from click.testing import CliRunner
 
 from pbiscan.cli import scan
-from pbiscan.extraction.pbip_reader import PBIPReader, PBIScanError, InputError, ParseError
-from pbiscan.canonical.builder import CanonicalBuilder
 
 
 class TestEdgeCasesAndCLI:

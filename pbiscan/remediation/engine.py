@@ -16,7 +16,6 @@ from pbiscan.remediation.models import (
     RemediationPlan,
     compute_file_sha256,
     compute_scan_fingerprint,
-    compute_sha256,
 )
 from pbiscan.remediation.planner import RemediationPlanner
 from pbiscan.remediation.validator import SandboxValidator

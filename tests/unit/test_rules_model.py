@@ -1,9 +1,8 @@
 """Unit tests — model rules M001–M005."""
 from __future__ import annotations
-import pytest
 from pbiscan.canonical.model import (
     CanonicalReport, Column, DaxDictionary, Measure,
-    ModelGraph, Page, Relationship, ReportDOM, Table, Visual,
+    ModelGraph, Relationship, ReportDOM, Table,
 )
 from pbiscan.rules.model import (
     check_bidirectional, check_many_to_many, check_no_date_table,

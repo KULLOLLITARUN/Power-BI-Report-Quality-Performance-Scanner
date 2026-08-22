@@ -1,6 +1,5 @@
 """Phase 3G Adversarial & Security Hardening Test Suite for Semantic Reference Extractors."""
 
-import pytest
 from pbiscan.canonical.references import SemanticReference, SemanticReferenceIndex
 from pbiscan.extraction.calc_group_extractor import extract_calc_group_references
 from pbiscan.extraction.field_param_extractor import extract_field_param_references

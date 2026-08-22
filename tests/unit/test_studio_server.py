@@ -4,6 +4,7 @@ from pathlib import Path
 import json
 import pytest
 from fastapi.testclient import TestClient
+from pbiscan import __version__
 from pbiscan.server import app
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden"
@@ -22,7 +23,7 @@ class TestStudioServerApi:
         data = response.json()
         assert data["status"] == "ok"
         assert data["service"] == "pbiscan-studio"
-        assert data["version"] == "1.4.0"
+        assert data["version"] == __version__
 
     def test_scan_project_golden_fixture(self, client):
         fixture_path = str(GOLDEN_DIR / "test_calc_group_variants")

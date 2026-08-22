@@ -1,10 +1,9 @@
 """Data source patcher for M_HARDCODED_DATA_SOURCE."""
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from pbiscan.canonical.model import CanonicalReport, Table
 from pbiscan.engine.issue import AuditIssue
@@ -15,12 +14,22 @@ from pbiscan.remediation.models import (
     PatchLifecycleState,
     RemediationSafety,
     compute_file_sha256,
-    compute_sha256,
 )
 from pbiscan.remediation.patchers.base import BasePatcher
 
 _LOCAL_USER_PATH_PATTERN = re.compile(
     r'["\'](?:[a-zA-Z]:[\\/](?:users|documents|desktop|downloads|temp|tmp)[^"\']*|(?:/users/|/home/)[^"\']*)["\']',
+    re.IGNORECASE,
+)
+
+# model.bim/database.json is JSON text: json.dumps escapes each backslash to two
+# characters and each quote to `\"`. analyze() matches _LOCAL_USER_PATH_PATTERN against
+# the already-json.loads-parsed (single-backslash, bare-quote) partition_source, but
+# generate_patch's _patch_bim must match the raw, still-JSON-escaped file text — hence
+# this separate pattern whose match spans the FULL `\"..."\"`  escape-boundary tokens,
+# not just the bare quote inside them, so a replacement can safely own both ends.
+_JSON_ESCAPED_LOCAL_PATH_PATTERN = re.compile(
+    r'\\"[a-zA-Z]:\\\\(?:users|documents|desktop|downloads|temp|tmp)[^"]*?\\"',
     re.IGNORECASE,
 )
 
@@ -234,15 +243,26 @@ class DataSourcePatcher(BasePatcher):
         return None
 
     def _patch_bim(self, content: str, table_name: str) -> Optional[PatchChunk]:
-        """Generate PatchChunk for BIM partition source expression."""
+        """Generate PatchChunk for BIM partition source expression.
+
+        model.bim/database.json is JSON text: json.dumps has escaped each backslash
+        to two chars and each quote to `\\"`. _JSON_ESCAPED_LOCAL_PATH_PATTERN's match
+        therefore spans the FULL escaped-quote boundary tokens (the leading/trailing
+        `\\"`, not just the bare `"` inside them) so the replacement can own — and
+        correctly re-escape — both ends instead of leaving a stray backslash behind.
+        """
         lines = content.splitlines(keepends=True)
         for i, line in enumerate(lines):
-            match = _LOCAL_USER_PATH_PATTERN.search(line)
+            match = _JSON_ESCAPED_LOCAL_PATH_PATTERN.search(line)
             if match:
                 raw_path_with_quotes = match.group(0)
-                clean_path = raw_path_with_quotes.strip('\'"')
+                # Strip the JSON-escaped boundary tokens (\" ... \") and un-escape
+                # doubled backslashes back to single ones to recover the plain path.
+                clean_path = raw_path_with_quotes[2:-2].replace("\\\\", "\\")
                 filename = Path(clean_path).name
-                # Escape for JSON string
+                if not filename:
+                    filename = "data.csv"
+                # Full JSON-escaped replacement, including its own boundary quotes.
                 param_expr = f'DataFolderPath & \\"\\\\{filename}\\"'
                 repl_line = line.replace(raw_path_with_quotes, param_expr)
                 return PatchChunk.create(

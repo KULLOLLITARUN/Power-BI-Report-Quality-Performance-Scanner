@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from pbiscan.server import app
-from pbiscan.service import ScanService, resolve_config
+from pbiscan.service import ScanService
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden"
 

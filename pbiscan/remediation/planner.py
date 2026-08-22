@@ -1,7 +1,6 @@
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-from pbiscan.canonical.model import CanonicalReport
 from pbiscan.service import ScanResult
 from pbiscan.remediation.models import (
     Patch,

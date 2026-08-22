@@ -1,9 +1,8 @@
 """Unit tests — canonical model objects."""
 from __future__ import annotations
-import pytest
 from pbiscan.canonical.model import (
-    CanonicalReport, Column, CalculatedColumn, DaxDictionary,
-    Measure, ModelGraph, Page, Relationship, ReportDOM, Table, Visual,
+    CanonicalReport, Column, DaxDictionary,
+    Measure, Page, Relationship, Table, Visual,
 )
 
 

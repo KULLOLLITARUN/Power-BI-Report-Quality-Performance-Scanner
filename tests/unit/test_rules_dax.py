@@ -1,9 +1,8 @@
 """Unit tests — DAX rules D001–D004."""
 from __future__ import annotations
-import pytest
 from pbiscan.canonical.model import (
     CanonicalReport, CalculatedColumn, DaxDictionary,
-    Measure, ModelGraph, Page, ReportDOM, Table, Visual,
+    Measure, ModelGraph, Page, ReportDOM, Visual,
 )
 from pbiscan.rules.dax import (
     check_suspicious_dax, check_excessive_calc_columns,
@@ -92,7 +91,7 @@ class TestCheckExcessiveCalcColumns:
 
     def test_at_threshold_no_finding(self):
         calc_cols = [
-            CalculatedColumn(name=f"CC{i}", table="Sales", expression=f"Sales[Amount]")
+            CalculatedColumn(name=f"CC{i}", table="Sales", expression="Sales[Amount]")
             for i in range(4)
         ]
         r = _make_report(calc_cols=calc_cols)

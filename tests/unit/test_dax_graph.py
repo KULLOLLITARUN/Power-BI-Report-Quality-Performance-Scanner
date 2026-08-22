@@ -1,8 +1,7 @@
 """Unit tests for DaxDependencyGraph (canonical/dax_graph.py)."""
 from __future__ import annotations
-import pytest
 from pbiscan.canonical.model import DaxDictionary, Measure, CalculatedColumn
-from pbiscan.canonical.dax_graph import DaxDependencyGraph, DaxNode, build_dax_graph
+from pbiscan.canonical.dax_graph import build_dax_graph
 
 
 class TestDaxDependencyGraph:

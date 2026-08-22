@@ -1,6 +1,5 @@
 """Unit tests for ModelGraph topology methods (canonical/model.py)."""
 from __future__ import annotations
-import pytest
 from pbiscan.canonical.model import ModelGraph, Table, Relationship
 
 

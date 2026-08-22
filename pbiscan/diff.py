@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 from pbiscan.engine.issue import AuditIssue
-from pbiscan.service import ScanResult, ScanService, resolve_config
+from pbiscan.service import ScanResult, ScanService
 
 SEVERITY_ORDER: list[str] = ["CRITICAL", "HIGH", "MEDIUM", "WARNING", "LOW", "ADVISORY"]
 SEVERITY_WEIGHTS: dict[str, int] = {

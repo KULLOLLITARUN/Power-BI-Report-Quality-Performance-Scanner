@@ -7,7 +7,6 @@ Phase 1E of v1.2 Roadmap:
   - Does NOT register M006/M007 in production rule matrix.
 """
 from pathlib import Path
-import pytest
 
 from pbiscan.canonical.builder import CanonicalBuilder
 from pbiscan.canonical.model import ModelGraph, Table, Relationship

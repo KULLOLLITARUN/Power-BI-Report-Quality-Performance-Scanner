@@ -8,12 +8,9 @@ from fastapi.testclient import TestClient
 
 from pbiscan.cli import main
 from pbiscan.diff import (
-    DiffResult,
     DiffService,
-    FindingTransition,
     QualityGatePolicy,
     compute_finding_identity,
-    normalize_location,
 )
 from pbiscan.engine.issue import AuditIssue
 from pbiscan.render.diff_console import DiffConsoleRenderer

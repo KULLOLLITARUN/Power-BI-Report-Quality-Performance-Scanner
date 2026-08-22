@@ -15,7 +15,6 @@ from pbiscan.remediation.models import (
     PatchLifecycleState,
     RemediationSafety,
     compute_file_sha256,
-    compute_sha256,
 )
 from pbiscan.remediation.patchers.base import BasePatcher
 
