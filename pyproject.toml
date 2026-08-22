@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pbiscan"
-version = "1.7.2"
+version = "1.7.3"
 description = "Power BI Report Quality & Performance Scanner — static analysis for PBIP projects"
 readme = "README.md"
 requires-python = ">=3.10"

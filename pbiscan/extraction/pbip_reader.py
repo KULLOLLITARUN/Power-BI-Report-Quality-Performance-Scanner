@@ -280,7 +280,7 @@ class PBIPReader:
                         "content": r_content,
                         "path": str(role_file),
                     })
-                except OSError:
+                except (OSError, UnicodeDecodeError):
                     pass
 
         # Parse relationships
@@ -311,8 +311,8 @@ class PBIPReader:
         """Parse a single TMDL table file."""
         try:
             content = file_path.read_text(encoding="utf-8")
-        except OSError as exc:
-            logger.warning("Could not read TMDL file %s: %exc", file_path, exc)
+        except (OSError, UnicodeDecodeError) as exc:
+            logger.warning("Could not read TMDL file %s: %s", file_path, exc)
             return None
 
         lines = content.splitlines()
@@ -495,7 +495,7 @@ class PBIPReader:
         """Parse TMDL relationships.tmdl file."""
         try:
             content = rel_file.read_text(encoding="utf-8")
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             return []
 
         result: list[RawRelationship] = []
@@ -866,5 +866,7 @@ class PBIPReader:
                 return json.load(f)
         except json.JSONDecodeError as exc:
             raise ParseError(f"JSON parse error in {path}: {exc}") from exc
+        except UnicodeDecodeError as exc:
+            raise ParseError(f"Cannot decode {path} as UTF-8: {exc}") from exc
         except OSError as exc:
             raise ParseError(f"Cannot read {path}: {exc}") from exc

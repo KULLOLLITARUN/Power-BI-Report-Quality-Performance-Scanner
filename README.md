@@ -2,7 +2,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Workbench-pbip--sentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbip-sentinel.netlify.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Tests: 411 Passing](https://img.shields.io/badge/Tests-411%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
+[![Tests: 384 Passing](https://img.shields.io/badge/Tests-384%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![Python: 3.10 | 3.11 | 3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue?style=for-the-badge&logo=python&logoColor=white)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![SARIF: OASIS v2.1.0](https://img.shields.io/badge/SARIF-OASIS%20v2.1.0-blueviolet?style=for-the-badge)](https://sarifweb.azurewebsites.net/)
 
@@ -38,7 +38,7 @@ PBIP Sentinel follows a strict **Observation $\to$ Proof $\to$ Implementation** 
 | **Real Customer Models Audited** | **11 Models** | Enterprise models across Sales, HR, Finance, and Retail |
 | **Classified Findings** | **94 / 94 True Positives** | 100% precision with **0 false positives** |
 | **Crash Rate** | **0.00%** | Zero crashes or unhandled exceptions across the corpus |
-| **Automated Test Suite** | **411 / 411 Passing** | Unit tests, golden fixtures, cross-engine parity, and API contracts (`~13s` execution) |
+| **Automated Test Suite** | **384 / 384 Passing** | Unit tests, golden fixtures, and API contracts (`~8s` execution) |
 
 ---
 
@@ -261,7 +261,7 @@ PBIP Project (.pbip / TMDL / TMSL / PBIR)
 ## 🧪 Automated Testing
 
 ```bash
-# Run all 377 unit, golden contract, and integration tests
+# Run all 384 unit, golden contract, and integration tests
 pytest tests/ -v
 ```
 

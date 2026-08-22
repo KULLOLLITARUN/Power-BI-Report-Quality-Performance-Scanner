@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.3] - 2026-08-22
+
+### Fixed
+- **`pbiscan fix`/Studio "Apply Selected Patches" crashed on any project containing a file with a non-UTF-8 byte anywhere**, even a file completely unrelated to the findings being remediated: `BackupManager.get_backup_metadata()` hashes every file under the project to fingerprint the backup, and `compute_file_sha256()` decoded each one as UTF-8 text before hashing. Fixed by hashing raw bytes directly — identical output for every valid-UTF-8 file (no behavior change), no longer requires every file in the project to be valid UTF-8.
+- **A single malformed-encoding table, relationships, or RLS role file crashed `pbiscan scan` for the entire project**, not just remediation: `pbip_reader.py`'s per-file TMDL parsers only caught `OSError` around their reads, so a `UnicodeDecodeError` (raised for any non-UTF-8 byte) propagated uncaught. Now caught and the single malformed file is skipped (matching existing behavior for a missing/unreadable file), while every other table/relationship/role still extracts normally. `_load_json` (used for the required model.bim/report.json/.pbir/.pbism files) had the same gap — a `UnicodeDecodeError` there now surfaces as the same clean `ParseError` every other parse failure already produces, instead of a raw traceback.
+- **One patcher crashing while planning a remediation aborted the whole plan**, hiding every other otherwise-fixable finding: `RemediationPlanner.plan()` called each patcher's `analyze()`/`generate_patches()` with no exception handling. A crash on one finding (e.g. from the encoding issues above, or any other patcher-internal error) is now caught and recorded as a skipped finding with a clear reason, while every other finding in the same project still gets planned normally.
+- **Studio UI: clicking "Apply Selected Patches" bounced you off the Safe Remediation tab back to the Audit Overview dashboard.** The panel's post-apply refresh reused the same `scanPath()` function used for loading a brand-new project, which always force-switches to the dashboard tab. `scanPath()` now takes an explicit `preserveTab` flag; the remediation refresh path uses it, every other caller (selecting a new project) is unaffected.
+
+### Added
+- Regression tests for all of the above, including an end-to-end test proving a scan survives one corrupted table among several others, and a planner test proving one patcher crash doesn't hide other findings' patches.
+
+---
+
 ## [1.7.2] - 2026-08-22
 
 ### Fixed

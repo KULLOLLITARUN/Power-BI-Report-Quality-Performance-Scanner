@@ -52,10 +52,17 @@ def compute_sha256(text: str) -> str:
 
 
 def compute_file_sha256(file_path: Path) -> str:
-    """Compute SHA-256 hash of a file's text contents."""
+    """Compute SHA-256 hash of a file's raw byte contents.
+
+    Hashes bytes directly rather than decoding as UTF-8 text first: this hash is
+    used for whole-project integrity checks (BackupManager.get_backup_metadata /
+    verify_restoration hash every file under a project, not just ones pbiscan
+    patches) and must not crash on a file that happens to contain non-UTF-8 bytes
+    (e.g. a table's DisplayName saved in a legacy codepage, or any binary asset).
+    """
     if not file_path.exists():
         return ""
-    return compute_sha256(file_path.read_text(encoding="utf-8"))
+    return hashlib.sha256(file_path.read_bytes()).hexdigest()
 
 
 @dataclass

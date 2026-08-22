@@ -59,9 +59,21 @@ class RemediationPlanner:
                 })
                 continue
 
-            # Phase 1: Analyze & gather evidence
-            evidence = patcher.analyze(issue, report, model_path)
-            
+            # Phase 1: Analyze & gather evidence.
+            # A crash analyzing/patching ONE finding (e.g. a file with a byte that
+            # isn't valid UTF-8) must not abort remediation for every OTHER finding
+            # in the project — skip just this finding and keep going.
+            try:
+                evidence = patcher.analyze(issue, report, model_path)
+            except Exception as exc:
+                skipped_findings.append({
+                    "issue_key": f"{rule_id}::{issue.location or ''}",
+                    "rule_id": rule_id,
+                    "location": issue.location,
+                    "reason": f"Patcher analysis crashed: {exc}",
+                })
+                continue
+
             if evidence.violated_preconditions:
                 skipped_findings.append({
                     "issue_key": f"{rule_id}::{issue.location or ''}",
@@ -73,7 +85,17 @@ class RemediationPlanner:
                 continue
 
             # Phase 2: Generate patch(es)
-            generated = patcher.generate_patches(issue, evidence, model_path)
+            try:
+                generated = patcher.generate_patches(issue, evidence, model_path)
+            except Exception as exc:
+                skipped_findings.append({
+                    "issue_key": f"{rule_id}::{issue.location or ''}",
+                    "rule_id": rule_id,
+                    "location": issue.location,
+                    "reason": f"Patch generation crashed: {exc}",
+                })
+                continue
+
             if generated:
                 patches.extend(generated)
             else:
