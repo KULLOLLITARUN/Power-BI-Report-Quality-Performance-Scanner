@@ -206,3 +206,47 @@ class TestStudioServerApi:
         assert resp.status_code == 404
         assert resp.json().get("detail") is not None
 
+    def test_studio_remediation_plan_api(self, client):
+        fixture = str(GOLDEN_DIR / "test_bidirectional")
+        resp = client.post("/api/remediation/plan", json={"project_path": fixture})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "plan" in data
+        assert "validation" in data
+        assert len(data["plan"]["patches"]) == 1
+        assert data["validation"]["accepted"] is True
+
+    def test_studio_remediation_apply_and_history_lifecycle(self, client, tmp_path):
+        import shutil
+        model_dir = tmp_path / "test_remediation_studio"
+        shutil.copytree(GOLDEN_DIR / "test_bidirectional", model_dir)
+
+        # 1. Plan
+        plan_resp = client.post("/api/remediation/plan", json={"project_path": str(model_dir)})
+        assert plan_resp.status_code == 200
+        patch_id = plan_resp.json()["plan"]["patches"][0]["patch_id"]
+
+        # 2. Apply
+        apply_resp = client.post("/api/remediation/apply", json={
+            "project_path": str(model_dir),
+            "patch_ids": [patch_id],
+            "backup": True,
+        })
+        assert apply_resp.status_code == 200
+        apply_data = apply_resp.json()
+        assert apply_data["success"] is True
+        manifest_id = apply_data["manifest"]["manifest_id"]
+
+        # 3. History
+        hist_resp = client.get(f"/api/remediation/history?project_path={model_dir}")
+        assert hist_resp.status_code == 200
+        history = hist_resp.json()["history"]
+        assert len(history) >= 1
+        assert history[0]["manifest_id"] == manifest_id
+
+        # 4. Manifest Detail
+        man_resp = client.get(f"/api/remediation/manifest/{manifest_id}?project_path={model_dir}")
+        assert man_resp.status_code == 200
+        assert man_resp.json()["manifest_id"] == manifest_id
+        assert man_resp.json()["decision"] == "ACCEPTED"
+

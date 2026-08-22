@@ -8,6 +8,7 @@ import { ModelMap } from './components/ModelMap';
 import { DaxExplorer } from './components/DaxExplorer';
 import { PagesViewer } from './components/PagesViewer';
 import { DiffViewer } from './components/DiffViewer';
+import { RemediationPanel } from './components/RemediationPanel';
 import { FileBrowserModal } from './components/FileBrowserModal';
 import { ScanResult } from './types';
 import { useTheme } from './hooks/useTheme';
@@ -502,6 +503,17 @@ export const App: React.FC = () => {
                   <DiffViewer
                     initialBaselinePath={currentPath}
                     initialCurrentPath=""
+                  />
+                </div>
+              )}
+
+              {/* Tab 6: Safe Automated Remediation */}
+              {activeTab === 'remediation' && (
+                <div>
+                  <RemediationPanel
+                    projectPath={currentPath}
+                    currentScore={scanResult.scores?.overall || 100}
+                    onProjectRefreshed={() => scanPath(currentPath)}
                   />
                 </div>
               )}

@@ -5,10 +5,11 @@ import {
   Code2, 
   Layers,
   FolderOpen,
-  GitCompare
+  GitCompare,
+  Wrench,
 } from 'lucide-react';
 
-export type TabType = 'dashboard' | 'model-map' | 'dax-explorer' | 'pages' | 'diff';
+export type TabType = 'dashboard' | 'model-map' | 'dax-explorer' | 'pages' | 'diff' | 'remediation';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -53,6 +54,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Visual Pages',
       icon: Layers,
       badge: pagesCount > 0 ? `${pagesCount}` : undefined,
+    },
+    {
+      id: 'remediation' as TabType,
+      label: 'Safe Remediation',
+      icon: Wrench,
     },
     {
       id: 'diff' as TabType,
