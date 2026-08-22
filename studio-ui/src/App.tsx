@@ -42,6 +42,7 @@ export const App: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
 
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
+  const [hasBackend, setHasBackend] = useState<boolean>(false);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,6 +50,27 @@ export const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSeverity, setSelectedSeverity] = useState('all');
+
+  // Detect if local Python FastAPI backend is alive
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const res = await fetch('/api/health');
+        if (res.ok) {
+          const ct = res.headers.get('content-type') || '';
+          if (ct.includes('application/json')) {
+            const data = await res.json();
+            if (data?.status === 'ok') {
+              setHasBackend(true);
+              return;
+            }
+          }
+        }
+      } catch {}
+      setHasBackend(false);
+    };
+    checkBackend();
+  }, []);
 
   // Explicit demo loader
   const loadExplicitDemo = (type: 'bananas' | 'enterprise') => {
@@ -82,6 +104,13 @@ export const App: React.FC = () => {
 
   const scanPath = async (targetPath: string) => {
     if (!targetPath || !targetPath.trim()) return;
+
+    if (!hasBackend) {
+      if (targetPath.startsWith('[DEMO]')) return;
+      setError('To scan by local file path, run `pbiscan studio` from your terminal. On the web workbench, please use "Select Local .pbip Folder" or drag & drop below.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setIsDemoMode(false);
@@ -96,6 +125,11 @@ export const App: React.FC = () => {
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.detail || `Scan failed (${res.status}: ${res.statusText})`);
+      }
+
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        throw new Error('Backend did not return valid JSON');
       }
 
       const data: ScanResult = await res.json();
@@ -317,6 +351,7 @@ export const App: React.FC = () => {
         }}
         theme={theme}
         onToggleTheme={toggleTheme}
+        hasBackend={hasBackend}
       />
 
       {/* Explicit Demo Mode Warning Banner */}
@@ -513,6 +548,8 @@ export const App: React.FC = () => {
                   <RemediationPanel
                     projectPath={currentPath}
                     currentScore={scanResult.scores?.overall || 100}
+                    findings={scanResult.findings || []}
+                    hasBackend={hasBackend}
                     onProjectRefreshed={() => scanPath(currentPath)}
                   />
                 </div>

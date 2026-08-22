@@ -14,6 +14,7 @@ interface HeaderProps {
   onResetToHome: () => void;
   theme?: Theme;
   onToggleTheme?: () => void;
+  hasBackend?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   onResetToHome,
   theme = 'dark',
   onToggleTheme,
+  hasBackend = false,
 }) => {
   return (
     <header 
@@ -63,7 +65,17 @@ export const Header: React.FC<HeaderProps> = ({
                   color: 'var(--text-muted)',
                 }}
               >
-                v0.1.0
+                v1.8.0
+              </span>
+              <span 
+                className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded border hidden sm:inline"
+                style={{
+                  backgroundColor: hasBackend ? 'var(--severity-low-bg)' : 'var(--bg-canvas)',
+                  borderColor: hasBackend ? 'var(--severity-low-border)' : 'var(--border-hairline)',
+                  color: hasBackend ? 'var(--severity-low)' : 'var(--accent)',
+                }}
+              >
+                {hasBackend ? '🟢 Local Studio' : '🌐 Web Workbench'}
               </span>
             </div>
             <p 
