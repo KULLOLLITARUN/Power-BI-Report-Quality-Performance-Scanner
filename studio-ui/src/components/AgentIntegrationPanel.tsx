@@ -7,6 +7,9 @@ interface McpStatus {
   python_executable: string;
   server_command: string;
   server_args: string[];
+  groq_configured?: boolean;
+  groq_masked_key?: string | null;
+  groq_model?: string;
 }
 
 interface McpTool {
@@ -87,6 +90,32 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
   const [rules, setRules] = useState<Record<string, RuleEntry> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [daxInput, setDaxInput] = useState('DIVIDE(SUM(Sales[Amount]), SUM(Sales[Units]))');
+  const [daxOutput, setDaxOutput] = useState<any>(null);
+  const [daxLoading, setDaxLoading] = useState(false);
+
+  const handleTestGroq = async () => {
+    if (!daxInput.trim()) return;
+    setDaxLoading(true);
+    try {
+      const res = await fetch('/api/dax/rewrite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rule_id: 'DAX_SUSPICIOUS_PATTERN',
+          dax_expression: daxInput,
+          evidence: 'Division without safe 3rd parameter fallback',
+        }),
+      });
+      const data = await res.json();
+      setDaxOutput(data);
+    } catch (e: any) {
+      setDaxOutput({ error: e.message || 'Failed to call Groq AI' });
+    } finally {
+      setDaxLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!hasBackend) return;
 
@@ -159,6 +188,108 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
           {error}
         </div>
       )}
+
+      {/* Groq AI DAX Advisor Card */}
+      <div
+        className="p-4 rounded-lg border"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          borderColor: status?.groq_configured ? 'var(--accent)' : 'var(--border-hairline)',
+        }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⚡</span>
+            <div>
+              <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                Groq AI DAX Optimization Engine
+              </h3>
+              <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                Model: <code>{status?.groq_model || 'openai/gpt-oss-120b'}</code>
+              </div>
+            </div>
+          </div>
+          {status?.groq_configured ? (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold" style={{ backgroundColor: 'var(--accent-glow)', color: 'var(--accent)' }}>
+              <CircleCheck className="w-3.5 h-3.5" />
+              <span>Connected ({status.groq_masked_key})</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px]" style={{ backgroundColor: 'var(--bg-canvas)', color: 'var(--text-muted)' }}>
+              <span>Not Configured (.env)</span>
+            </div>
+          )}
+        </div>
+
+        <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
+          Groq AI analyzes flagged DAX formulas on-demand to produce high-performance, non-visual-breaking rewrites.
+        </p>
+
+        {/* Live Interactive Test */}
+        <div className="p-3 rounded border" style={{ backgroundColor: 'var(--bg-canvas)', borderColor: 'var(--border-hairline)' }}>
+          <div className="text-xs font-bold mb-1.5" style={{ color: 'var(--text-primary)' }}>
+            Live DAX Rewrite Test:
+          </div>
+          <div className="flex gap-2 mb-2">
+            <input
+              type="text"
+              value={daxInput}
+              onChange={(e) => setDaxInput(e.target.value)}
+              placeholder="e.g. DIVIDE(SUM(Sales[Amount]), SUM(Sales[Units]))"
+              className="flex-1 px-2.5 py-1.5 text-xs rounded border bg-transparent font-mono"
+              style={{ borderColor: 'var(--border-hairline)', color: 'var(--text-primary)' }}
+            />
+            <button
+              onClick={handleTestGroq}
+              disabled={daxLoading}
+              className="px-3 py-1.5 rounded text-xs font-bold transition"
+              style={{
+                backgroundColor: 'var(--accent)',
+                color: '#000',
+                opacity: daxLoading ? 0.7 : 1,
+              }}
+            >
+              {daxLoading ? 'Rewriting with Groq...' : '⚡ Ask Groq to Rewrite'}
+            </button>
+          </div>
+
+          {daxOutput && (
+            <div
+              className="p-3 rounded border text-xs mt-2 space-y-2"
+              style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-hairline)' }}
+            >
+              {daxOutput.recommendation && (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
+                    Suggested Rewrite:
+                  </div>
+                  <pre
+                    className="p-2 rounded mt-1 overflow-x-auto font-mono text-xs"
+                    style={{ backgroundColor: 'var(--bg-canvas)', color: 'var(--text-primary)' }}
+                  >
+                    {daxOutput.recommendation}
+                  </pre>
+                </div>
+              )}
+              {daxOutput.explanation && (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                    Why this is better:
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                    {daxOutput.explanation}
+                  </div>
+                </div>
+              )}
+              {daxOutput.advisory_note && !daxOutput.explanation && (
+                <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  {daxOutput.advisory_note}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Environment status */}
       <div className="p-4 rounded-lg border" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-hairline)' }}>
