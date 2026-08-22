@@ -1,15 +1,16 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Network, 
-  Code2, 
+import {
+  LayoutDashboard,
+  Network,
+  Code2,
   Layers,
   FolderOpen,
   GitCompare,
   Wrench,
+  Plug,
 } from 'lucide-react';
 
-export type TabType = 'dashboard' | 'model-map' | 'dax-explorer' | 'pages' | 'diff' | 'remediation';
+export type TabType = 'dashboard' | 'model-map' | 'dax-explorer' | 'pages' | 'diff' | 'remediation' | 'agent';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -64,6 +65,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'diff' as TabType,
       label: 'Compare / Diff',
       icon: GitCompare,
+    },
+    {
+      id: 'agent' as TabType,
+      label: 'Agent / MCP',
+      icon: Plug,
     },
   ];
 

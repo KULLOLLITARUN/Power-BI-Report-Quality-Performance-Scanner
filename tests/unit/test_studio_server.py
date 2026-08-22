@@ -251,3 +251,61 @@ class TestStudioServerApi:
         assert man_resp.json()["manifest_id"] == manifest_id
         assert man_resp.json()["decision"] == "ACCEPTED"
 
+
+class TestAgentMcpIntegrationApi:
+    """Studio UI's informational 'Agent / MCP' tab endpoints. Must never require
+    the optional `mcp` extra to respond — only /api/mcp/tools's live-introspection
+    path uses it, with a static fallback otherwise."""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_mcp_status_reports_environment(self, client):
+        resp = client.get("/api/mcp/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data["mcp_installed"], bool)
+        assert data["server_command"] == "pbiscan"
+        assert data["server_args"] == ["mcp"]
+        assert data["python_executable"]
+
+    def test_mcp_tools_matches_real_server_classification(self, client):
+        resp = client.get("/api/mcp/tools")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["tools"]) == 8
+
+        tool_map = {t["name"]: t for t in data["tools"]}
+        for name in ("scan_model", "diff_models", "get_measure_lineage", "plan_remediation", "list_suppressions", "suggest_dax_rewrite"):
+            assert tool_map[name]["read_only"] is True
+            assert tool_map[name]["destructive"] is False
+        for name in ("apply_remediation", "add_suppression"):
+            assert tool_map[name]["read_only"] is False
+            assert tool_map[name]["destructive"] is True
+
+    def test_mcp_config_snippets_reference_real_command(self, client):
+        resp = client.get("/api/mcp/config-snippets")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["claude_desktop"]["snippet"]["mcpServers"]["pbip-sentinel"]["command"] == "pbiscan"
+        assert data["claude_desktop"]["snippet"]["mcpServers"]["pbip-sentinel"]["args"] == ["mcp"]
+        assert "pbiscan mcp" in data["claude_code_cli"]["snippet"]
+
+    def test_mcp_rules_matches_static_catalog(self, client):
+        resp = client.get("/api/mcp/rules")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_rules"] == 13
+        assert "MODEL_BIDIRECTIONAL" in data["rules"]
+        assert "DAX_UNUSED_MEASURE" in data["rules"]
+
+    def test_mcp_tools_and_server_registry_never_disagree(self, client):
+        """Regression guard for the exact drift class this whole feature exists
+        to prevent: the Studio API's tool list must always match the real MCP
+        server's actual registered + classified tool names."""
+        from pbiscan.mcp.server import DESTRUCTIVE_TOOL_NAMES, READ_ONLY_TOOL_NAMES
+
+        resp = client.get("/api/mcp/tools")
+        api_names = {t["name"] for t in resp.json()["tools"]}
+        assert api_names == set(READ_ONLY_TOOL_NAMES) | set(DESTRUCTIVE_TOOL_NAMES)
