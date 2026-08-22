@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.0] - 2026-08-22
+
+### Added
+- **Model Context Protocol (MCP) Server integration (`pbiscan mcp`)**: Exposes PBIP Sentinel to external AI agents (Claude Desktop, Cursor, Claude Code, Antigravity) over standard stdio JSON-RPC.
+  - **Static Resources**: Exposes the complete 13-rule quality and governance catalog at `pbiscan://rules` and single-rule metadata at `pbiscan://rules/{rule_id}` without LLM round-trips.
+  - **7 Typed Tools**:
+    - Read-only tools (`readOnlyHint: true`): `scan_model`, `diff_models`, `get_measure_lineage`, `plan_remediation`, `list_suppressions`, and `suggest_dax_rewrite`.
+    - Destructive tools (`destructiveHint: true`): `apply_remediation` and `add_suppression` (triggers host approval prompt).
+  - **Pre-Registered Guided Prompts**: `audit-model`, `remediate-safely`, and `inspect-dax-measure`.
+  - **Optional extra**: Install via `pip install 'pbiscan[mcp]'`. Core scanner retains 100% deterministic, zero-AI, zero-telemetry guarantee.
+
+---
+
 ## [1.8.1] - 2026-08-22
 
 ### Added

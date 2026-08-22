@@ -139,6 +139,38 @@ pbiscan fix "path/to/my_report.pbip" --fail-on-remediation-available --quiet
 ```
 Supports `MODEL_BIDIRECTIONAL`, `DAX_UNUSED_MEASURE`, `M_HARDCODED_DATA_SOURCE`, and `MODEL_AUTO_DATETIME_BLOAT`. Applying patches creates a timestamped backup directory first and validates each patch against a fresh scan fingerprint before touching disk.
 
+### 7. Model Context Protocol (MCP) Server
+Connect PBIP Sentinel to AI agents (Claude Desktop, Cursor, Claude Code, Antigravity) with standard stdio JSON-RPC. Allows agents to inspect quality scores, query measure DAG lineage, and propose remediation plans:
+
+```bash
+# Start MCP server over stdio
+pbiscan mcp
+```
+
+**Claude Desktop Configuration (`claude_desktop_config.json`)**:
+```json
+{
+  "mcpServers": {
+    "pbip-sentinel": {
+      "command": "pbiscan",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**Cursor Configuration (`.cursor/mcp.json`)**:
+```json
+{
+  "mcpServers": {
+    "pbip-sentinel": {
+      "command": "pbiscan",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
 ---
 
 ## ⚙️ CI/CD Integration Examples
