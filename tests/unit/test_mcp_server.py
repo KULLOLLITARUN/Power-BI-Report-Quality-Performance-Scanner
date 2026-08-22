@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+from unittest import mock
 from click.testing import CliRunner
 import pytest
 
@@ -177,7 +179,8 @@ class TestMcpTools:
         assert res_list["suppressions"][0]["rule_id"] == "MODEL_BIDIRECTIONAL"
         assert res_list["suppressions"][1]["rule_id"] == "DAX_UNUSED_MEASURE"
 
-    def test_suggest_dax_rewrite_advisory(self):
+    def test_suggest_dax_rewrite_advisory(self, monkeypatch):
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
         res = handle_suggest_dax_rewrite(
             rule_id="DAX_SUSPICIOUS_PATTERN",
             dax_expression="CALCULATE(SUM(Sales[Amount]), ALL(Sales))",
@@ -185,6 +188,128 @@ class TestMcpTools:
         assert res["rule_id"] == "DAX_SUSPICIOUS_PATTERN"
         assert "advisory_note" in res
         assert "recommendation" in res
+        assert res["ai_generated"] is False
+        assert "suggested_rewrite" not in res
+
+
+class TestSuggestDaxRewriteGroqIntegration:
+    """suggest_dax_rewrite must be BYO-key and never fail hard: no key means
+    the static fallback, a Groq failure means the static fallback, and a
+    successful call means a real, parsed AI suggestion layered on top.
+
+    tests/conftest.py sets PBISCAN_DISABLE_DOTENV=1 for the whole session, so
+    these tests are never influenced by whatever real .env file happens to
+    exist in the developer's working directory — GROQ_API_KEY is controlled
+    purely via monkeypatch here.
+    """
+
+    def test_no_api_key_never_attempts_network_call(self, monkeypatch):
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+        from pbiscan.mcp.groq_client import is_groq_configured
+        assert is_groq_configured() is False
+
+        res = handle_suggest_dax_rewrite("DAX_SUSPICIOUS_PATTERN", "SUM(Sales[Amount])")
+        assert res["ai_generated"] is False
+
+    def test_successful_groq_reply_is_parsed_into_rewrite_and_explanation(self, monkeypatch):
+        monkeypatch.setenv("GROQ_API_KEY", "test-key")
+        fake_reply = (
+            "DIVIDE(SUM(Sales[Amount]), SUM(Sales[Units]), 0)\n\n"
+            "DIVIDE avoids a divide-by-zero error and is the idiomatic safe-division pattern in DAX."
+        )
+        with mock.patch("pbiscan.mcp.tools.call_groq_chat", return_value=fake_reply):
+            res = handle_suggest_dax_rewrite(
+                rule_id="DAX_SUSPICIOUS_PATTERN",
+                dax_expression="SUM(Sales[Amount]) / SUM(Sales[Units])",
+            )
+        assert res["ai_generated"] is True
+        assert res["suggested_rewrite"] == "DIVIDE(SUM(Sales[Amount]), SUM(Sales[Units]), 0)"
+        assert "DIVIDE avoids" in res["rewrite_explanation"]
+        assert res["ai_model"]
+
+    def test_groq_failure_falls_back_to_static_recommendation(self, monkeypatch):
+        monkeypatch.setenv("GROQ_API_KEY", "test-key")
+        with mock.patch("pbiscan.mcp.tools.call_groq_chat", return_value=None):
+            res = handle_suggest_dax_rewrite("DAX_SUSPICIOUS_PATTERN", "SUM(Sales[Amount])")
+        assert res["ai_generated"] is False
+        assert "recommendation" in res
+
+    def test_groq_client_returns_none_without_key(self, monkeypatch):
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+        from pbiscan.mcp.groq_client import call_groq_chat
+        assert call_groq_chat("system", "user") is None
+
+    def test_groq_client_handles_http_error_gracefully(self, monkeypatch):
+        monkeypatch.setenv("GROQ_API_KEY", "test-key")
+        import urllib.error
+        from pbiscan.mcp.groq_client import call_groq_chat
+
+        def _raise(*args, **kwargs):
+            raise urllib.error.HTTPError("url", 401, "Unauthorized", {}, None)
+
+        with mock.patch("urllib.request.urlopen", side_effect=_raise):
+            assert call_groq_chat("system", "user") is None
+
+    def test_groq_client_handles_malformed_response_gracefully(self, monkeypatch):
+        monkeypatch.setenv("GROQ_API_KEY", "test-key")
+        from pbiscan.mcp.groq_client import call_groq_chat
+
+        class _FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"unexpected": "shape"}'
+
+        with mock.patch("urllib.request.urlopen", return_value=_FakeResponse()):
+            assert call_groq_chat("system", "user") is None
+
+
+class TestDotenvLoader:
+    """Regression coverage for the exact bug this class of test caught during
+    development: a real .env file at the repo root (left by a developer for
+    manual local testing) must never leak into or affect test behavior."""
+
+    def test_disabled_by_env_var_skips_file_entirely(self, monkeypatch, tmp_path):
+        import pbiscan.mcp.groq_client as groq_client_mod
+
+        (tmp_path / ".env").write_text("GROQ_API_KEY=should-never-be-loaded\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("PBISCAN_DISABLE_DOTENV", "1")
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+        monkeypatch.setattr(groq_client_mod, "_dotenv_loaded", False)
+
+        groq_client_mod.load_dotenv_if_present()
+        assert "GROQ_API_KEY" not in os.environ
+
+    def test_loads_unset_vars_from_env_file(self, monkeypatch, tmp_path):
+        import pbiscan.mcp.groq_client as groq_client_mod
+
+        (tmp_path / ".env").write_text('GROQ_API_KEY="from-dotenv-file"\n# a comment\n\nGROQ_MODEL=some-model\n', encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("PBISCAN_DISABLE_DOTENV", raising=False)
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+        monkeypatch.delenv("GROQ_MODEL", raising=False)
+        monkeypatch.setattr(groq_client_mod, "_dotenv_loaded", False)
+
+        groq_client_mod.load_dotenv_if_present()
+        assert os.environ["GROQ_API_KEY"] == "from-dotenv-file"
+        assert os.environ["GROQ_MODEL"] == "some-model"
+
+    def test_real_environment_variable_always_wins_over_dotenv_file(self, monkeypatch, tmp_path):
+        import pbiscan.mcp.groq_client as groq_client_mod
+
+        (tmp_path / ".env").write_text("GROQ_API_KEY=from-dotenv-file\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("PBISCAN_DISABLE_DOTENV", raising=False)
+        monkeypatch.setenv("GROQ_API_KEY", "from-real-environment")
+        monkeypatch.setattr(groq_client_mod, "_dotenv_loaded", False)
+
+        groq_client_mod.load_dotenv_if_present()
+        assert os.environ["GROQ_API_KEY"] == "from-real-environment"
 
 
 class TestMcpCliAndServerFactory:

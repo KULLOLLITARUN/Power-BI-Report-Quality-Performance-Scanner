@@ -35,6 +35,25 @@ from pbiscan.mcp.tools import (
     handle_suggest_dax_rewrite,
 )
 
+# Canonical tool safety classification — the single source of truth for which
+# tools are read-only vs. destructive. Kept as plain tuples (no `mcp` import
+# required) right next to the @mcp.tool() registrations below so the two stay
+# in sync by proximity, and so callers that don't need a live server (e.g. the
+# Studio UI's informational "Agent / MCP" tab) can display an accurate tool
+# list without requiring the optional `mcp` package to be installed.
+READ_ONLY_TOOL_NAMES: tuple[str, ...] = (
+    "scan_model",
+    "diff_models",
+    "get_measure_lineage",
+    "plan_remediation",
+    "list_suppressions",
+    "suggest_dax_rewrite",
+)
+DESTRUCTIVE_TOOL_NAMES: tuple[str, ...] = (
+    "apply_remediation",
+    "add_suppression",
+)
+
 
 def create_server() -> Any:
     """Instantiate and configure the PBIP Sentinel FastMCP Server."""
@@ -195,6 +214,20 @@ def create_server() -> Any:
             location=location,
             reason=reason,
             added_by=added_by,
+        )
+
+    # Guard against the exact class of drift this constant split exists to
+    # prevent: if a tool is registered above without also being added to
+    # READ_ONLY_TOOL_NAMES/DESTRUCTIVE_TOOL_NAMES (or vice versa), fail loudly
+    # here rather than silently shipping a stale classification to callers
+    # (including the Studio UI's live tool inspector).
+    registered_names = {t.name for t in mcp._tool_manager.list_tools()}
+    classified_names = set(READ_ONLY_TOOL_NAMES) | set(DESTRUCTIVE_TOOL_NAMES)
+    if registered_names != classified_names:
+        raise AssertionError(
+            f"MCP tool registration/classification drift detected. "
+            f"Registered: {sorted(registered_names)}. "
+            f"Classified: {sorted(classified_names)}."
         )
 
     return mcp

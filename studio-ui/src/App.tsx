@@ -9,6 +9,7 @@ import { DaxExplorer } from './components/DaxExplorer';
 import { PagesViewer } from './components/PagesViewer';
 import { DiffViewer } from './components/DiffViewer';
 import { RemediationPanel } from './components/RemediationPanel';
+import { AgentIntegrationPanel } from './components/AgentIntegrationPanel';
 import { FileBrowserModal } from './components/FileBrowserModal';
 import { ScanResult } from './types';
 import { useTheme } from './hooks/useTheme';
@@ -554,6 +555,13 @@ export const App: React.FC = () => {
                     hasBackend={hasBackend}
                     onProjectRefreshed={() => scanPath(currentPath, true)}
                   />
+                </div>
+              )}
+
+              {/* Tab 7: Agent / MCP Integration */}
+              {activeTab === 'agent' && (
+                <div>
+                  <AgentIntegrationPanel hasBackend={hasBackend} />
                 </div>
               )}
             </div>

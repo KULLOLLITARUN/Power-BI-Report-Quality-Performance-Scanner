@@ -46,3 +46,8 @@ diff_*.md
 
 # Internal documentation / build notes
 !docs/*.md
+
+# Local secrets — never commit real API keys. .env.example is the tracked
+# template; .env is where you paste your own GROQ_API_KEY locally.
+.env
+.env.local

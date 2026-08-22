@@ -5,6 +5,7 @@ Wraps deterministic scan, diff, lineage, and remediation engines into typed JSON
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -12,6 +13,7 @@ from typing import Any, Optional
 from pbiscan.diff import DiffService, QualityGatePolicy
 from pbiscan.engine.recommendations import RECOMMENDATIONS
 from pbiscan.engine.suppressions import load_suppressions
+from pbiscan.mcp.groq_client import DEFAULT_GROQ_MODEL, call_groq_chat, is_groq_configured
 from pbiscan.remediation.engine import RemediationEngine
 from pbiscan.service import ScanService
 
@@ -228,22 +230,59 @@ def handle_list_suppressions(path: str) -> dict[str, Any]:
     }
 
 
+_GROQ_SYSTEM_PROMPT = (
+    "You are a DAX optimization advisor for Power BI. Given a flagged anti-pattern and the "
+    "offending expression, propose a corrected DAX rewrite and a one-paragraph explanation of "
+    "why it's better. Respond with ONLY the rewritten DAX expression on the first line, then a "
+    "blank line, then the explanation. Do not include markdown code fences. Never invent table "
+    "or column names that aren't present in the input expression."
+)
+
+
 def handle_suggest_dax_rewrite(
     rule_id: str,
     dax_expression: str,
     evidence: str = "",
 ) -> dict[str, Any]:
-    """Advisory helper providing best-practice DAX rewrite guidance for a flagged pattern."""
+    """Advisory helper providing best-practice DAX rewrite guidance for a flagged pattern.
+
+    Calls Groq for a real, expression-specific rewrite when GROQ_API_KEY is configured
+    (BYO key — never required). Falls back to the static, manually-reviewed recommendation
+    text otherwise, or if the Groq call fails for any reason. Either way this tool never
+    errors and never applies anything — it's advisory-only, for human review.
+    """
     normalized_id = rule_id.strip().upper()
     meta = RECOMMENDATIONS.get(normalized_id, {})
 
-    return {
+    result: dict[str, Any] = {
         "rule_id": normalized_id,
         "input_dax": dax_expression,
         "issue_summary": meta.get("issue", "Anti-pattern detected in DAX measure."),
         "recommendation": meta.get("recommendation", "Review and optimize DAX structure."),
+        "ai_generated": False,
         "advisory_note": (
             "DAX rewrites are advisory recommendations for human review. "
             "Never apply unverified DAX expressions directly without manual validation."
         ),
     }
+
+    if not is_groq_configured():
+        return result
+
+    user_prompt = (
+        f"Rule: {normalized_id}\n"
+        f"Known issue: {meta.get('issue', '')}\n"
+        f"Known guidance: {meta.get('recommendation', '')}\n"
+        f"Evidence: {evidence}\n\n"
+        f"Flagged DAX expression:\n{dax_expression}"
+    )
+    ai_reply = call_groq_chat(_GROQ_SYSTEM_PROMPT, user_prompt)
+    if ai_reply is None:
+        return result
+
+    parts = ai_reply.split("\n\n", 1)
+    result["ai_generated"] = True
+    result["ai_model"] = os.environ.get("GROQ_MODEL", DEFAULT_GROQ_MODEL)
+    result["suggested_rewrite"] = parts[0].strip()
+    result["rewrite_explanation"] = parts[1].strip() if len(parts) > 1 else ""
+    return result

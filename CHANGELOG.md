@@ -6,6 +6,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.0] - 2026-08-22
+
+### Added
+- **`suggest_dax_rewrite` MCP tool now optionally calls Groq for a real, expression-specific DAX rewrite** (`pbiscan/mcp/groq_client.py`), in addition to its existing static, manually-reviewed advisory text.
+  - **BYO API key, opt-in only**: activated purely by the presence of a `GROQ_API_KEY` environment variable on the machine running `pbiscan mcp` — the tool makes zero network calls, and every other tool in the server remains fully deterministic and AI-free, when it's unset. No key is bundled, stored, or required to install/use `pbiscan[mcp]`.
+  - **Zero new dependencies**: the client uses only Python's standard library (`urllib`) — not even the `mcp` extra needs a new package for this.
+  - **`.env` file support**: `pbiscan mcp` auto-loads `GROQ_API_KEY`/`GROQ_MODEL` from a `.env` file in the current working directory if present (hand-rolled, no `python-dotenv` dependency), without ever overriding a real environment variable that's already set. `.env.example` is the tracked template; `.env` itself is gitignored.
+  - **Fails open to the deterministic fallback, never hard**: any network error, timeout, non-200 response, or malformed reply from Groq is caught and logged, and the tool returns the existing static recommendation exactly as before (`ai_generated: false`). A model can be selected via `GROQ_MODEL` (default `openai/gpt-oss-120b`, verified live against Groq's current model catalog — Groq's hosted-model lineup changes over time, so this may need updating again later).
+  - Still strictly advisory: the tool remains `readOnlyHint: true` and has no write path — a suggested rewrite is text for a human (or the calling agent) to review, never something `pbiscan` applies itself.
+  - Live-tested end-to-end against the real Groq API during development (not just mocked) to confirm the request format, headers, and model name actually work — this caught and fixed two real issues before release: api.groq.com's Cloudflare layer rejecting Python's default `urllib` User-Agent as a bot fingerprint (HTTP 403), and an initially-assumed default model name that no longer exists in Groq's current catalog (HTTP 404).
+  - `tests/conftest.py` disables the `.env` auto-loader for the entire test session (`PBISCAN_DISABLE_DOTENV=1`), including subprocess-spawned E2E tests — a real local `.env` file (e.g. for manual testing) must never make the test suite non-deterministic or network-dependent.
+
+---
+
+## [1.10.0] - 2026-08-22
+
+### Added
+- **Studio UI "Agent / MCP" tab**: a new panel in the local Studio Workbench (`pbiscan studio`) for connecting an AI agent host to `pbiscan mcp` — no AI or `mcp` package required to render it.
+  - **Environment check**: reports whether the optional `mcp` extra is installed, with a one-click `pip install 'pbiscan[mcp]'` copy button when it isn't.
+  - **Copyable client configuration** for Claude Desktop, Cursor, Claude Code (CLI), and VS Code Cline/Roo-Code, generated from the actual `pbiscan mcp` command rather than hand-typed examples.
+  - **Live tool safety matrix**: when `mcp` is installed, introspects a real, running server instance (`create_server().list_tools()`) for each tool's actual protocol-level `readOnlyHint`/`destructiveHint` — not a static description that could silently drift from the real registration. Falls back to a clearly-labeled static list (sourced from the same constants the real server registers from) when `mcp` isn't installed.
+  - **Rule catalog explorer**: browses the same 13-rule catalog the MCP `pbiscan://rules` resource serves to an agent.
+- **`pbiscan/mcp/server.py`**: extracted `READ_ONLY_TOOL_NAMES`/`DESTRUCTIVE_TOOL_NAMES` as module-level constants (the single source of truth for tool classification, usable without the `mcp` package installed) and added a build-time assertion in `create_server()` that fails loudly if a tool is ever registered without also being classified in one of these two lists — closing the exact drift class that caused the `v1.9.0` annotations gap.
+- 4 new `/api/mcp/*` Studio endpoints (`status`, `tools`, `rules`, `config-snippets`) and test coverage, including a regression guard asserting the Studio API's tool list can never disagree with the real MCP server's registered tools.
+
+---
+
 ## [1.9.1] - 2026-08-22
 
 ### Fixed

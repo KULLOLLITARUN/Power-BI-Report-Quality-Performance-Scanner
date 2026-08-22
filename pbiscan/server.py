@@ -382,6 +382,107 @@ async def get_remediation_manifest(manifest_id: str, project_path: str):
         raise HTTPException(status_code=500, detail=f"Failed to retrieve manifest: {exc}")
 
 
+# ---------------------------------------------------------------------------
+# Agent / MCP Integration (informational — never requires the `mcp` extra to
+# render; only live tool introspection needs it, with a static fallback)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/mcp/status")
+async def mcp_status():
+    """Report whether the optional `mcp` extra is installed, and the exact
+    command an AI agent host should be configured to run."""
+    import importlib.util
+    import sys
+
+    spec = importlib.util.find_spec("mcp")
+    mcp_version = None
+    if spec is not None:
+        try:
+            import mcp as _mcp_pkg
+            mcp_version = getattr(_mcp_pkg, "__version__", None)
+        except Exception:
+            mcp_version = None
+
+    return {
+        "mcp_installed": spec is not None,
+        "mcp_version": mcp_version,
+        "python_executable": sys.executable,
+        "server_command": "pbiscan",
+        "server_args": ["mcp"],
+    }
+
+
+@app.get("/api/mcp/tools")
+async def mcp_tools():
+    """List the MCP tool surface and its read-only/destructive classification.
+
+    Introspects a real, live server (with its actual protocol-level
+    ToolAnnotations) when the `mcp` extra is installed; otherwise falls back
+    to the same READ_ONLY_TOOL_NAMES/DESTRUCTIVE_TOOL_NAMES constants the real
+    server registers from, so the two can never silently disagree.
+    """
+    from pbiscan.mcp.server import DESTRUCTIVE_TOOL_NAMES, MCP_AVAILABLE, READ_ONLY_TOOL_NAMES, create_server
+
+    if MCP_AVAILABLE:
+        server = create_server()
+        live_tools = server._tool_manager.list_tools()
+        return {
+            "live": True,
+            "tools": [
+                {
+                    "name": t.name,
+                    "description": (t.description or "").strip().splitlines()[0] if t.description else "",
+                    "read_only": bool(t.annotations and t.annotations.readOnlyHint),
+                    "destructive": bool(t.annotations and t.annotations.destructiveHint),
+                }
+                for t in live_tools
+            ],
+        }
+
+    return {
+        "live": False,
+        "message": "Install pbiscan[mcp] to verify live protocol annotations.",
+        "tools": (
+            [{"name": n, "description": "", "read_only": True, "destructive": False} for n in READ_ONLY_TOOL_NAMES]
+            + [{"name": n, "description": "", "read_only": False, "destructive": True} for n in DESTRUCTIVE_TOOL_NAMES]
+        ),
+    }
+
+
+@app.get("/api/mcp/rules")
+async def mcp_rules():
+    """Return the static 13-rule catalog (same content the MCP `pbiscan://rules`
+    resource serves to an agent) — no `mcp` dependency needed for this."""
+    import json as json_mod
+    from pbiscan.mcp.resources import get_rules_catalog_json
+    return json_mod.loads(get_rules_catalog_json())
+
+
+@app.get("/api/mcp/config-snippets")
+async def mcp_config_snippets():
+    """Generate ready-to-paste MCP client configuration snippets for common
+    AI agent hosts, using the actual command a user would run locally."""
+    server_entry = {"command": "pbiscan", "args": ["mcp"]}
+
+    return {
+        "claude_desktop": {
+            "file": "claude_desktop_config.json",
+            "snippet": {"mcpServers": {"pbip-sentinel": server_entry}},
+        },
+        "cursor": {
+            "file": ".cursor/mcp.json",
+            "snippet": {"mcpServers": {"pbip-sentinel": server_entry}},
+        },
+        "claude_code_cli": {
+            "file": None,
+            "snippet": "claude mcp add pbip-sentinel -- pbiscan mcp",
+        },
+        "vscode_cline_roo": {
+            "file": "cline_mcp_settings.json",
+            "snippet": {"mcpServers": {"pbip-sentinel": server_entry}},
+        },
+    }
+
 
 # ---------------------------------------------------------------------------
 # SPA Static File Fallback Handler
