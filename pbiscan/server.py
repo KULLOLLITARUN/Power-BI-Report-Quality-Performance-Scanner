@@ -403,13 +403,40 @@ async def mcp_status():
         except Exception:
             mcp_version = None
 
+    import os
+    groq_key = os.environ.get("GROQ_API_KEY")
+    masked_key = f"{groq_key[:6]}...{groq_key[-4:]}" if groq_key and len(groq_key) > 10 else ("Configured" if groq_key else None)
+    groq_model = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+
     return {
         "mcp_installed": spec is not None,
         "mcp_version": mcp_version,
         "python_executable": sys.executable,
         "server_command": "pbiscan",
         "server_args": ["mcp"],
+        "groq_configured": bool(groq_key),
+        "groq_masked_key": masked_key,
+        "groq_model": groq_model,
     }
+
+
+@app.post("/api/dax/rewrite")
+async def dax_rewrite_endpoint(payload: dict):
+    """Invoke Groq AI directly from the UI to optimize and explain a DAX expression."""
+    from pbiscan.mcp.tools import handle_suggest_dax_rewrite
+
+    rule_id = payload.get("rule_id", "DAX_SUSPICIOUS_PATTERN")
+    dax_expression = payload.get("dax_expression", "")
+    evidence = payload.get("evidence", "")
+
+    if not dax_expression:
+        raise HTTPException(status_code=400, detail="dax_expression is required")
+
+    return handle_suggest_dax_rewrite(
+        rule_id=rule_id,
+        dax_expression=dax_expression,
+        evidence=evidence,
+    )
 
 
 @app.get("/api/mcp/tools")
