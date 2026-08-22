@@ -621,8 +621,33 @@ def fix(
             sys.exit(0)
 
 
+@main.command("mcp")
+def mcp_command():
+    """Start the PBIP Sentinel Model Context Protocol (MCP) server over stdio.
+
+    Allows AI agents (Claude Desktop, Claude Code, Cursor, Antigravity) to
+    interact with PBIP Sentinel via standard JSON-RPC.
+    """
+    try:
+        from pbiscan.mcp import run_mcp_server
+    except ImportError as exc:
+        click.echo(
+            f"[ERROR] MCP server failed to start: {exc}\n"
+            "Install the MCP extra via: pip install 'pbiscan[mcp]'",
+            err=True,
+        )
+        sys.exit(2)
+
+    try:
+        run_mcp_server()
+    except Exception as exc:
+        click.echo(f"[ERROR] MCP server runtime error: {exc}", err=True)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
+
 
 
 
