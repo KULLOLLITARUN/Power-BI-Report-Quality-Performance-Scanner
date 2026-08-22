@@ -6,15 +6,12 @@ in-browser demo silently shows different findings/scores than `pbiscan scan`.
 This test builds clientScanner.ts to a small Node CLI harness with esbuild and
 diffs its output against ScanService for every golden fixture.
 
-Known gap (tracked, not a regression): clientScanner.ts does not implement the
-Python engine's DAX dependency graph or Unified Semantic Reference Index
-(calc group SELECTEDMEASURE bindings, field parameter tables, RLS filter
-expressions, and PBIR nested `objects.*` expression traversal). This means
-DAX_UNUSED_MEASURE counts can diverge on fixtures that exercise those features
-— TS treats a measure as "used" only via a one-hop reference from another
-measure or a naive visual-reference-bracket scan. Full parity there requires
-porting DaxDependencyGraph + SemanticReferenceIndex to TypeScript, which is
-out of scope for this test. Every OTHER rule_id must match exactly.
+clientScanner.ts ports the Python engine's DAX dependency graph
+(studio-ui/src/engine/daxGraph.ts) and Unified Semantic Reference Index
+(studio-ui/src/engine/semanticReferences.ts) — calc group calculationItem DAX,
+field parameter NAMEOF() bindings, RLS tablePermission expressions, and a full
+recursive PBIR `objects.*` AST walk — so DAX_UNUSED_MEASURE reachability is
+computed identically on both engines, not just every other rule.
 """
 from __future__ import annotations
 
@@ -42,23 +39,6 @@ pytestmark = pytest.mark.skipif(
     not (NODE_AVAILABLE and NODE_MODULES_PRESENT),
     reason="Node or studio-ui node_modules (esbuild) not available — skipping cross-engine parity test",
 )
-
-# rule_ids intentionally excluded from the equality check for these fixtures,
-# because they exercise the DAX reachability gap described above.
-KNOWN_DAX_REACHABILITY_GAP_FIXTURES = {
-    "test_calc_group_variants",
-    "test_calc_groups_selectedmeasure",
-    "test_dax_graph_cycle",
-    "test_deep_dax_dependency_tree",
-    "test_directquery_composite_storage",
-    "test_enterprise_diamond_topology",
-    "test_field_parameter_variants",
-    "test_field_parameters_usage",
-    "test_pbir_objects_references",
-    "test_rls_ols_security",
-    "test_rls_variants",
-}
-
 
 @pytest.fixture(scope="module", autouse=True)
 def build_harness():
@@ -109,10 +89,6 @@ def test_rule_ids_match_python_engine(fixture_dir: Path):
 
     ts_result = _run_ts_scanner(fixture_dir)
     ts_rule_ids = ts_result["rule_ids"]
-
-    if fixture_dir.name in KNOWN_DAX_REACHABILITY_GAP_FIXTURES:
-        py_rule_ids = [r for r in py_rule_ids if r != "DAX_UNUSED_MEASURE"]
-        ts_rule_ids = [r for r in ts_rule_ids if r != "DAX_UNUSED_MEASURE"]
 
     assert ts_rule_ids == py_rule_ids, (
         f"clientScanner.ts diverges from ScanService on {fixture_dir.name}\n"

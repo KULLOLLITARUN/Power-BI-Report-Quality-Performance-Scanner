@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] - 2026-08-22
+
+### Added
+- **Full DAX reachability parity between the browser Studio Workbench and `pbiscan scan`.** `studio-ui/src/engine/clientScanner.ts` now ports the Python engine's `DaxDependencyGraph` and Unified Semantic Reference Index in full:
+  - `studio-ui/src/engine/daxGraph.ts`: a TypeScript port of `pbiscan.canonical.dax_graph` — a directed graph of `[Name]` references between measures and calculated columns, with cycle-safe multi-hop transitive reachability (`isReachableFromVisual`), replacing the previous shallow one-hop cross-measure regex scan.
+  - `studio-ui/src/engine/semanticReferences.ts`: a TypeScript port of `pbiscan.canonical.references` + the `calc_group_extractor` / `field_param_extractor` / `rls_extractor` producers — Calculation Group `calculationItem` DAX (including `ISSELECTEDMEASURE()`/`SELECTEDMEASURENAME()` predicates), Field Parameter `NAMEOF()` bindings, and Row-Level Security `tablePermission` filter expressions all now activate DAX reachability roots in the browser exactly as they do server-side.
+  - `clientScanner.ts`'s report/visual parsing was rewritten to use a full recursive AST walk (`extractMeasureNamesFromExprTree`, mirroring `PBIPReader._extract_measure_names_from_expr_tree`) across both legacy `report.json` and modern PBIR `page.json`/`visual.json` files, replacing a crude bracket-text regex scan that didn't understand the modern PBIR visual format at all.
+  - `DAX_UNUSED_MEASURE` on the browser engine now reflects the same graph-reachability semantics as the CLI: a base measure consumed only by another measure that's itself bound to a visual is correctly treated as used, at any depth.
+  - `tests/unit/test_client_scanner_parity.py`'s `KNOWN_DAX_REACHABILITY_GAP_FIXTURES` exclusion list has been removed entirely — all 34 golden fixtures now assert exact `rule_id` equality between the two engines with zero exceptions.
+- Hidden-page exclusion for `REPORT_VISUAL_BLOAT`/`REPORT_SLICER_BLOAT` in the browser engine, matching the CLI's `visibility != 0` skip (previously derived from the wrong JSON fields and never actually excluded hidden pages).
+
+---
+
 ## [1.7.3] - 2026-08-22
 
 ### Fixed
