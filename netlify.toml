@@ -4,6 +4,11 @@
   command = "node -e \"const fs=require('fs'); fs.cpSync('../pbiscan/studio/dist', 'dist', {recursive: true});\""
 
 [[redirects]]
+  from = "/api/*"
+  status = 404
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
