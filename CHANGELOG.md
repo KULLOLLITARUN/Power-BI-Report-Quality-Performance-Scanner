@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.1] - 2026-08-22
+
+### Added
+- **`mypy` static type checking gate in CI** (`pbiscan/` — no `[tool.mypy]` strict-mode config yet, so this runs under mypy's default settings, not `--strict`). Fixed the type errors it surfaced across `service.py`, `cli.py`, `server.py`, `planner.py`, `issue.py`, `pbip_reader.py`, and `field_param_extractor.py` (no `# type: ignore` suppressions used — all genuine fixes).
+- **Studio UI production bundle code-splitting**: `studio-ui/vite.config.ts` now splits `vendor-xyflow`, `vendor-icons`, and `vendor-react` into separate chunks. Main application chunk dropped from 560KB to 138KB; the Rollup bundle-size warning is gone.
+- **Continuous real-world corpus regression suite** (`tests/integration/test_real_world_corpus_regression.py`): scans the in-repo tracked model plus an optional local workstation corpus of real customer PBIP projects on every test run, asserting zero unhandled exceptions and (for the in-repo model) deterministic finding counts and scores. Workstation-only models `pytest.skip()` gracefully when not present, so this doesn't fail on CI or another contributor's machine.
+- **Remediation patcher coverage pushed to 95%+ on the two remaining weak files**: `relationship.py` 88%→100%, `measure.py` 84%→96% (package-wide: 89%→93%). New tests cover: non-bidirectional/unmatched relationship preconditions, all `_find_target_file` fallback tiers (TMDL name-glob, `database.json`, generic `*.bim`) for both patchers, `_parse_location`/`_parse_issue_location` malformed-input fallbacks, the dax-graph-absent and semantic-references-absent regex fallback paths in `MeasurePatcher.analyze`, a non-UTF-8 file correctly skipped (not crashing) during `MeasurePatcher._find_target_file`'s glob scan, and all three comma-repair candidate branches in `_patch_bim`'s JSON measure deletion.
+
+---
+
 ## [1.8.0] - 2026-08-22
 
 ### Added

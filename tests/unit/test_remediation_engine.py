@@ -206,6 +206,140 @@ class TestRelationshipPatcher:
         assert len(patch.chunks) == 1
         assert "oneDirection" in patch.chunks[0].replacement_text
 
+    def test_parse_location_malformed_returns_empty_tuple(self):
+        patcher = RelationshipPatcher()
+        assert patcher._parse_location("this has no arrow at all") == ("", "", "", "")
+        assert patcher._parse_location("Sales[CustomerID] <-> ") == ("", "", "", "")
+        assert patcher._parse_location("") == ("", "", "", "")
+
+    def test_single_direction_relationship_blocks_remediation(self, temp_bidirectional_bim: Path):
+        """A relationship that IS matched in the model but is NOT bidirectional
+        must violate 'relationship_is_bidirectional' rather than being patched."""
+        bim_file = temp_bidirectional_bim / "fixture.SemanticModel" / "model.bim"
+        data = json.loads(bim_file.read_text(encoding="utf-8"))
+        data["model"]["relationships"][0]["crossFilteringBehavior"] = "oneDirection"
+        bim_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+        scan_res = ScanService.execute_scan(temp_bidirectional_bim)
+        assert not any(f.rule_id == "MODEL_BIDIRECTIONAL" for f in scan_res.issues)
+
+        fake_issue = AuditIssue(
+            rule_id="MODEL_BIDIRECTIONAL", category="model", severity="WARNING",
+            title="t", issue="i", evidence="e", impact="x", recommendation="r", confidence=100,
+            location="Sales[CustomerID] <-> Customer[CustomerID]",
+        )
+        patcher = RelationshipPatcher()
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_bidirectional_bim)
+        assert "relationship_is_bidirectional" in evidence.violated_preconditions
+        assert "relationship_identified" in evidence.satisfied_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, temp_bidirectional_bim) is None
+
+    def test_unmatched_relationship_blocks_remediation(self, temp_bidirectional_bim: Path):
+        scan_res = ScanService.execute_scan(temp_bidirectional_bim)
+        fake_issue = AuditIssue(
+            rule_id="MODEL_BIDIRECTIONAL", category="model", severity="WARNING",
+            title="t", issue="i", evidence="e", impact="x", recommendation="r", confidence=100,
+            location="DoesNotExist[A] <-> AlsoMissing[B]",
+        )
+        patcher = RelationshipPatcher()
+        evidence = patcher.analyze(fake_issue, scan_res.report, temp_bidirectional_bim)
+        assert "relationship_identified" in evidence.violated_preconditions
+        assert patcher.generate_patch(fake_issue, evidence, temp_bidirectional_bim) is None
+
+    def test_generate_patch_returns_none_when_target_file_missing_despite_clean_evidence(
+        self, temp_bidirectional_bim: Path, tmp_path: Path
+    ):
+        """Defensive race-condition guard: generate_patch must bail out cleanly if the
+        target file no longer exists by the time it runs, even given evidence that
+        claims no violated preconditions (e.g. the file was deleted between analyze
+        and generate_patch, or generate_patch is called with stale evidence)."""
+        scan_res = ScanService.execute_scan(temp_bidirectional_bim)
+        bidir_findings = [f for f in scan_res.issues if f.rule_id == "MODEL_BIDIRECTIONAL"]
+        patcher = RelationshipPatcher()
+        evidence = patcher.analyze(bidir_findings[0], scan_res.report, temp_bidirectional_bim)
+        assert not evidence.violated_preconditions
+
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+        assert patcher.generate_patch(bidir_findings[0], evidence, empty_dir) is None
+
+    def test_find_target_file_tmdl_fallback_by_name(self, tmp_path: Path):
+        """relationships.tmdl not present, but a differently-named *.tmdl file
+        containing 'relationship' in its filename should still be found."""
+        fallback = tmp_path / "CustomRelationshipDefs.tmdl"
+        fallback.write_text("relationship R1\n\tfromColumn: Sales.CustomerID\n", encoding="utf-8")
+        patcher = RelationshipPatcher()
+        found = patcher._find_target_file(tmp_path)
+        assert found == fallback
+
+    def test_find_target_file_bim_fallback_by_extension(self, tmp_path: Path):
+        """No model.bim/database.json present, but any other *.bim file should
+        still be found as a last-resort fallback."""
+        fallback = tmp_path / "SemanticModel.bim"
+        fallback.write_text('{"model": {"tables": []}}', encoding="utf-8")
+        patcher = RelationshipPatcher()
+        found = patcher._find_target_file(tmp_path)
+        assert found == fallback
+
+    def test_find_target_file_returns_none_when_nothing_present(self, tmp_path: Path):
+        patcher = RelationshipPatcher()
+        assert patcher._find_target_file(tmp_path) is None
+
+    def test_find_target_file_database_json_fallback(self, tmp_path: Path):
+        fallback = tmp_path / "database.json"
+        fallback.write_text('{"model": {"tables": []}}', encoding="utf-8")
+        patcher = RelationshipPatcher()
+        assert patcher._find_target_file(tmp_path) == fallback
+
+    def test_analyze_violates_target_file_located_when_no_file_present(self, temp_bidirectional_bim: Path, tmp_path: Path):
+        scan_res = ScanService.execute_scan(temp_bidirectional_bim)
+        bidir_findings = [f for f in scan_res.issues if f.rule_id == "MODEL_BIDIRECTIONAL"]
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+        patcher = RelationshipPatcher()
+        evidence = patcher.analyze(bidir_findings[0], scan_res.report, empty_dir)
+        assert "target_file_located" in evidence.violated_preconditions
+
+    def test_generate_patch_returns_none_when_chunk_generation_fails(self, tmp_path: Path):
+        """Target file exists and evidence is clean, but the relationship block
+        for this specific from/to pair isn't found in it (e.g. stale evidence
+        pointing at a relationship that was since removed from the file)."""
+        rel_file = tmp_path / "relationships.tmdl"
+        rel_file.write_text(
+            "relationship R1\n\tfromColumn: Other.X\n\ttoColumn: AlsoOther.Y\n\tcrossFilteringBehavior: both\n",
+            encoding="utf-8",
+        )
+        from pbiscan.remediation.models import PatchEvidence
+        evidence = PatchEvidence(
+            rule_id="MODEL_BIDIRECTIONAL",
+            finding_key="MODEL_BIDIRECTIONAL::x",
+            confidence=0.95,
+            satisfied_preconditions=["relationship_identified", "relationship_is_bidirectional", "target_file_located"],
+            violated_preconditions=[],
+        )
+        fake_issue = AuditIssue(
+            rule_id="MODEL_BIDIRECTIONAL", category="model", severity="WARNING",
+            title="t", issue="i", evidence="e", impact="x", recommendation="r", confidence=100,
+            location="Sales[CustomerID] <-> Customer[CustomerID]",
+        )
+        patcher = RelationshipPatcher()
+        assert patcher.generate_patch(fake_issue, evidence, tmp_path) is None
+
+    def test_patch_tmdl_final_line_without_trailing_newline(self):
+        """The last line of a file may have no trailing newline; the replacement
+        must not introduce one where the original had none."""
+        content = (
+            "relationship R1\n"
+            "\tfromColumn: Sales.CustomerID\n"
+            "\ttoColumn: Customer.CustomerID\n"
+            "\tcrossFilteringBehavior: both"  # no trailing newline
+        )
+        patcher = RelationshipPatcher()
+        chunk = patcher._patch_tmdl(content, "Sales", "CustomerID", "Customer", "CustomerID")
+        assert chunk is not None
+        assert not chunk.replacement_text.endswith("\n")
+        assert "oneDirection" in chunk.replacement_text
+
 
 class TestMeasurePatcherLocationParsing:
     """_parse_issue_location has 3 independent fallback formats depending on which
@@ -1287,5 +1421,193 @@ class TestPatcherAdversarialAndEdgeCoverage:
         res = SandboxValidator.validate_plan(plan, fake_scan)
         assert res.accepted is True
         assert res.after_score == 100.0
+
+
+class TestMeasurePatcherDeepCoverage:
+    """Targeted coverage for MeasurePatcher branches not exercised elsewhere:
+    the dax_graph-absent / semantic_references-absent fallback paths, the
+    remaining _find_target_file fallback tiers, _parse_issue_location's final
+    fallback, and the three _patch_bim comma-repair candidate branches."""
+
+    def test_fallback_cross_measure_check_when_dax_graph_absent(self, temp_unusedmeasure_bim: Path):
+        scan_res = ScanService.execute_scan(temp_unusedmeasure_bim)
+        unused_findings = [f for f in scan_res.issues if f.rule_id == "DAX_UNUSED_MEASURE"]
+        assert len(unused_findings) == 1
+        base_measure = unused_findings[0]
+
+        # Simulate a report built without a dax_graph (e.g. an older canonical
+        # builder path) — the patcher must fall back to a direct regex scan of
+        # other measures' expressions rather than crashing.
+        scan_res.report.dax_graph = None
+        scan_res.report.semantic_references = None
+
+        patcher = MeasurePatcher()
+        evidence = patcher.analyze(base_measure, scan_res.report, temp_unusedmeasure_bim)
+        assert "zero_semantic_reference_consumers" in evidence.satisfied_preconditions
+
+    def test_fallback_cross_measure_check_detects_dependent_measure(self, tmp_path: Path):
+        """Without a dax_graph, a measure referenced by another measure's DAX
+        must still be detected as having a dependent via the regex fallback."""
+        src = GOLDEN_DIR / "test_measure_referenced_by_another"
+        dest = tmp_path / "test_measure_referenced_by_another"
+        shutil.copytree(src, dest)
+        scan_res = ScanService.execute_scan(dest)
+
+        base_measure_issue = next(
+            (f for f in scan_res.issues if "Base Revenue" in (f.location or f.evidence)), None
+        )
+        # This fixture's whole point is that Base Revenue has zero findings
+        # (it's used transitively) — construct the issue directly to unit-test
+        # the fallback branch in isolation.
+        fake_issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE", category="dax", severity="ADVISORY",
+            title="t", issue="i", evidence="Measure 'Base Revenue' [Sales]: unused",
+            impact="x", recommendation="r", confidence=95,
+            location="Measure: Base Revenue",
+        )
+        scan_res.report.dax_graph = None
+        patcher = MeasurePatcher()
+        evidence = patcher.analyze(fake_issue, scan_res.report, dest)
+        assert "zero_transitive_measure_dependents" in evidence.violated_preconditions
+        assert base_measure_issue is None  # sanity: confirms the fixture setup assumption
+
+    def test_parse_issue_location_final_fallback(self):
+        patcher = MeasurePatcher()
+        fake_issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE", category="dax", severity="ADVISORY",
+            title="t", issue="i", evidence="", impact="x", recommendation="r", confidence=95,
+            location="JustAPlainNameNoBracketsOrPrefix",
+        )
+        name, table = patcher._parse_issue_location(fake_issue)
+        assert name == "JustAPlainNameNoBracketsOrPrefix"
+        assert table == ""
+
+    def test_find_target_file_tables_dir_without_definition_prefix(self, tmp_path: Path):
+        (tmp_path / "tables").mkdir()
+        target = tmp_path / "tables" / "Sales.tmdl"
+        target.write_text("table Sales\n\tmeasure 'M1' = 1\n", encoding="utf-8")
+        patcher = MeasurePatcher()
+        assert patcher._find_target_file(tmp_path, "Sales", "M1") == target
+
+    def test_find_target_file_glob_fallback_by_measure_declaration(self, tmp_path: Path):
+        """No table-name match at all, but some TMDL file on disk declares the
+        measure directly — the patcher must still find it via full-project glob."""
+        odd_file = tmp_path / "SomeOtherTable.tmdl"
+        odd_file.write_text("table SomeOtherTable\n\tmeasure 'OrphanKPI' = 1\n", encoding="utf-8")
+        patcher = MeasurePatcher()
+        assert patcher._find_target_file(tmp_path, "", "OrphanKPI") == odd_file
+
+    def test_find_target_file_glob_fallback_skips_unreadable_file(self, tmp_path: Path):
+        """A non-UTF-8 TMDL file encountered while globbing for the measure
+        declaration must be skipped, not crash the whole lookup — the real
+        target file (found afterward) must still be located."""
+        bad_file = tmp_path / "aaa_legacy_codepage.tmdl"
+        bad_file.write_bytes(b"table Legacy\n\t/// byte: \xcb\n")
+        good_file = tmp_path / "zzz_target.tmdl"
+        good_file.write_text("table Zzz\n\tmeasure 'OrphanKPI' = 1\n", encoding="utf-8")
+
+        patcher = MeasurePatcher()
+        assert patcher._find_target_file(tmp_path, "", "OrphanKPI") == good_file
+
+    def test_find_target_file_bim_and_database_json_fallback(self, tmp_path: Path):
+        patcher = MeasurePatcher()
+        assert patcher._find_target_file(tmp_path, "", "AnyMeasure") is None
+
+        db_json = tmp_path / "database.json"
+        db_json.write_text('{"model": {"tables": []}}', encoding="utf-8")
+        assert patcher._find_target_file(tmp_path, "", "AnyMeasure") == db_json
+
+    def test_find_target_file_generic_bim_extension_fallback(self, tmp_path: Path):
+        patcher = MeasurePatcher()
+        generic_bim = tmp_path / "MyModel.bim"
+        generic_bim.write_text('{"model": {"tables": []}}', encoding="utf-8")
+        assert patcher._find_target_file(tmp_path, "", "AnyMeasure") == generic_bim
+
+    def test_generate_patch_none_when_target_file_missing_despite_clean_evidence(self, tmp_path: Path):
+        from pbiscan.remediation.models import PatchEvidence
+        evidence = PatchEvidence(
+            rule_id="DAX_UNUSED_MEASURE",
+            finding_key="DAX_UNUSED_MEASURE::x",
+            confidence=0.95,
+            satisfied_preconditions=["measure_identified"],
+            violated_preconditions=[],
+        )
+        fake_issue = AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE", category="dax", severity="ADVISORY",
+            title="t", issue="i", evidence="e", impact="x", recommendation="r", confidence=95,
+            location="Measure: Ghost",
+        )
+        patcher = MeasurePatcher()
+        assert patcher.generate_patch(fake_issue, evidence, tmp_path) is None
+
+    def test_patch_tmdl_measure_followed_by_unindented_line(self):
+        """A measure declaration immediately followed by a non-indented line
+        (rather than another indented property) must still terminate the block
+        cleanly via the unindented-line break, not run past it."""
+        content = "table Sales\nmeasure 'M1' = 1\nannotation Foo\n"
+        patcher = MeasurePatcher()
+        chunk = patcher._patch_tmdl(content, "M1")
+        assert chunk is not None
+        assert "M1" in chunk.original_text
+        assert "annotation Foo" not in chunk.original_text
+
+    def test_patch_bim_measure_with_multiline_object_and_trailing_comma(self):
+        """Exercises: (a) the backward brace-search loop walking back multiple
+        lines to find the object's opening '{', and (b) candidate 1 (trailing
+        comma already present after the block) succeeding directly."""
+        content = (
+            "{\n"
+            '  "measures": [\n'
+            "    {\n"
+            '      "name": "KeepMe",\n'
+            '      "expression": "1"\n'
+            "    },\n"
+            "    {\n"
+            '      "name": "DropMe",\n'
+            '      "expression": "2"\n'
+            "    },\n"
+            "    {\n"
+            '      "name": "AlsoKeep",\n'
+            '      "expression": "3"\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+        )
+        patcher = MeasurePatcher()
+        chunk = patcher._patch_bim(content, "T", "DropMe")
+        assert chunk is not None
+        assert "DropMe" in chunk.original_text
+        remaining = content.replace(chunk.original_text, chunk.replacement_text)
+        parsed = json.loads(remaining)
+        names = [m["name"] for m in parsed["measures"]]
+        assert "DropMe" not in names
+        assert "KeepMe" in names and "AlsoKeep" in names
+
+    def test_patch_bim_measure_last_in_array_uses_leading_comma_candidate(self):
+        """When the target measure is the LAST item in the array (no trailing
+        comma after it, but a leading comma before it), candidate 1 fails and
+        candidate 2 (strip the leading comma) must succeed instead."""
+        content = (
+            "{\n"
+            '  "measures": [\n'
+            "    {\n"
+            '      "name": "KeepMe",\n'
+            '      "expression": "1"\n'
+            "    },\n"
+            "    {\n"
+            '      "name": "DropMeLast",\n'
+            '      "expression": "2"\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+        )
+        patcher = MeasurePatcher()
+        chunk = patcher._patch_bim(content, "T", "DropMeLast")
+        assert chunk is not None
+        remaining = content.replace(chunk.original_text, chunk.replacement_text)
+        parsed = json.loads(remaining)
+        names = [m["name"] for m in parsed["measures"]]
+        assert "DropMeLast" not in names
+        assert names == ["KeepMe"]
 
 
