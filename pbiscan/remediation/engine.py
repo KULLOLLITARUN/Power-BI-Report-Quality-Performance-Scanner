@@ -271,34 +271,12 @@ class RemediationEngine:
             }
             return json.dumps(out, indent=2)
 
-        lines: list[str] = []
         if output_format.lower() == "markdown":
-            lines.append(f"## PBIP Sentinel Remediation Plan — `{plan.model_path.name}`\n")
-            lines.append(f"**Validation Verdict**: `{'ACCEPTED' if validation_result.accepted else 'REJECTED'}`")
-            lines.append(f"- **Baseline Score**: {validation_result.before_score:.1f}")
-            lines.append(f"- **Predicted Score**: {validation_result.after_score:.1f} ({validation_result.score_delta:+.1f})")
-            lines.append(f"- **Patches Planned**: {len(plan.actionable_patches)}\n")
-
-            for i, p in enumerate(plan.patches, 1):
-                lines.append(f"### Patch {i}: `{p.patch_id}` ({p.rule_id})")
-                lines.append(f"- **Target File**: `{p.file_path.name}`")
-                lines.append(f"- **Safety**: `{p.safety.value}` | **State**: `{p.state.value}`")
-                lines.append(f"- **Rationale**: {p.rationale}")
-                lines.append(f"- **Semantic Risk**: `{p.evidence.semantic_risk}`\n")
-                lines.append("```diff")
-                for c in p.chunks:
-                    diff = difflib.unified_diff(
-                        c.original_text.splitlines(keepends=True),
-                        c.replacement_text.splitlines(keepends=True),
-                        fromfile=f"a/{p.file_path.name}",
-                        tofile=f"b/{p.file_path.name}",
-                    )
-                    lines.extend([d.rstrip("\n") for d in diff])
-                lines.append("```\n")
-
-            return "\n".join(lines)
+            from pbiscan.render.remediation_markdown import RemediationMarkdownRenderer
+            return RemediationMarkdownRenderer.render(plan, validation_result)
 
         # ANSI Console preview
+        lines: list[str] = []
         lines.append("\n=======================================================")
         lines.append("        PBIP SENTINEL SAFE REMEDIATION ENGINE          ")
         lines.append("=======================================================")

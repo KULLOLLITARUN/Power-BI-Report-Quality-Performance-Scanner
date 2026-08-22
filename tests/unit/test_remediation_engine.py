@@ -747,7 +747,7 @@ class TestCliFixCommand:
         # Test Markdown
         res_md = runner.invoke(main, ["fix", str(temp_bidirectional_bim), "--format", "markdown"])
         assert res_md.exit_code == 3
-        assert "## PBIP Sentinel Remediation Plan" in res_md.output
+        assert "## 🛡️ PBIP Sentinel — Safe Remediation Proposal" in res_md.output
         assert "```diff" in res_md.output
 
     def test_cli_fix_rule_filter(self, temp_bidirectional_bim: Path):

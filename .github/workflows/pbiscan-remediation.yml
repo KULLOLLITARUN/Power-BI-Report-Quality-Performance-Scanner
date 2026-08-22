@@ -1,0 +1,101 @@
+name: PBIP Sentinel — PR Safe Remediation Proposals
+
+on:
+  pull_request:
+    paths:
+      - '**/*.pbip'
+      - '**/*.SemanticModel/**'
+      - '**/*.Report/**'
+      - '**/*.tmdl'
+      - '**/*.bim'
+      - '**/*.pbir'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  pbip-remediation-proposal:
+    name: Propose Safe PBIP Remediations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR Branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PBIP Sentinel
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Generate Safe Remediation Proposals
+        id: generate_remediations
+        run: |
+          mkdir -p .pbiscan_artifacts
+          
+          # Discover all .pbip projects in the workspace
+          PBIP_FILES=$(find . -name "*.pbip" -not -path "*/.*" -not -path "*/node_modules/*")
+          
+          if [ -z "$PBIP_FILES" ]; then
+            echo "No PBIP models found in PR branch."
+            echo "has_models=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "has_models=true" >> $GITHUB_OUTPUT
+          
+          for pbip in $PBIP_FILES; do
+            echo "Analyzing candidate safe remediations for: $pbip"
+            # Zero-mutation CI run: Generates proposal markdown without modifying repository
+            pbiscan fix "$pbip" --format markdown --out .pbiscan_artifacts/remediation_proposal.md || true
+          done
+
+      - name: Post Remediation Proposal to PR
+        if: steps.generate_remediations.outputs.has_models == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const proposalFile = '.pbiscan_artifacts/remediation_proposal.md';
+            
+            if (!fs.existsSync(proposalFile)) {
+              console.log('No remediation proposal file generated.');
+              return;
+            }
+            
+            const body = fs.readFileSync(proposalFile, 'utf8');
+            const commentHeader = '## 🛡️ PBIP Sentinel — Safe Remediation Proposal';
+            
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+            });
+            
+            const existingComment = comments.find(c => c.body.includes(commentHeader));
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+              console.log(`Updated existing remediation proposal comment ID: ${existingComment.id}`);
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: body
+              });
+              console.log('Created new remediation proposal comment on PR.');
+            }

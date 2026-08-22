@@ -61,7 +61,7 @@ class TestCliRemediationUxAndSelectiveApply:
         assert out_file.exists()
 
         content = out_file.read_text(encoding="utf-8")
-        assert "## PBIP Sentinel Remediation Plan" in content
+        assert "## 🛡️ PBIP Sentinel — Safe Remediation Proposal" in content
         assert "```diff" in content
 
     def test_cli_fix_selective_patch_id_apply(self, temp_multirule_model: Path):
