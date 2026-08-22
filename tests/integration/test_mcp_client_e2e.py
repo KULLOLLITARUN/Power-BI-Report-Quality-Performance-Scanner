@@ -217,3 +217,50 @@ class TestMcpClientE2E:
                     assert "advisory_note" in dax_data
 
         asyncio.run(_run())
+
+    def test_e2e_mcp_apply_remediation_lifecycle(
+        self,
+        mcp_server_params: StdioServerParameters,
+        tmp_path: Path,
+    ):
+        """Test full plan -> approve -> apply_remediation -> backup -> re-scan cycle over JSON-RPC."""
+
+        async def _run():
+            async with stdio_client(mcp_server_params) as (read_stream, write_stream):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
+
+                    # 1. Prepare isolated model in tmp_path
+                    target_model = tmp_path / "model_to_fix"
+                    shutil.copytree(GOLDEN_DIR / "test_bidirectional", target_model)
+
+                    # 2. Plan remediation over JSON-RPC
+                    plan_call = await session.call_tool("plan_remediation", arguments={"path": str(target_model)})
+                    assert not plan_call.isError
+                    plan_data = json.loads(plan_call.content[0].text)  # type: ignore[attr-defined]
+                    patches = plan_data["plan"]["patches"]
+                    assert len(patches) >= 1
+                    patch_id = patches[0]["patch_id"]
+
+                    # 3. Apply remediation over JSON-RPC with typed patch_ids list
+                    apply_call = await session.call_tool(
+                        "apply_remediation",
+                        arguments={"path": str(target_model), "patch_ids": [patch_id]},
+                    )
+                    assert not apply_call.isError
+                    apply_data = json.loads(apply_call.content[0].text)  # type: ignore[attr-defined]
+                    assert apply_data["status"] == "APPLIED"
+                    assert apply_data["applied_count"] == 1
+                    assert apply_data["score_gain"] > 0
+                    assert apply_data["backup_location"] is not None
+                    assert Path(apply_data["backup_location"]).exists()
+
+                    # 4. Verify model state improved upon re-scan over JSON-RPC
+                    scan_after = await session.call_tool("scan_model", arguments={"path": str(target_model)})
+                    assert not scan_after.isError
+                    scan_after_data = json.loads(scan_after.content[0].text)  # type: ignore[attr-defined]
+                    # Bidirectional finding should now be resolved
+                    assert not any(f["rule_id"] == "MODEL_BIDIRECTIONAL" for f in scan_after_data["findings"])
+
+        asyncio.run(_run())
+
