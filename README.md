@@ -303,4 +303,4 @@ If Node.js and `studio-ui`'s dependencies (`npm install` inside `studio-ui/`) ar
 
 ## 📄 License
 
-MIT License — Copyright (c) 2026 Tarun Kulloolli
+MIT License — Copyright (c) 2026 Tarun Kullolli
