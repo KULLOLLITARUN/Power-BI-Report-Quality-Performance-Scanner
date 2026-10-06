@@ -58,7 +58,7 @@ class TestPackagingAndEntrypoints:
         index_file = STATIC_DIR / "index.html"
         assert index_file.exists(), f"Studio index.html missing: {index_file}"
         content = index_file.read_text(encoding="utf-8")
-        assert "PBIP Sentinel" in content
+        assert "pbiscan Studio" in content
         assert "id=\"root\"" in content
         assets_dir = STATIC_DIR / "assets"
         assert assets_dir.exists()

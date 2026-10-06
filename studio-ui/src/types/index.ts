@@ -101,6 +101,13 @@ export interface ScanResult {
   calculated_columns: CalculatedColumnInfo[];
   pages: PageInfo[];
   warnings: string[];
+  scanner_version?: string;
+  /** Measure dependency graph (local engine only). */
+  dax_graph?: {
+    nodes: { name: string; table: string; kind: string; expression: string; references: string[]; referenced_by: string[] }[];
+    edges: { source: string; target: string }[];
+    has_cycles: boolean;
+  };
   summary: {
     total_findings: number;
     table_count: number;

@@ -27,7 +27,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
-          'vendor-xyflow': ['@xyflow/react', 'dagre'],
+          'vendor-three': ['three'],
+          'vendor-anime': ['animejs'],
           'vendor-icons': ['lucide-react'],
         },
       },

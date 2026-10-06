@@ -71,7 +71,7 @@ class TestStudioServerApi:
     def test_serve_spa_index_page(self, client):
         response = client.get("/")
         assert response.status_code == 200
-        assert "PBIP Sentinel" in response.text
+        assert "pbiscan Studio" in response.text
         assert 'id="root"' in response.text
 
     def test_spa_client_routing_fallback(self, client):
@@ -79,7 +79,7 @@ class TestStudioServerApi:
         for route in ("/overview", "/findings", "/dax-dag", "/model", "/sem-refs", "/canvas"):
             response = client.get(route)
             assert response.status_code == 200
-            assert "PBIP Sentinel" in response.text
+            assert "pbiscan Studio" in response.text
             assert 'id="root"' in response.text
 
     def test_export_endpoints(self, client):

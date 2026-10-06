@@ -1,4 +1,5 @@
-import { ScanResult } from '../types';
+import type { HistoryPoint } from '../lib/history';
+import type { ScanResult, VisualInfo } from '../types';
 
 export const SAMPLE_BANANAS_REPORT: ScanResult = {
   report_name: "world is going bananas.pbip",
@@ -385,3 +386,73 @@ export const SAMPLE_ENTERPRISE_REPORT: ScanResult = {
     page_count: 3,
   },
 };
+
+// ---------------------------------------------------------------------------
+// Sample visual layouts and score history (made up, for the demo projects only)
+// ---------------------------------------------------------------------------
+
+const CHART_TYPES = ['card', 'clusteredColumnChart', 'lineChart', 'tableEx', 'donutChart', 'matrix', 'barChart', 'areaChart'];
+
+/** Lay each sample page out like a typical report: slicers on top, KPI cards, then a chart grid. */
+function addSampleLayout(report: ScanResult): void {
+  const unused = new Set(
+    report.findings.filter((f) => f.rule_id === 'DAX_UNUSED_MEASURE').map((f) => (/\[([^\]]+)\]/.exec(f.location || '')?.[1] ?? '').toLowerCase()),
+  );
+  const measures = report.measures.filter((m) => !unused.has(m.name.toLowerCase()));
+  const factNames = new Set(report.measures.map((m) => m.table));
+  const dims = report.tables.map((t) => t.name).filter((n) => !factNames.has(n));
+  const pick = <T,>(list: T[], i: number): T | undefined => (list.length ? list[i % list.length] : undefined);
+
+  report.pages.forEach((page, p) => {
+    const W = 1280, H = 720, gap = 12, pad = 16;
+    const visuals: VisualInfo[] = [];
+    const slicers = page.slicer_count;
+    const rest = page.visual_count - slicers;
+    for (let i = 0; i < slicers; i++) {
+      const dim = pick(dims, i + p) ?? '';
+      visuals.push({ visual_type: 'slicer', x: pad + i * 196, y: pad, width: 184, height: 56, measure_refs: [], fields_used: [], table_refs: dim ? [dim] : [], is_slicer: true, hidden: false });
+    }
+    const top = slicers ? pad + 56 + gap : pad;
+    const cards = Math.min(4, Math.max(0, rest - 2));
+    const cw = (W - pad * 2 - gap * (cards - 1)) / Math.max(1, cards);
+    for (let i = 0; i < cards; i++) {
+      const m = pick(measures, i + p);
+      visuals.push({ visual_type: 'card', x: pad + i * (cw + gap), y: top, width: cw, height: 96, measure_refs: m ? [m.name] : [], fields_used: m ? [m.name] : [], table_refs: m ? [m.table] : [], is_slicer: false, hidden: false });
+    }
+    const charts = rest - cards;
+    const cols = charts > 6 ? 4 : 3;
+    const rows = Math.max(1, Math.ceil(charts / cols));
+    const gridTop = top + (cards ? 96 + gap : 0);
+    const chH = (H - gridTop - pad - gap * (rows - 1)) / rows;
+    const chW = (W - pad * 2 - gap * (cols - 1)) / cols;
+    for (let i = 0; i < charts; i++) {
+      const m = pick(measures, i + 2 + p);
+      const dim = pick(dims, i + p);
+      const tables = [...new Set([m?.table, dim].filter(Boolean) as string[])];
+      visuals.push({
+        visual_type: CHART_TYPES[(i + p) % CHART_TYPES.length].replace(/^card$/, 'clusteredColumnChart'),
+        x: pad + (i % cols) * (chW + gap), y: gridTop + Math.floor(i / cols) * (chH + gap), width: chW, height: chH,
+        measure_refs: m ? [m.name] : [], fields_used: m ? [m.name] : [], table_refs: tables, is_slicer: false, hidden: false,
+      });
+    }
+    page.width = W;
+    page.height = H;
+    page.visuals = visuals;
+  });
+}
+
+addSampleLayout(SAMPLE_BANANAS_REPORT);
+addSampleLayout(SAMPLE_ENTERPRISE_REPORT);
+
+/** A made-up trend that ends at the sample's current score. */
+export function sampleHistory(report: ScanResult): HistoryPoint[] {
+  const end = report.scores.overall;
+  const steps = [-11.2, -9.4, -7.6, -8.3, -4.9, -3.1, -3.1, 0];
+  const day = 24 * 3600 * 1000;
+  const now = Date.now();
+  return steps.map((d, i) => ({
+    t: new Date(now - (steps.length - 1 - i) * 16 * day).toISOString(),
+    overall: Math.max(0, Math.min(100, +(end + d).toFixed(1))),
+    findings: report.findings.length + Math.max(0, Math.round(-d / 2)),
+  }));
+}

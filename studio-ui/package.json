@@ -10,24 +10,23 @@
     "build:parity-harness": "esbuild scripts/parityHarness.ts --bundle --platform=node --format=cjs --outfile=scripts/dist/parityHarness.cjs"
   },
   "dependencies": {
-    "@xyflow/react": "^12.3.6",
-    "clsx": "^2.1.1",
-    "dagre": "^0.8.5",
+    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "animejs": "^3.2.2",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tailwind-merge": "^2.5.4"
+    "three": "^0.169.0"
   },
   "devDependencies": {
-    "@types/dagre": "^0.7.52",
+    "@types/animejs": "^3.1.12",
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "^4.3.3",
-    "autoprefixer": "^10.4.20",
     "esbuild": "^0.21.5",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.15",
     "typescript": "~5.6.2",
     "vite": "^5.4.10"
   }

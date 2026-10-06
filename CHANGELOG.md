@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Visual layout data for Studio**: every visual now carries its canvas position and size plus `table_refs` (the model tables its query reads), and every page its canvas width and height. `table_refs` is display-only; no rule reads it, and `measure_refs`/`fields_used` are unchanged. The browser scanner mirrors it, and the parity test compares page layouts across both engines.
+
+### Changed
+- **Studio redesign.** New look (navy ink, cobalt accent, IBM Plex and Archivo, both themes), a mobile layout with a bottom tab bar and bottom sheets, and a 3D model map built with three.js: tables are blocks sized by column count and coloured by role, relationships are arcs with dots showing filter direction, and tables with findings carry a severity marker. Report pages can float above the model with a thread from each visual to the tables it reads. Fonts are bundled instead of loaded from Google Fonts.
+- **Studio fixes**: `pbiscan studio <path>` scans the path on first load (it used to show a "needs the local engine" error); dropped folders with more than 100 entries are read completely; picking a folder with no project files shows an error instead of nothing; the Fixes tab no longer shows simulated patches in browser-only mode.
+
 ## [1.11.1] - 2026-08-22
 
 ### Changed
