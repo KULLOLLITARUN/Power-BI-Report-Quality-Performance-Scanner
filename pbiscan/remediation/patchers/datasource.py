@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Optional
 
 from pbiscan.canonical.model import CanonicalReport, Table
@@ -32,6 +32,16 @@ _JSON_ESCAPED_LOCAL_PATH_PATTERN = re.compile(
     r'\\"[a-zA-Z]:\\\\(?:users|documents|desktop|downloads|temp|tmp)[^"]*?\\"',
     re.IGNORECASE,
 )
+
+
+def _file_name(path: str) -> str:
+    r"""Last component of a Windows or POSIX path, whatever OS pbiscan runs on.
+
+    Path() on Linux treats a backslash as an ordinary character, so
+    Path(r"C:\Users\a\Sales.csv").name is the whole string there.
+    PureWindowsPath splits on both separators on every OS.
+    """
+    return PureWindowsPath(path).name
 
 
 class DataSourcePatcher(BasePatcher):
@@ -219,7 +229,7 @@ class DataSourcePatcher(BasePatcher):
     def _parameterize_path(self, raw_path: str) -> str:
         """Convert 'C:\\Users\\Admin\\Desktop\\Orders.xlsx' -> DataFolderPath & \"\\\\Orders.xlsx\"."""
         clean = raw_path.strip('\'"')
-        filename = Path(clean).name
+        filename = _file_name(clean)
         if not filename:
             filename = "data.csv"
         # Return M parameter expression
@@ -259,7 +269,7 @@ class DataSourcePatcher(BasePatcher):
                 # Strip the JSON-escaped boundary tokens (\" ... \") and un-escape
                 # doubled backslashes back to single ones to recover the plain path.
                 clean_path = raw_path_with_quotes[2:-2].replace("\\\\", "\\")
-                filename = Path(clean_path).name
+                filename = _file_name(clean_path)
                 if not filename:
                     filename = "data.csv"
                 # Full JSON-escaped replacement, including its own boundary quotes.

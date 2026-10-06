@@ -531,6 +531,13 @@ async def serve_spa(full_path: str):
             "api_endpoints": ["/api/health", "/api/scan", "/api/browse", "/docs"],
         }
 
+    # Reject traversal syntax outright rather than relying on resolve(): a backslash
+    # is a separator on Windows but an ordinary filename character on Linux, so the
+    # same request would otherwise be blocked on one OS and fall through to
+    # index.html on the other.
+    if "\\" in full_path or ".." in full_path.split("/"):
+        raise HTTPException(status_code=404, detail="Not found")
+
     static_root = STATIC_DIR.resolve()
     file_path = (static_root / full_path).resolve()
     if not file_path.is_relative_to(static_root):

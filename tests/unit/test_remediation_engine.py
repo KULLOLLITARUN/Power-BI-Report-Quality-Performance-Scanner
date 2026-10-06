@@ -1611,3 +1611,18 @@ class TestMeasurePatcherDeepCoverage:
         assert names == ["KeepMe"]
 
 
+
+
+class TestDataSourceFileName:
+    """pathlib.Path on Linux treats '\' as a filename character, so a Windows path's
+    'file name' was the whole path there and the BIM patch wrote invalid JSON."""
+
+    @pytest.mark.parametrize("path, expected", [
+        (r"C:\Users\a\Downloads\Sales.csv", "Sales.csv"),
+        ("C:/Users/a/Downloads/Sales.csv", "Sales.csv"),
+        (r"C:\Users\a/mixed\Orders.xlsx", "Orders.xlsx"),
+        ("/home/u/data/x.parquet", "x.parquet"),
+    ])
+    def test_file_name_splits_both_separators_on_any_os(self, path, expected):
+        from pbiscan.remediation.patchers.datasource import _file_name
+        assert _file_name(path) == expected
