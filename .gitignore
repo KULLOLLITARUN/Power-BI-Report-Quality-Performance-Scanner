@@ -51,3 +51,6 @@ diff_*.md
 # template; .env is where you paste your own GROQ_API_KEY locally.
 .env
 .env.local
+
+# Local assistant instructions (kept out of the repo)
+CLAUDE.md
