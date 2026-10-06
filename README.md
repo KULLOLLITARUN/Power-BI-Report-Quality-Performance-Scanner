@@ -2,7 +2,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Workbench-pbip--sentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbip-sentinel.netlify.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Tests: 547 Passing](https://img.shields.io/badge/Tests-547%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
+[![CI](https://img.shields.io/github/actions/workflow/status/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner/ci.yml?branch=main&label=CI&style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner/actions/workflows/ci.yml)
 [![Python: 3.10 | 3.11 | 3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue?style=for-the-badge&logo=python&logoColor=white)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![SARIF: OASIS v2.1.0](https://img.shields.io/badge/SARIF-OASIS%20v2.1.0-blueviolet?style=for-the-badge)](https://sarifweb.azurewebsites.net/)
 
@@ -38,7 +38,7 @@ PBIP Sentinel follows a strict **Observation $\to$ Proof $\to$ Implementation** 
 | **Real-World Models Audited** | **11 Models** | PBIP models across Sales, HR, Finance, and Retail |
 | **Classified Findings** | **94 / 94 True Positives** | Every finding on this corpus was manually classified; none were false positives |
 | **Crash Rate** | **0 / 11** | No crashes or unhandled exceptions across the corpus |
-| **Automated Test Suite** | **547 / 547 Passing** | Unit tests, golden fixtures, and API contracts (~1 min execution) |
+| **Automated Test Suite** | **Runs on every push** | Unit tests, golden fixtures, cross-engine parity, and API contracts (~1 min) |
 
 These figures describe this 11-model corpus only. They are evidence, not a guarantee: other models can exercise patterns the corpus does not contain. If you hit a false positive, please [open an issue](.github/ISSUE_TEMPLATE/bug_report.md).
 
@@ -66,7 +66,7 @@ These figures describe this 11-model corpus only. They are evidence, not a guara
 ### DAX & Calculations (4 Rules)
 | Code | Rule ID | Severity | Confidence | Description & Impact |
 |:---|:---|:---:|:---:|:---|
-| `D001` | `DAX_SUSPICIOUS_PATTERN` | `ADVISORY` | ≤65% | Flags suboptimal DAX patterns (e.g. `FILTER(ALL(...))`) needing review. |
+| `D001` | `DAX_SUSPICIOUS_PATTERN` | `ADVISORY` | 65% | Flags suboptimal DAX patterns (e.g. `FILTER(ALL(...))`) needing review. |
 | `D002` | `DAX_EXCESSIVE_CALC_COLUMNS` | `MEDIUM` | 100% | Warns on tables with >4 calculated columns consuming uncompressed memory. |
 | `D003` | `DAX_DUPLICATE_MEASURE` | `MEDIUM` | 90% | Identifies duplicate normalized DAX formulas across different measures. |
 | `D004` | `DAX_UNUSED_MEASURE` | `ADVISORY` | 95% | Multi-hop transitive scan flagging measures not bound to visuals, filters, bookmarks, report-level measures, calc groups, field params, or RLS. |
@@ -301,11 +301,11 @@ PBIP Project (.pbip / TMDL / TMSL / PBIR)
 ## 🧪 Automated Testing
 
 ```bash
-# Run all 547 unit, golden contract, and integration tests
+# Run all unit, golden contract, and integration tests
 pytest tests/ -v
 ```
 
-If Node.js and `studio-ui`'s dependencies (`npm install` inside `studio-ui/`) are available, an additional 34 cross-engine parity tests run automatically, diffing the in-browser `clientScanner.ts` engine's findings against the Python `ScanService` for every golden fixture — this is what keeps the Netlify Studio Workbench's results honest against `pbiscan scan`.
+If Node.js and `studio-ui`'s dependencies (`npm install` inside `studio-ui/`) are available, cross-engine parity tests run automatically, diffing the in-browser `clientScanner.ts` engine's findings and scores against the Python `ScanService` for every golden fixture (CI always runs them) — this is what keeps the Netlify Studio Workbench's results honest against `pbiscan scan`.
 
 ---
 

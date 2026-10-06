@@ -25,6 +25,7 @@ GOLDEN_EXPECTATIONS = [
     ("test_visualbloat",     "REPORT_VISUAL_BLOAT",        1, 100, 100),
     ("test_slicerbloat",     "REPORT_SLICER_BLOAT",        1, 100, 100),
     ("test_duplicatedax",    "DAX_DUPLICATE_MEASURE",      1,  90,  90),
+    ("test_excessive_calc_columns", "DAX_EXCESSIVE_CALC_COLUMNS", 1, 100, 100),
     ("test_unusedmeasure",   "DAX_UNUSED_MEASURE",         1,  95,  95),
 
     # Structural / heuristic — at least 1 finding, bounded confidence
@@ -89,3 +90,11 @@ def test_critical_negative_regression():
         f"REGRESSION FAILURE: DAX_UNUSED_MEASURE fired {count} time(s). "
         "Base Revenue is referenced by Revenue Per Unit and must NOT be flagged."
     )
+
+
+def test_excessive_calc_columns_threshold_boundary():
+    """D002 fires for Sales (5 calculated columns) but not for Product, which
+    sits exactly at the threshold of 4."""
+    result = run_pipeline("test_excessive_calc_columns")
+    locations = [i.location for i in result["issues"] if i.rule_id == "DAX_EXCESSIVE_CALC_COLUMNS"]
+    assert locations == ["Table: Sales"]

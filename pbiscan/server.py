@@ -481,7 +481,7 @@ async def mcp_tools():
 
 @app.get("/api/mcp/rules")
 async def mcp_rules():
-    """Return the static 13-rule catalog (same content the MCP `pbiscan://rules`
+    """Return the rule catalog (same content the MCP `pbiscan://rules`
     resource serves to an agent) — no `mcp` dependency needed for this."""
     import json as json_mod
     from pbiscan.mcp.resources import get_rules_catalog_json

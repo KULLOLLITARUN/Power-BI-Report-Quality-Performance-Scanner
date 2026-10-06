@@ -14,6 +14,7 @@ import re
 
 from pbiscan.canonical.model import CanonicalReport
 from pbiscan.engine.issue import RuleFinding
+from pbiscan.rules.catalog import new_finding
 
 
 # ---------------------------------------------------------------------------
@@ -55,11 +56,8 @@ def check_suspicious_dax(
     for measure in report.dax.measures:
         for pattern, description in patterns:
             if re.search(pattern, measure.expression, re.IGNORECASE | re.DOTALL):
-                findings.append(RuleFinding(
-                    rule_id="DAX_SUSPICIOUS_PATTERN",
-                    category="dax",
-                    severity="ADVISORY",
-                    confidence=65,
+                findings.append(new_finding(
+                    "DAX_SUSPICIOUS_PATTERN",
                     evidence=(
                         f"Measure '{measure.name}' [{measure.table}]: "
                         f"{description}"
@@ -101,11 +99,8 @@ def check_excessive_calc_columns(
             continue
 
         if len(col_names) > threshold:
-            findings.append(RuleFinding(
-                rule_id="DAX_EXCESSIVE_CALC_COLUMNS",
-                category="dax",
-                severity="MEDIUM",
-                confidence=100,
+            findings.append(new_finding(
+                "DAX_EXCESSIVE_CALC_COLUMNS",
                 evidence=(
                     f"Table '{table_name}' has {len(col_names)} calculated "
                     f"columns (threshold: {threshold}). "
@@ -164,11 +159,8 @@ def check_duplicate_measures(report: CanonicalReport) -> list[RuleFinding]:
     for digest, names in hash_to_measures.items():
         if len(names) > 1 and digest not in reported_hashes:
             reported_hashes.add(digest)
-            findings.append(RuleFinding(
-                rule_id="DAX_DUPLICATE_MEASURE",
-                category="dax",
-                severity="MEDIUM",
-                confidence=90,
+            findings.append(new_finding(
+                "DAX_DUPLICATE_MEASURE",
                 evidence=(
                     f"Measures with identical normalised expressions: {names}"
                 ),
@@ -246,11 +238,8 @@ def check_unused_measures(report: CanonicalReport) -> list[RuleFinding]:
             is_used = in_visual or in_measure
 
         if not is_used:
-            findings.append(RuleFinding(
-                rule_id="DAX_UNUSED_MEASURE",
-                category="dax",
-                severity="ADVISORY",
-                confidence=95,
+            findings.append(new_finding(
+                "DAX_UNUSED_MEASURE",
                 evidence=(
                     f"Measure '{measure.name}' [{measure.table}]: "
                     f"not referenced by any report visual and not "

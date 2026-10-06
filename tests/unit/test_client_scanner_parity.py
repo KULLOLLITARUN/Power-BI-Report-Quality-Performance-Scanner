@@ -24,6 +24,7 @@ from pathlib import Path
 import pytest
 
 from pbiscan.engine.scoring import _SCORED_CATEGORIES, score_overall
+from pbiscan.rules.catalog import RULE_CATALOG
 from pbiscan.service import DEFAULT_CONFIG, ScanService
 
 REPO_ROOT = Path(__file__).parent.parent.parent
@@ -100,6 +101,18 @@ def test_rule_ids_match_python_engine(fixture_dir: Path):
 
 
 @pytest.mark.parametrize("fixture_dir", _fixture_dirs(), ids=lambda p: p.name)
+def test_finding_metadata_matches_python_engine(fixture_dir: Path):
+    """Category, severity and confidence are hard-coded in clientScanner.ts;
+    they must match the Python rule catalog for every finding."""
+    py_findings = sorted(
+        (i.rule_id, i.category, i.severity, i.confidence)
+        for i in ScanService.execute_scan(fixture_dir).issues
+    )
+    ts_findings = sorted(tuple(f) for f in _run_ts_scanner(fixture_dir)["findings"])
+    assert ts_findings == py_findings, fixture_dir.name
+
+
+@pytest.mark.parametrize("fixture_dir", _fixture_dirs(), ids=lambda p: p.name)
 def test_scores_match_python_engine(fixture_dir: Path):
     py_result = ScanService.execute_scan(fixture_dir, config=copy.deepcopy(DEFAULT_CONFIG))
     ts_result = _run_ts_scanner(fixture_dir)
@@ -109,8 +122,9 @@ def test_scores_match_python_engine(fixture_dir: Path):
 
 
 def test_scoring_constants_match_python_defaults():
-    """Every severity's deduction and every scored weight must agree, including
-    severities no current rule emits (fixtures alone would never catch those)."""
+    """Every severity's deduction, scored weight and rule's catalog metadata must
+    agree, including severities no current rule emits (fixtures alone would
+    never catch those)."""
     result = subprocess.run(
         ["node", str(HARNESS_BUNDLE), "--scoring-constants"],
         capture_output=True, text=True, timeout=30, check=True,
@@ -119,6 +133,10 @@ def test_scoring_constants_match_python_defaults():
 
     assert ts["deductions"] == DEFAULT_CONFIG["deductions"]
     assert ts["weights"] == {cat: DEFAULT_CONFIG["weights"][cat] for cat in _SCORED_CATEGORIES}
+    assert ts["rules"] == {
+        spec.rule_id: {"category": spec.category, "severity": spec.severity, "confidence": spec.confidence}
+        for spec in RULE_CATALOG
+    }
 
 
 def test_overall_score_rounding_matches_python():

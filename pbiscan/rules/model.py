@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from pbiscan.canonical.model import CanonicalReport, Table
 from pbiscan.engine.issue import RuleFinding
+from pbiscan.rules.catalog import new_finding
 
 
 # ---------------------------------------------------------------------------
@@ -24,11 +25,8 @@ def check_bidirectional(report: CanonicalReport) -> list[RuleFinding]:
     findings: list[RuleFinding] = []
     for rel in report.model.relationships:
         if rel.cross_filter_direction.lower() in ("both", "bothdirections", "2"):
-            findings.append(RuleFinding(
-                rule_id="MODEL_BIDIRECTIONAL",
-                category="model",
-                severity="WARNING",
-                confidence=100,
+            findings.append(new_finding(
+                "MODEL_BIDIRECTIONAL",
                 evidence=(
                     f"{rel.from_table}[{rel.from_column}] ↔ "
                     f"{rel.to_table}[{rel.to_column}], "
@@ -51,11 +49,8 @@ def check_many_to_many(report: CanonicalReport) -> list[RuleFinding]:
     findings: list[RuleFinding] = []
     for rel in report.model.relationships:
         if rel.cardinality.lower() in ("manytomany", "many_to_many", "m:m", "many:many"):
-            findings.append(RuleFinding(
-                rule_id="MODEL_MANY_TO_MANY",
-                category="model",
-                severity="WARNING",
-                confidence=100,
+            findings.append(new_finding(
+                "MODEL_MANY_TO_MANY",
                 evidence=(
                     f"{rel.from_table}[{rel.from_column}] → "
                     f"{rel.to_table}[{rel.to_column}], "
@@ -89,11 +84,8 @@ def check_no_date_table(report: CanonicalReport) -> list[RuleFinding]:
 
     if not has_date_table:
         table_names = [t.name for t in report.model.tables]
-        return [RuleFinding(
-            rule_id="MODEL_NO_DATE_TABLE",
-            category="model",
-            severity="WARNING",
-            confidence=70,
+        return [new_finding(
+            "MODEL_NO_DATE_TABLE",
             evidence=(
                 f"No table is marked as a Date Table and no table matches "
                 f"date-dimension naming or data-category signals. "
@@ -134,11 +126,8 @@ def check_high_cardinality(report: CanonicalReport) -> list[RuleFinding]:
     for table in report.model.tables:
         for col in table.columns:
             if _is_high_cardinality_candidate(col):
-                findings.append(RuleFinding(
-                    rule_id="MODEL_HIGH_CARDINALITY",
-                    category="model",
-                    severity="ADVISORY",
-                    confidence=87,
+                findings.append(new_finding(
+                    "MODEL_HIGH_CARDINALITY",
                     evidence=(
                         f"{table.name}[{col.name}]: "
                         f"dataType={col.data_type}, "
@@ -185,11 +174,8 @@ def check_fact_to_fact(report: CanonicalReport) -> list[RuleFinding]:
         to_looks_like_dim = any(h in rel.to_table.lower() for h in dim_hints)
 
         if not from_looks_like_dim and not to_looks_like_dim:
-            findings.append(RuleFinding(
-                rule_id="MODEL_FACT_TO_FACT",
-                category="model",
-                severity="ADVISORY",
-                confidence=60,
+            findings.append(new_finding(
+                "MODEL_FACT_TO_FACT",
                 evidence=(
                     f"{rel.from_table} → {rel.to_table}: "
                     f"both tables contain measures and neither matches "
@@ -221,11 +207,8 @@ def check_hardcoded_data_sources(report: CanonicalReport) -> list[RuleFinding]:
         matches = _LOCAL_USER_PATH_PATTERN.findall(source_expr)
         if matches:
             cleaned_paths = [m.strip('\'"') for m in matches]
-            findings.append(RuleFinding(
-                rule_id="M_HARDCODED_DATA_SOURCE",
-                category="model",
-                severity="HIGH",
-                confidence=95,
+            findings.append(new_finding(
+                "M_HARDCODED_DATA_SOURCE",
                 evidence=(
                     f"Table '{table.name}' contains hardcoded local workstation file path(s): "
                     f"{', '.join(cleaned_paths)}"
@@ -249,11 +232,8 @@ def check_auto_datetime_bloat(report: CanonicalReport) -> list[RuleFinding]:
         count = len(local_date_tables)
         sample = local_date_tables[:5]
         more_str = f" and {count - 5} more" if count > 5 else ""
-        findings.append(RuleFinding(
-            rule_id="MODEL_AUTO_DATETIME_BLOAT",
-            category="model",
-            severity="MEDIUM",
-            confidence=100,
+        findings.append(new_finding(
+            "MODEL_AUTO_DATETIME_BLOAT",
             evidence=(
                 f"Model contains {count} auto-generated local date table(s) due to enabled Auto Date/Time: "
                 f"{', '.join(sample)}{more_str}."

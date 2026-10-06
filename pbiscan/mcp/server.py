@@ -89,7 +89,7 @@ def create_server() -> Any:
 
     @mcp.resource("pbiscan://rules")
     def rules_catalog() -> str:
-        """Full PBIP Sentinel static quality rule catalog (13 rules)."""
+        """Full PBIP Sentinel static quality rule catalog."""
         return get_rules_catalog_json()
 
     @mcp.resource("pbiscan://rules/{rule_id}")

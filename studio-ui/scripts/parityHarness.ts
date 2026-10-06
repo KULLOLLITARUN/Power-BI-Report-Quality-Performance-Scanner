@@ -4,7 +4,7 @@
 // same fixture. See tests/unit/test_client_scanner_parity.py.
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
-import { parseDroppedPbip, DroppedFile, SEVERITY_DEDUCTIONS, CATEGORY_WEIGHTS, overallScore } from '../src/engine/clientScanner';
+import { parseDroppedPbip, DroppedFile, SEVERITY_DEDUCTIONS, CATEGORY_WEIGHTS, RULE_CATALOG, overallScore } from '../src/engine/clientScanner';
 
 function collectFiles(root: string): DroppedFile[] {
   const out: DroppedFile[] = [];
@@ -25,7 +25,7 @@ function collectFiles(root: string): DroppedFile[] {
 }
 
 if (process.argv[2] === '--scoring-constants') {
-  process.stdout.write(JSON.stringify({ deductions: SEVERITY_DEDUCTIONS, weights: CATEGORY_WEIGHTS }));
+  process.stdout.write(JSON.stringify({ deductions: SEVERITY_DEDUCTIONS, weights: CATEGORY_WEIGHTS, rules: RULE_CATALOG }));
   process.exit(0);
 }
 
@@ -51,6 +51,7 @@ if (process.argv[3] === '--verbose') {
   process.stdout.write(
     JSON.stringify({
       rule_ids: result.findings.map((f) => f.rule_id).sort(),
+      findings: result.findings.map((f) => [f.rule_id, f.category, f.severity, f.confidence]),
       overall: result.scores.overall,
       category_scores: result.scores.category_scores,
     })

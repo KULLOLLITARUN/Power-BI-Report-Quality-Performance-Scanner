@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pbiscan.canonical.model import CanonicalReport
 from pbiscan.engine.issue import RuleFinding
+from pbiscan.rules.catalog import new_finding
 
 
 # ---------------------------------------------------------------------------
@@ -31,11 +32,8 @@ def check_visual_bloat(
         if page.is_hidden:
             continue
         if page.visual_count > max_visuals:
-            findings.append(RuleFinding(
-                rule_id="REPORT_VISUAL_BLOAT",
-                category="report",
-                severity="MEDIUM",
-                confidence=100,
+            findings.append(new_finding(
+                "REPORT_VISUAL_BLOAT",
                 evidence=(
                     f"Page '{page.label}' has {page.visual_count} visuals "
                     f"(threshold: {max_visuals})."
@@ -63,11 +61,8 @@ def check_slicer_bloat(
         if page.is_hidden:
             continue
         if page.slicer_count > max_slicers:
-            findings.append(RuleFinding(
-                rule_id="REPORT_SLICER_BLOAT",
-                category="report",
-                severity="MEDIUM",
-                confidence=100,
+            findings.append(new_finding(
+                "REPORT_SLICER_BLOAT",
                 evidence=(
                     f"Page '{page.label}' has {page.slicer_count} slicers "
                     f"(threshold: {max_slicers})."

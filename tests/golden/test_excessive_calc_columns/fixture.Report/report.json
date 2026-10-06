@@ -1,0 +1,7 @@
+{
+  "_comment": "No visuals needed: the fixture has no measures, so D004 cannot fire.",
+  "id": "test-excessive-calc-columns-report",
+  "sections": [
+    {"name": "ReportSection1", "displayName": "Overview", "ordinal": 0, "visibility": 0, "visualContainers": []}
+  ]
+}

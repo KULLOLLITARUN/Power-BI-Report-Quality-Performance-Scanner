@@ -1,0 +1,38 @@
+{
+  "_comment": "GOLDEN FIXTURE: test_excessive_calc_columns — fires D002 (DAX_EXCESSIVE_CALC_COLUMNS, threshold > 4) once. Sales has 5 calculated columns (true positive); Product has exactly 4 (boundary control, must not fire).",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {"name": "Amount", "dataType": "decimal", "sourceColumn": "Amount"},
+          {"name": "Qty", "dataType": "int64", "sourceColumn": "Qty"},
+          {"name": "Unit Price", "type": "calculated", "dataType": "decimal", "expression": "DIVIDE(Sales[Amount], Sales[Qty])"},
+          {"name": "Amount Band", "type": "calculated", "dataType": "string", "expression": "IF(Sales[Amount] > 1000, \"High\", \"Low\")"},
+          {"name": "Amount x2", "type": "calculated", "dataType": "decimal", "expression": "Sales[Amount] * 2"},
+          {"name": "Qty Band", "type": "calculated", "dataType": "string", "expression": "IF(Sales[Qty] > 10, \"Bulk\", \"Single\")"},
+          {"name": "Is Large", "type": "calculated", "dataType": "boolean", "expression": "Sales[Amount] > 5000"}
+        ],
+        "partitions": [{"name": "Sales", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "Product",
+        "columns": [
+          {"name": "Name", "dataType": "string", "sourceColumn": "Name"},
+          {"name": "Name Upper", "type": "calculated", "dataType": "string", "expression": "UPPER(Product[Name])"},
+          {"name": "Name Lower", "type": "calculated", "dataType": "string", "expression": "LOWER(Product[Name])"},
+          {"name": "Name Length", "type": "calculated", "dataType": "int64", "expression": "LEN(Product[Name])"},
+          {"name": "Initial", "type": "calculated", "dataType": "string", "expression": "LEFT(Product[Name], 1)"}
+        ],
+        "partitions": [{"name": "Product", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": []
+  }
+}

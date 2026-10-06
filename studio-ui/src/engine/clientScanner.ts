@@ -153,15 +153,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   for (const rel of relationships) {
     if (rel.cross_filter_direction?.toLowerCase().includes('both')) {
       findings.push({
-        rule_id: 'MODEL_BIDIRECTIONAL',
-        category: 'model',
-        severity: 'WARNING',
+        ...ruleMeta('MODEL_BIDIRECTIONAL'),
         title: 'Bi-directional relationship detected',
         issue: `Relationship between ${rel.from_table}[${rel.from_column}] and ${rel.to_table}[${rel.to_column}] is bi-directional.`,
         evidence: `${rel.from_table}[${rel.from_column}] <-> ${rel.to_table}[${rel.to_column}] (BothDirections)`,
         impact: 'Bidirectional relationships create ambiguity in filter propagation and increase DAX context transition overhead.',
         recommendation: 'Change to single-directional cross-filtering or evaluate using CROSSFILTER() in DAX.',
-        confidence: 100,
         location: `${rel.from_table}[${rel.from_column}] <-> ${rel.to_table}[${rel.to_column}]`,
       });
     }
@@ -169,15 +166,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     // M002: Many-to-Many
     if (rel.cardinality?.toLowerCase().includes('manytomany') || rel.cardinality?.toLowerCase().includes('both')) {
       findings.push({
-        rule_id: 'MODEL_MANY_TO_MANY',
-        category: 'model',
-        severity: 'WARNING',
+        ...ruleMeta('MODEL_MANY_TO_MANY'),
         title: 'Many-to-many relationship detected',
         issue: `Many-to-many cardinality between ${rel.from_table} and ${rel.to_table}.`,
         evidence: `${rel.from_table}[${rel.from_column}] *..* ${rel.to_table}[${rel.to_column}]`,
         impact: 'Many-to-many relationships rely on hash tables in memory and introduce filter ambiguity.',
         recommendation: 'Introduce a distinct bridge dimension table to resolve into two 1:N relationships.',
-        confidence: 100,
         location: `${rel.from_table} -> ${rel.to_table}`,
       });
     }
@@ -198,15 +192,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
 
       if (!fromLooksLikeDim && !toLooksLikeDim) {
         findings.push({
-          rule_id: 'MODEL_FACT_TO_FACT',
-          category: 'model',
-          severity: 'ADVISORY',
+          ...ruleMeta('MODEL_FACT_TO_FACT'),
           title: 'Potential fact-to-fact relationship detected',
           issue: `Both '${rel.from_table}' and '${rel.to_table}' contain measures and neither matches a dimension naming pattern.`,
           evidence: `${rel.from_table} -> ${rel.to_table}: both tables contain measures and neither matches a dimension naming pattern.`,
           impact: 'Direct relationships between transactional fact tables can produce inconsistent aggregation results.',
           recommendation: 'Introduce a shared dimension table to relate these facts, or confirm the relationship is intentional.',
-          confidence: 60,
           location: `${rel.from_table} -> ${rel.to_table}`,
         });
       }
@@ -221,15 +212,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     );
     if (!hasDateTable) {
       findings.push({
-        rule_id: 'MODEL_NO_DATE_TABLE',
-        category: 'model',
-        severity: 'WARNING',
+        ...ruleMeta('MODEL_NO_DATE_TABLE'),
         title: 'No dedicated Date dimension table found',
         issue: 'No table is marked as a Date Table and no table matches date-dimension naming or data-category signals.',
         evidence: `Tables found: ${tables.map((t) => t.name).join(', ')}`,
         impact: 'Without a marked Date table, time-intelligence DAX functions (e.g. TOTALYTD, SAMEPERIODLASTYEAR) may behave unpredictably.',
         recommendation: 'Mark a dedicated table as the Date Table in Model view, or create one if missing.',
-        confidence: 70,
         location: undefined,
       });
     }
@@ -241,15 +229,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
       const dtype = (col.data_type || '').toLowerCase();
       if ((dtype === 'string' || dtype === 'text') && col.is_unique && !col.in_relationship) {
         findings.push({
-          rule_id: 'MODEL_HIGH_CARDINALITY',
-          category: 'model',
-          severity: 'ADVISORY',
+          ...ruleMeta('MODEL_HIGH_CARDINALITY'),
           title: 'Potential high-cardinality column',
           issue: `Column '${tbl.name}[${col.name}]' is a unique string/text column not used in any relationship.`,
           evidence: `${tbl.name}[${col.name}]: dataType=${col.data_type}, isUnique=${col.is_unique}, inRelationship=${col.in_relationship}`,
           impact: 'High-cardinality string columns inflate VertiPaq dictionary size and memory footprint.',
           recommendation: 'Consider removing, hashing, or splitting the column if it is not needed for reporting.',
-          confidence: 87,
           location: `${tbl.name}[${col.name}]`,
         });
       }
@@ -266,15 +251,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     const s = src.source;
     if (LOCAL_USER_PATH_PATTERN.test(s)) {
       findings.push({
-        rule_id: 'M_HARDCODED_DATA_SOURCE',
-        category: 'model',
-        severity: 'HIGH',
+        ...ruleMeta('M_HARDCODED_DATA_SOURCE'),
         title: 'Hardcoded local file path in Power Query data source',
         issue: `Table '${src.table}' references a hardcoded local machine file path in its M partition query.`,
         evidence: `Partition M query references local path: ${src.source.substring(0, 120)}...`,
         impact: 'Hardcoded local file paths fail in automated Power BI Gateway or Cloud Scheduled Refresh.',
         recommendation: 'Convert hardcoded file paths to Power Query Parameters or SharePoint/OneDrive URLs.',
-        confidence: 100,
         location: `Table: ${src.table}`,
       });
     }
@@ -285,15 +267,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   const hasAutoDate = tables.some((tbl) => tbl.name.toLowerCase().startsWith('localdatetable_'));
   if (hasAutoDate) {
     findings.push({
-      rule_id: 'MODEL_AUTO_DATETIME_BLOAT',
-      category: 'model',
-      severity: 'MEDIUM',
+      ...ruleMeta('MODEL_AUTO_DATETIME_BLOAT'),
       title: 'Auto Date/Time feature enabled generating hidden tables',
       issue: 'Semantic model contains auto-generated LocalDateTable_* hidden date hierarchies.',
       evidence: 'Model contains LocalDateTable_* tables generated by default Auto Date/Time.',
       impact: 'Auto Date/Time creates hidden tables for every date column, bloating file size and RAM footprint.',
       recommendation: 'Disable "Auto Date/Time" in Power BI Options and use a single centralized Date dimension.',
-      confidence: 100,
       location: 'Model',
     });
   }
@@ -302,15 +281,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   for (const tbl of tables) {
     if (tbl.calc_cols_count > 4) {
       findings.push({
-        rule_id: 'DAX_EXCESSIVE_CALC_COLUMNS',
-        category: 'dax',
-        severity: 'MEDIUM',
+        ...ruleMeta('DAX_EXCESSIVE_CALC_COLUMNS'),
         title: 'Excessive calculated columns on table',
         issue: `Table '${tbl.name}' has ${tbl.calc_cols_count} calculated columns, exceeding the threshold of 4.`,
         evidence: `${tbl.name} contains ${tbl.calc_cols_count} calculated columns.`,
         impact: 'Calculated columns consume uncompressed VertiPaq RAM and slow down model refresh.',
         recommendation: 'Move calculations upstream to Power Query (M) or SQL ETL.',
-        confidence: 100,
         location: `Table: ${tbl.name}`,
       });
     }
@@ -328,15 +304,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     for (const [pattern, description] of SUSPICIOUS_DAX_PATTERNS) {
       if (pattern.test(m.expression)) {
         findings.push({
-          rule_id: 'DAX_SUSPICIOUS_PATTERN',
-          category: 'dax',
-          severity: 'ADVISORY',
+          ...ruleMeta('DAX_SUSPICIOUS_PATTERN'),
           title: 'Suspicious DAX pattern detected',
           issue: `Measure '${m.name}' [${m.table}]: ${description}`,
           evidence: `Measure '${m.name}' [${m.table}]: ${description}`,
           impact: 'Indicates a pattern worth reviewing; does not by itself prove a performance problem.',
           recommendation: 'Review the flagged expression against the suggested alternative pattern.',
-          confidence: 65,
           location: `Measure: ${m.name}`,
         });
         break;
@@ -358,15 +331,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     if (list.length > 1) {
       const names = list.map((m) => `${m.table}[${m.name}]`).join(', ');
       findings.push({
-        rule_id: 'DAX_DUPLICATE_MEASURE',
-        category: 'dax',
-        severity: 'MEDIUM',
+        ...ruleMeta('DAX_DUPLICATE_MEASURE'),
         title: 'Duplicate measure logic detected',
         issue: `Multiple measures contain identical normalized expressions: ${names}`,
         evidence: list[0].expression,
         impact: 'Redundant measures create maintenance overhead and duplicate cache footprint.',
         recommendation: 'Consolidate duplicate measures into a single reusable measure.',
-        confidence: 90,
         location: names,
       });
     }
@@ -380,15 +350,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     const isUsed = daxGraph.isReachableFromVisual(m.name, activeRootMeasures);
     if (!isUsed) {
       findings.push({
-        rule_id: 'DAX_UNUSED_MEASURE',
-        category: 'dax',
-        severity: 'ADVISORY',
+        ...ruleMeta('DAX_UNUSED_MEASURE'),
         title: 'Potentially unused measure',
         issue: `Measure '${m.name}' is not placed in any report visuals and not referenced by other measures.`,
         evidence: `Measure '${m.name}' in ${m.table}: 0 downstream visual or DAX references found.`,
         impact: 'Unused measures bloat the model field list.',
         recommendation: 'Review and remove or hide if not needed for ad-hoc analysis.',
-        confidence: 90,
         location: `Measure: ${m.name}`,
       });
     }
@@ -401,29 +368,23 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     if (p.is_hidden) continue;
     if (p.visual_count > 15) {
       findings.push({
-        rule_id: 'REPORT_VISUAL_BLOAT',
-        category: 'report',
-        severity: 'MEDIUM',
+        ...ruleMeta('REPORT_VISUAL_BLOAT'),
         title: 'Visual bloat detected on page',
         issue: `Page '${p.display_name}' has ${p.visual_count} visuals, exceeding the limit of 15.`,
         evidence: `Page '${p.display_name}' contains ${p.visual_count} visuals.`,
         impact: 'High visual counts generate concurrent DAX queries that spike page render latency.',
         recommendation: 'Consolidate visuals using multi-row cards or split into drill-through tabs.',
-        confidence: 100,
         location: `Page: ${p.display_name}`,
       });
     }
     if (p.slicer_count > 6) {
       findings.push({
-        rule_id: 'REPORT_SLICER_BLOAT',
-        category: 'report',
-        severity: 'MEDIUM',
+        ...ruleMeta('REPORT_SLICER_BLOAT'),
         title: 'Excessive slicers on page',
         issue: `Page '${p.display_name}' has ${p.slicer_count} slicers, exceeding the threshold of 6.`,
         evidence: `Page '${p.display_name}' contains ${p.slicer_count} slicers.`,
         impact: 'Excessive slicers generate redundant query overhead on initial page load.',
         recommendation: 'Use the native Power BI Filter Pane or sync slicers across pages.',
-        confidence: 100,
         location: `Page: ${p.display_name}`,
       });
     }
@@ -1006,6 +967,28 @@ function processModernPbirPages(
       slicer_count: agg.slicerCount,
     });
   }
+}
+
+// Mirror RULE_CATALOG in pbiscan/rules/catalog.py; the parity test fails if they drift apart.
+type RuleMeta = Pick<AuditFinding, 'category' | 'severity' | 'confidence'>;
+export const RULE_CATALOG: Record<string, RuleMeta> = {
+  MODEL_BIDIRECTIONAL: { category: 'model', severity: 'WARNING', confidence: 100 },
+  MODEL_MANY_TO_MANY: { category: 'model', severity: 'WARNING', confidence: 100 },
+  MODEL_NO_DATE_TABLE: { category: 'model', severity: 'WARNING', confidence: 70 },
+  MODEL_HIGH_CARDINALITY: { category: 'model', severity: 'ADVISORY', confidence: 87 },
+  MODEL_FACT_TO_FACT: { category: 'model', severity: 'ADVISORY', confidence: 60 },
+  M_HARDCODED_DATA_SOURCE: { category: 'model', severity: 'HIGH', confidence: 95 },
+  MODEL_AUTO_DATETIME_BLOAT: { category: 'model', severity: 'MEDIUM', confidence: 100 },
+  DAX_SUSPICIOUS_PATTERN: { category: 'dax', severity: 'ADVISORY', confidence: 65 },
+  DAX_EXCESSIVE_CALC_COLUMNS: { category: 'dax', severity: 'MEDIUM', confidence: 100 },
+  DAX_DUPLICATE_MEASURE: { category: 'dax', severity: 'MEDIUM', confidence: 90 },
+  DAX_UNUSED_MEASURE: { category: 'dax', severity: 'ADVISORY', confidence: 95 },
+  REPORT_VISUAL_BLOAT: { category: 'report', severity: 'MEDIUM', confidence: 100 },
+  REPORT_SLICER_BLOAT: { category: 'report', severity: 'MEDIUM', confidence: 100 },
+};
+
+function ruleMeta(ruleId: string): RuleMeta & { rule_id: string } {
+  return { rule_id: ruleId, ...RULE_CATALOG[ruleId] };
 }
 
 // Mirror DEFAULT_CONFIG in pbiscan/service.py (and rules.config.json);
