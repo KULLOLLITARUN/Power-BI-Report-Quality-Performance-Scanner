@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +19,7 @@ from pydantic import BaseModel
 from pbiscan import __version__
 from pbiscan.diff import DiffService, QualityGatePolicy
 from pbiscan.engine.scoring import ConfigError
+from pbiscan.engine.suppressions import SuppressionFileError, add_suppression
 from pbiscan.extraction.pbip_reader import PBIScanError
 from pbiscan.service import ScanService
 
@@ -81,6 +84,34 @@ def _internal_error(action: str, exc: Exception) -> HTTPException:
         status_code=500,
         detail=f"{action} ({type(exc).__name__}). See the pbiscan Studio console for details.",
     )
+
+
+def _existing_path(raw: str, label: str = "Path") -> Path:
+    """Return `raw` as a Path, or raise 404 if nothing exists there."""
+    path = Path(raw)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"{label} does not exist: {raw}")
+    return path
+
+
+@contextmanager
+def _error_responses(action: str) -> Iterator[None]:
+    """Map engine errors to HTTP responses for one endpoint.
+
+    Problems the user can fix in their input (bad project, bad config) become
+    422, an existing suppressions file we refuse to overwrite becomes 409, and
+    anything unexpected becomes a 500 whose details stay in the server log.
+    """
+    try:
+        yield
+    except HTTPException:
+        raise
+    except (PBIScanError, ConfigError) as exc:
+        raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
+    except SuppressionFileError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except Exception as exc:
+        raise _internal_error(action, exc)
 
 
 # Path to static frontend build
@@ -176,21 +207,10 @@ async def open_native_dialog(req: Optional[DialogRequest] = None):
 @app.post("/api/scan")
 async def scan_project(req: ScanRequest):
     """Scan a PBIP project and return structured quality audit data."""
-    project_path = Path(req.path)
-
-    if not project_path.exists():
-        raise HTTPException(status_code=404, detail=f"Path does not exist: {req.path}")
-
-    try:
-        result = ScanService.execute_scan(
-            project_path=project_path,
-            config_path=req.config_path,
-        )
+    project_path = _existing_path(req.path)
+    with _error_responses("Scan failed"):
+        result = ScanService.execute_scan(project_path=project_path, config_path=req.config_path)
         return result.to_dict()
-    except (PBIScanError, ConfigError) as exc:
-        raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
-    except Exception as exc:
-        raise _internal_error("Scan failed", exc)
 
 
 @app.post("/api/browse")
@@ -235,62 +255,22 @@ async def browse_filesystem(req: BrowseRequest):
 
 
 @app.post("/api/suppress")
-async def add_suppression(req: SuppressRequest):
+async def suppress_finding(req: SuppressRequest):
     """Add a suppression rule to the project's pbiscan.suppressions.json file."""
-    proj_path = Path(req.project_path)
-    if not proj_path.exists():
-        raise HTTPException(status_code=404, detail="Project path does not exist")
-
-    supp_dir = proj_path if proj_path.is_dir() else proj_path.parent
-    supp_file = supp_dir / "pbiscan.suppressions.json"
-
-    import json as json_mod
-
-    data: dict[str, Any] = {"suppressions": []}
-    if supp_file.exists():
-        # Never overwrite an existing file we can't parse — that would silently
-        # delete the team's existing suppressions.
-        try:
-            data = json_mod.loads(supp_file.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json_mod.JSONDecodeError) as exc:
-            raise HTTPException(
-                status_code=409,
-                detail=f"{supp_file.name} is unreadable ({exc}); fix or remove it before adding suppressions.",
-            )
-        if not isinstance(data, dict) or not isinstance(data.get("suppressions", []), list):
-            raise HTTPException(
-                status_code=409,
-                detail=f'{supp_file.name} must be an object with a "suppressions" list; fix it before adding suppressions.',
-            )
-        data.setdefault("suppressions", [])
-
-    data["suppressions"].append({
-        "rule_id": req.rule_id,
-        "location": req.location,
-        "reason": req.reason or "Suppressed via Studio",
-    })
-
-    supp_file.write_text(json_mod.dumps(data, indent=2), encoding="utf-8")
-
+    proj_path = _existing_path(req.project_path, "Project path")
+    with _error_responses("Adding suppression failed"):
+        supp_file, _ = add_suppression(
+            proj_path, req.rule_id, req.location, req.reason or "Suppressed via Studio", added_by="pbiscan Studio",
+        )
     return {"status": "ok", "message": f"Added suppression to {supp_file.name}"}
 
 
 @app.post("/api/export")
 async def export_audit(req: ExportRequest):
     """Generate export content in specified format (html, json, sarif, junit)."""
-    proj_path = Path(req.project_path)
-    if not proj_path.exists():
-        raise HTTPException(status_code=404, detail="Project path does not exist")
-
-    try:
-        result = ScanService.execute_scan(
-            project_path=proj_path,
-            config_path=req.config_path,
-        )
-    except (PBIScanError, ConfigError) as exc:
-        raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
-    except Exception as exc:
-        raise _internal_error("Export failed", exc)
+    proj_path = _existing_path(req.project_path, "Project path")
+    with _error_responses("Export failed"):
+        result = ScanService.execute_scan(project_path=proj_path, config_path=req.config_path)
 
     fmt = req.format.lower()
     if fmt == "json":
@@ -306,13 +286,8 @@ async def export_audit(req: ExportRequest):
 @app.post("/api/diff")
 async def diff_audit(req: DiffRequest):
     """Compare two scans (PBIP directories or JSON artifacts) and return canonical DiffResult."""
-    base_path = Path(req.baseline_path)
-    if not base_path.exists():
-        raise HTTPException(status_code=404, detail=f"Baseline path does not exist: {req.baseline_path}")
-
-    curr_path = Path(req.current_path)
-    if not curr_path.exists():
-        raise HTTPException(status_code=404, detail=f"Current path does not exist: {req.current_path}")
+    base_path = _existing_path(req.baseline_path, "Baseline path")
+    curr_path = _existing_path(req.current_path, "Current path")
 
     policy = QualityGatePolicy(
         fail_on_regression=req.fail_on_regression or False,
@@ -321,7 +296,7 @@ async def diff_audit(req: DiffRequest):
         fail_on_category_regression=req.fail_on_category_regression,
     )
 
-    try:
+    with _error_responses("Diff failed"):
         diff_res = DiffService.compare(
             baseline=base_path,
             current=curr_path,
@@ -329,10 +304,6 @@ async def diff_audit(req: DiffRequest):
             config_path=req.config_path,
         )
         return diff_res.to_dict()
-    except (PBIScanError, ConfigError) as exc:
-        raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
-    except Exception as exc:
-        raise _internal_error("Diff failed", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -355,11 +326,8 @@ class RemediationApplyRequest(BaseModel):
 @app.post("/api/remediation/plan")
 async def plan_remediation(req: RemediationPlanRequest):
     """Analyze and generate candidate safe remediation plan with sandbox validation."""
-    proj_path = Path(req.project_path)
-    if not proj_path.exists():
-        raise HTTPException(status_code=404, detail=f"Project path does not exist: {req.project_path}")
-
-    try:
+    proj_path = _existing_path(req.project_path, "Project path")
+    with _error_responses("Remediation planning failed"):
         from pbiscan.remediation.engine import RemediationEngine
         scan_res = RemediationEngine.analyze(proj_path, config_path=req.config_path)
         plan = RemediationEngine.plan(proj_path, scan_res, rule_filter=req.rule_filter)
@@ -370,20 +338,13 @@ async def plan_remediation(req: RemediationPlanRequest):
             "baseline_score": scan_res.overall_score,
             "project_name": proj_path.name,
         }
-    except (PBIScanError, ConfigError) as exc:
-        raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
-    except Exception as exc:
-        raise _internal_error("Remediation planning failed", exc)
 
 
 @app.post("/api/remediation/apply")
 async def apply_remediation(req: RemediationApplyRequest):
     """Apply approved remediation patches with atomic backup, sandbox re-verification, and audit trail."""
-    proj_path = Path(req.project_path)
-    if not proj_path.exists():
-        raise HTTPException(status_code=404, detail=f"Project path does not exist: {req.project_path}")
-
-    try:
+    proj_path = _existing_path(req.project_path, "Project path")
+    with _error_responses("Remediation apply failed"):
         from pbiscan.remediation.engine import RemediationEngine
         scan_res = RemediationEngine.analyze(proj_path, config_path=req.config_path)
         plan = RemediationEngine.plan(proj_path, scan_res)
@@ -401,44 +362,28 @@ async def apply_remediation(req: RemediationApplyRequest):
             "success": success,
             "manifest": manifest.to_dict(),
         }
-    except (PBIScanError, ConfigError) as exc:
-        raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
-    except Exception as exc:
-        raise _internal_error("Remediation apply failed", exc)
 
 
 @app.get("/api/remediation/history")
 async def get_remediation_history(project_path: str):
     """Fetch all past remediation audit manifests for a project."""
-    proj_path = Path(project_path)
-    if not proj_path.exists():
-        raise HTTPException(status_code=404, detail=f"Project path does not exist: {project_path}")
-
-    try:
+    proj_path = _existing_path(project_path, "Project path")
+    with _error_responses("Failed to retrieve remediation history"):
         from pbiscan.remediation.store import RemediationAuditStore
         history = RemediationAuditStore.list_manifests(proj_path)
         return {"history": history}
-    except Exception as exc:
-        raise _internal_error("Failed to retrieve remediation history", exc)
 
 
 @app.get("/api/remediation/manifest/{manifest_id}")
 async def get_remediation_manifest(manifest_id: str, project_path: str):
     """Retrieve full detail for a specific remediation audit manifest."""
-    proj_path = Path(project_path)
-    if not proj_path.exists():
-        raise HTTPException(status_code=404, detail=f"Project path does not exist: {project_path}")
-
-    try:
+    proj_path = _existing_path(project_path, "Project path")
+    with _error_responses("Failed to retrieve manifest"):
         from pbiscan.remediation.store import RemediationAuditStore
         manifest = RemediationAuditStore.get_manifest(manifest_id, proj_path)
-        if not manifest:
-            raise HTTPException(status_code=404, detail=f"Remediation manifest not found: {manifest_id}")
-        return manifest.to_dict()
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise _internal_error("Failed to retrieve manifest", exc)
+    if not manifest:
+        raise HTTPException(status_code=404, detail=f"Remediation manifest not found: {manifest_id}")
+    return manifest.to_dict()
 
 
 # ---------------------------------------------------------------------------

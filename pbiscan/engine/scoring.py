@@ -5,11 +5,13 @@ Formula:
     Overall Score  = weighted average of active category scores
 
 Architecture decisions:
-    - Only model, dax and report are scored. The security category is always
-      excluded (no security rules exist yet), and the remaining weights are
-      renormalised so the maximum overall score is still 100.
-    - Severities in use: HIGH, MEDIUM, WARNING, ADVISORY. CRITICAL and LOW
-      deductions are defined in config for future rules but no rule emits them.
+    - Only model, dax and report are scored. Their weights are renormalised
+      so the maximum overall score is 100; weights for any other key (such as
+      "security" in older configs) are ignored.
+    - Severities emitted by current rules: HIGH, MEDIUM, WARNING, ADVISORY.
+      CRITICAL and LOW stay in the severity vocabulary because diff quality
+      gates (--fail-on-new), SARIF and imported JSON artifacts use them, so
+      they keep deduction entries.
     - Missing severity in config raises ConfigError (spec §19 requirement).
 """
 from __future__ import annotations
@@ -23,7 +25,7 @@ class ConfigError(Exception):
     error_type = "CONFIG_ERROR"
 
 
-# Scored categories (security is reserved: no rules emit it yet)
+# Scored categories
 _SCORED_CATEGORIES = ("model", "dax", "report")
 
 
@@ -87,8 +89,8 @@ def score_overall(
     """Calculate the overall weighted health score.
 
     Only categories in `active_categories` are included.
-    Weights are normalised against active categories (so excluding security
-    does not cap the max score at 80).
+    Weights are normalised against active categories, so the maximum is
+    always 100 regardless of the raw weight total.
 
     Args:
         category_scores:   category → integer score

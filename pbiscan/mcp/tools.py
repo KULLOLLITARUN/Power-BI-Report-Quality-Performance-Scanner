@@ -4,18 +4,16 @@ Wraps deterministic scan, diff, lineage, and remediation engines into typed JSON
 """
 from __future__ import annotations
 
-import json
 import os
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 from pbiscan.diff import DiffService, QualityGatePolicy
 from pbiscan.engine.recommendations import RECOMMENDATIONS
-from pbiscan.engine.suppressions import load_suppressions
+from pbiscan.engine.suppressions import SuppressionFileError, add_suppression, load_suppressions
 from pbiscan.mcp.groq_client import DEFAULT_GROQ_MODEL, call_groq_chat, is_groq_configured
 from pbiscan.remediation.engine import RemediationEngine
-from pbiscan.service import ScanService
+from pbiscan.service import ScanService, semantic_reference_to_dict
 
 
 def handle_scan_model(path: str, config_path: Optional[str] = None) -> dict[str, Any]:
@@ -82,17 +80,8 @@ def handle_get_measure_lineage(path: str, measure_name: str) -> dict[str, Any]:
     outbound = list(dax_graph.references(target_meas.name))
     is_reachable = dax_graph.is_reachable_from_visual(target_meas.name, used_in_visuals)
 
-    # Check semantic references
     sem_refs = [
-        {
-            "target_name": r.target_name,
-            "target_table": r.target_table,
-            "target_type": r.target_type,
-            "source_type": r.source_type,
-            "source_object": r.source_object,
-            "source_file": r.source_file,
-            "source_expression": r.source_expression,
-        }
+        semantic_reference_to_dict(r)
         for r in res.report.semantic_references.references
         if r.target_name.lower() == target_meas.name.lower()
     ]
@@ -179,41 +168,15 @@ def handle_add_suppression(
     if not p.exists():
         return {"error": f"Path does not exist: {path}", "status": "ERROR"}
 
-    supp_dir = p if p.is_dir() else p.parent
-    supp_file = supp_dir / "pbiscan.suppressions.json"
-
-    data: dict[str, Any] = {"suppressions": []}
-    if supp_file.exists():
-        # Never overwrite an existing file we can't parse — that would silently
-        # delete the team's existing suppressions.
-        try:
-            data = json.loads(supp_file.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            return {
-                "status": "ERROR",
-                "error": f"{supp_file.name} is unreadable ({exc}); fix or remove it before adding suppressions.",
-            }
-        if not isinstance(data, dict) or not isinstance(data.get("suppressions", []), list):
-            return {
-                "status": "ERROR",
-                "error": f'{supp_file.name} must be an object with a "suppressions" list; fix it before adding suppressions.',
-            }
-        data.setdefault("suppressions", [])
-
-    new_supp = {
-        "rule_id": rule_id.strip().upper(),
-        "location": location.strip(),
-        "reason": reason.strip(),
-        "added_by": added_by,
-        "added_at": datetime.now(timezone.utc).isoformat(),
-    }
-    data["suppressions"].append(new_supp)
-    supp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    try:
+        supp_file, total = add_suppression(p, rule_id, location, reason, added_by=added_by)
+    except SuppressionFileError as exc:
+        return {"status": "ERROR", "error": str(exc)}
 
     return {
         "status": "SUCCESS",
         "message": f"Added suppression for rule '{rule_id}' at location '{location}' to {supp_file.name}",
-        "total_suppressions": len(data["suppressions"]),
+        "total_suppressions": total,
     }
 
 

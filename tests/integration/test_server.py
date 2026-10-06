@@ -24,7 +24,7 @@ def test_scan_golden_fixture():
     data = response.json()
 
     # Check top-level payload structure
-    assert data["report_name"] in ("fixture", "test_bidirectional")
+    assert data["report_name"] == "fixture"  # taken from fixture.pbip, not the folder
     assert "scores" in data
     assert "overall" in data["scores"]
     assert "findings" in data

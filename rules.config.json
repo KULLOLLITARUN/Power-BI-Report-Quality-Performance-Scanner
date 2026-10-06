@@ -1,14 +1,11 @@
 {
-  "_comment": "pbiscan v1 scoring and threshold configuration. All rule deductions and thresholds live here — never hardcoded in rule functions.",
+  "_comment": "pbiscan scoring and threshold configuration. All rule deductions and thresholds live here — never hardcoded in rule functions. Weights are renormalised over the scored categories (model, dax, report).",
 
   "weights": {
     "model":    0.35,
     "dax":      0.25,
-    "report":   0.20,
-    "security": 0.20
+    "report":   0.20
   },
-
-  "_security_note": "security weight is reserved for future rules. v1 excludes security from the weighted average when no security rules fire.",
 
   "deductions": {
     "CRITICAL": 15,

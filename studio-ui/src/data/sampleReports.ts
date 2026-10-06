@@ -9,7 +9,6 @@ export const SAMPLE_BANANAS_REPORT: ScanResult = {
       model: 100,
       dax: 93.3,
       report: 100,
-      security: 100,
     },
   },
   findings: [
@@ -182,7 +181,6 @@ export const SAMPLE_ENTERPRISE_REPORT: ScanResult = {
       model: 80.0,
       dax: 82.5,
       report: 85.0,
-      security: 100,
     },
   },
   findings: [

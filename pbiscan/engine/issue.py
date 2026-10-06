@@ -22,7 +22,7 @@ VALID_SEVERITIES: frozenset[str] = frozenset(
     {"CRITICAL", "HIGH", "MEDIUM", "WARNING", "ADVISORY", "LOW"}
 )
 VALID_CATEGORIES: frozenset[str] = frozenset(
-    {"model", "dax", "report", "security"}
+    {"model", "dax", "report"}
 )
 
 

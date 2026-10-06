@@ -6,11 +6,14 @@ while keeping them transparently visible and auditable in reports.
 """
 from __future__ import annotations
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import json
 import logging
+import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Optional
+import tempfile
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from pbiscan.engine.issue import Issue
@@ -18,6 +21,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 SUPPRESSIONS_FILENAME = "pbiscan.suppressions.json"
+
+
+class SuppressionFileError(Exception):
+    """Raised when an existing suppressions file cannot be safely updated."""
+    error_type = "SUPPRESSION_FILE_ERROR"
 
 
 def _normalise_loc(loc: str) -> str:
@@ -139,3 +147,66 @@ def apply_suppressions(issues: list[Issue], suppressions: list[SuppressionRule])
                 break
 
     return issues
+
+
+def add_suppression(
+    project_path: str | Path,
+    rule_id: str,
+    location: str,
+    reason: str,
+    added_by: Optional[str] = None,
+) -> tuple[Path, int]:
+    """Append one suppression to the project's pbiscan.suppressions.json.
+
+    The file lives next to a .pbip file, or inside a project directory, and is
+    created if absent. Returns the file path and the new suppression count.
+
+    Raises:
+        SuppressionFileError: if the existing file is unreadable or malformed.
+            It is never overwritten in that case, since rewriting it would
+            delete the team's existing suppressions.
+    """
+    p = Path(project_path)
+    supp_file = (p if p.is_dir() else p.parent) / SUPPRESSIONS_FILENAME
+
+    data: dict[str, Any] = {"suppressions": []}
+    if supp_file.exists():
+        try:
+            data = json.loads(supp_file.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise SuppressionFileError(
+                f"{supp_file.name} is unreadable ({exc}); fix or remove it before adding suppressions."
+            ) from exc
+        if not isinstance(data, dict) or not isinstance(data.get("suppressions", []), list):
+            raise SuppressionFileError(
+                f'{supp_file.name} must be an object with a "suppressions" list; fix it before adding suppressions.'
+            )
+        data.setdefault("suppressions", [])
+
+    entry: dict[str, Any] = {
+        "rule_id": rule_id.strip().upper(),
+        "location": location.strip(),
+        "reason": reason.strip(),
+    }
+    if added_by:
+        entry["added_by"] = added_by
+    entry["added_at"] = datetime.now(timezone.utc).isoformat()
+    data["suppressions"].append(entry)
+
+    _atomic_write_text(supp_file, json.dumps(data, indent=2))
+    return supp_file, len(data["suppressions"])
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write via a temp file in the same directory, then rename over the target,
+    so a crash mid-write leaves either the old file or the new one, never half of each."""
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise

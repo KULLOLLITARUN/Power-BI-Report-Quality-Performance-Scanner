@@ -67,8 +67,8 @@ class TestScoreOverall:
         expected = (100 * 0.35 + 0 * 0.25 + 100 * 0.20) / (0.35 + 0.25 + 0.20)
         assert abs(result - round(expected, 1)) < 0.01
 
-    def test_security_excluded_from_v1(self):
-        """Security not in active_categories — score stays at 100 for perfect model."""
+    def test_unscored_category_weight_is_ignored(self):
+        """A "security" weight from an older config does not cap the score below 100."""
         scores = {"model": 100, "dax": 100, "report": 100}
         result = score_overall(scores, WEIGHTS, active_categories=("model", "dax", "report"))
         assert result == 100.0

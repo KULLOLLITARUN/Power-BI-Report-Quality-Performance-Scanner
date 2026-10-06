@@ -50,7 +50,7 @@ export interface PageInfo {
 
 export interface AuditFinding {
   rule_id: string;
-  category: 'model' | 'dax' | 'report' | 'security';
+  category: 'model' | 'dax' | 'report';
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'WARNING' | 'ADVISORY' | 'LOW';
   title: string;
   issue: string;
@@ -67,7 +67,6 @@ export interface ScoreData {
     model: number;
     dax: number;
     report: number;
-    security?: number;
   };
 }
 
