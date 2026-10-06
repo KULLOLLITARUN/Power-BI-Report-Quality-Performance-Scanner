@@ -270,6 +270,12 @@ def studio(path: str | None, port: int, host: str, no_browser: bool) -> None:
     if not no_browser:
         webbrowser.open(url)
 
+    # The server's Host-header guard only trusts loopback names by default;
+    # an explicitly chosen bind address must be trusted too.
+    import os
+    extra_hosts = os.environ.get("PBISCAN_STUDIO_ALLOWED_HOSTS", "")
+    os.environ["PBISCAN_STUDIO_ALLOWED_HOSTS"] = ",".join(filter(None, [extra_hosts, host]))
+
     uvicorn.run("pbiscan.server:app", host=host, port=port, log_level="warning")
 
 

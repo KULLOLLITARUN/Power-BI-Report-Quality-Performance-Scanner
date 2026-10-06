@@ -15,7 +15,7 @@ class TestStudioServerApi:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app)
+        return TestClient(app, base_url="http://127.0.0.1")
 
     def test_health_check(self, client):
         response = client.get("/api/health")
@@ -259,7 +259,7 @@ class TestAgentMcpIntegrationApi:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app)
+        return TestClient(app, base_url="http://127.0.0.1")
 
     def test_mcp_status_reports_environment(self, client):
         resp = client.get("/api/mcp/status")
@@ -326,3 +326,60 @@ class TestAgentMcpIntegrationApi:
         resp = client.get("/api/mcp/tools")
         api_names = {t["name"] for t in resp.json()["tools"]}
         assert api_names == set(READ_ONLY_TOOL_NAMES) | set(DESTRUCTIVE_TOOL_NAMES)
+
+
+class TestStudioServerLocalSecurity:
+    """Studio must not be reachable from other websites or leak files outside dist/."""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app, base_url="http://127.0.0.1:8000")
+
+    @pytest.mark.parametrize("path", [
+        "/..%2F..%2F..%2Fpyproject.toml",
+        "/%2e%2e/%2e%2e/%2e%2e/pyproject.toml",
+        "/..%5C..%5C..%5Cpyproject.toml",
+    ])
+    def test_spa_route_blocks_path_traversal(self, client, path):
+        response = client.get(path)
+        assert "[build-system]" not in response.text
+        assert response.status_code in (403, 404)
+
+    def test_spa_static_asset_still_served(self, client):
+        from pbiscan.server import STATIC_DIR
+        asset = next((STATIC_DIR / "assets").glob("*.css"))
+        response = client.get(f"/assets/{asset.name}")
+        assert response.status_code == 200
+
+    def test_foreign_origin_rejected(self, client):
+        response = client.post(
+            "/api/browse", json={"path": str(GOLDEN_DIR)},
+            headers={"Origin": "https://evil.example"},
+        )
+        assert response.status_code == 403
+
+    def test_null_origin_rejected(self, client):
+        response = client.get("/api/health", headers={"Origin": "null"})
+        assert response.status_code == 403
+
+    def test_foreign_origin_preflight_not_allowed(self, client):
+        response = client.options("/api/browse", headers={
+            "Origin": "https://evil.example",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        })
+        assert response.headers.get("access-control-allow-origin") != "https://evil.example"
+
+    def test_dns_rebinding_host_rejected(self):
+        rebinding = TestClient(app, base_url="http://attacker.example:8000")
+        assert rebinding.get("/api/health").status_code == 403
+
+    @pytest.mark.parametrize("origin", ["http://127.0.0.1:8000", "http://localhost:5173"])
+    def test_same_origin_and_vite_dev_origin_allowed(self, client, origin):
+        response = client.get("/api/health", headers={"Origin": origin})
+        assert response.status_code == 200
+
+    def test_extra_allowed_host_from_env(self, monkeypatch):
+        monkeypatch.setenv("PBISCAN_STUDIO_ALLOWED_HOSTS", "192.168.1.20")
+        lan = TestClient(app, base_url="http://192.168.1.20:8000")
+        assert lan.get("/api/health").status_code == 200

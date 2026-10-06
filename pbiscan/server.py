@@ -8,9 +8,9 @@ import os
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from pbiscan import __version__
@@ -24,14 +24,50 @@ app = FastAPI(
     description="Backend API powering pbiscan Studio developer dashboard",
 )
 
-# Enable CORS for local Vite development server
+# Studio exposes filesystem browse/read/write endpoints, so it must only ever be
+# driven by its own SPA (same-origin) or the local Vite dev server. Any other
+# website open in the user's browser must not be able to call it.
+DEV_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=list(DEV_ORIGINS),
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
+
+
+def _allowed_hosts() -> set[str]:
+    """Loopback names plus any extra hosts from PBISCAN_STUDIO_ALLOWED_HOSTS
+    (comma-separated), set by `pbiscan studio --host <non-loopback>`."""
+    extra = os.environ.get("PBISCAN_STUDIO_ALLOWED_HOSTS", "")
+    return LOOPBACK_HOSTS | {h.strip().lower() for h in extra.split(",") if h.strip()}
+
+
+def _strip_port(host: str) -> str:
+    host = host.strip().lower()
+    if host.startswith("["):
+        return host.split("]", 1)[0] + "]"
+    return host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+
+
+@app.middleware("http")
+async def local_origin_guard(request: Request, call_next):
+    """Reject DNS-rebinding (foreign Host header) and cross-site requests
+    (foreign Origin header) before they reach any endpoint."""
+    host_header = request.headers.get("host", "")
+    if _strip_port(host_header) not in _allowed_hosts():
+        return JSONResponse(status_code=403, content={"detail": "Host not allowed"})
+
+    origin = request.headers.get("origin")
+    if origin is not None:
+        allowed_origins = {f"http://{host_header.lower()}", f"https://{host_header.lower()}", *DEV_ORIGINS}
+        if origin.lower() not in allowed_origins:
+            return JSONResponse(status_code=403, content={"detail": "Origin not allowed"})
+
+    return await call_next(request)
 
 # Path to static frontend build
 STATIC_DIR = Path(__file__).parent / "studio" / "dist"
@@ -497,8 +533,11 @@ async def serve_spa(full_path: str):
             "api_endpoints": ["/api/health", "/api/scan", "/api/browse", "/docs"],
         }
 
-    file_path = STATIC_DIR / full_path
-    if file_path.exists() and file_path.is_file():
+    static_root = STATIC_DIR.resolve()
+    file_path = (static_root / full_path).resolve()
+    if not file_path.is_relative_to(static_root):
+        raise HTTPException(status_code=404, detail="Not found")
+    if file_path.is_file():
         return FileResponse(file_path)
 
     index_html = STATIC_DIR / "index.html"

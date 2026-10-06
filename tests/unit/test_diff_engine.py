@@ -23,7 +23,7 @@ GOLDEN_DIR = Path(__file__).parent.parent / "golden"
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    return TestClient(app, base_url="http://127.0.0.1")
 
 
 @pytest.fixture

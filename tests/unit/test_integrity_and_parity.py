@@ -15,7 +15,7 @@ class TestDemoFallbackIntegrity:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app)
+        return TestClient(app, base_url="http://127.0.0.1")
 
     def test_scan_failure_returns_404_not_demo(self, client):
         """Invalid path returns 404 error and does not return synthetic demo data."""
@@ -39,7 +39,7 @@ class TestScanAndExportConfigurationParity:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app)
+        return TestClient(app, base_url="http://127.0.0.1")
 
     def test_visual_bloat_threshold_parity(self, client, tmp_path):
         """test_visualbloat fixture has 16 visuals (default threshold 15 fires REPORT_VISUAL_BLOAT).
