@@ -47,9 +47,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
 
 def resolve_config(
     config_path: Optional[str | Path] = None,
-    explicit_config: Optional[dict] = None,
+    explicit_config: Optional[dict[str, Any]] = None,
     project_path: Optional[str | Path] = None,
-) -> dict:
+) -> dict[str, Any]:
     """Resolve and validate the configuration dictionary.
 
     Resolution order:
@@ -117,17 +117,18 @@ class ScanResult:
     scanner_version: str = __version__
     warnings: Optional[list[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.warnings is None:
             self.warnings = []
 
     @property
     def overall_score(self) -> float:
-        return self.scores.get("overall", 100.0)
+        return float(self.scores.get("overall", 100.0))
 
     @property
     def category_scores(self) -> dict[str, int]:
-        return self.scores.get("category_scores", {})
+        category_scores: dict[str, int] = self.scores.get("category_scores", {})
+        return category_scores
 
     @property
     def unsuppressed_issues(self) -> list[AuditIssue]:
@@ -317,7 +318,7 @@ class ScanService:
     def execute_scan(
         project_path: str | Path,
         config_path: Optional[str | Path] = None,
-        config: Optional[dict] = None,
+        config: Optional[dict[str, Any]] = None,
         suppressions_path: Optional[str | Path] = None,
     ) -> ScanResult:
         """Execute complete scan pipeline and return canonical ScanResult."""

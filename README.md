@@ -307,6 +307,20 @@ pytest tests/ -v
 
 If Node.js and `studio-ui`'s dependencies (`npm install` inside `studio-ui/`) are available, cross-engine parity tests run automatically, diffing the in-browser `clientScanner.ts` engine's findings and scores against the Python `ScanService` for every golden fixture (CI always runs them) — this is what keeps the Netlify Studio Workbench's results honest against `pbiscan scan`.
 
+CI also enforces:
+- **Coverage** of at least 90% (`fail_under` in `pyproject.toml`).
+- **Strict mypy** for the modules listed under `[[tool.mypy.overrides]]` in `pyproject.toml`; add new modules there.
+- **An up-to-date Studio bundle.** `pbiscan/studio/dist` is committed because it ships in the wheel. After changing anything in `studio-ui/`, rebuild it and commit the result:
+
+```bash
+cd studio-ui
+npm ci
+node node_modules/typescript/bin/tsc --noEmit -p .
+node node_modules/vite/bin/vite.js build   # writes ../pbiscan/studio/dist
+```
+
+(The tools are called through `node` directly because `npm run` / `npx` break when the repository path contains `&`.)
+
 ---
 
 ## 📄 License

@@ -58,3 +58,36 @@ addopts = "-v"
 # else in this codebase, so flagging it here would just be noise on existing lines.
 select = ["E4", "E7", "E9", "F"]
 ignore = ["E402", "E501"]
+
+[tool.mypy]
+python_version = "3.10"
+
+# Strict checking for the scoring/rules core and modules added since Phase 2.
+# New modules should be added to this list; move older ones in as they are
+# cleaned up (`mypy --strict --follow-imports=silent <file>` shows the work).
+[[tool.mypy.overrides]]
+module = [
+    "pbiscan.canonical.references",
+    "pbiscan.engine.issue",
+    "pbiscan.engine.scoring",
+    "pbiscan.engine.suppressions",
+    "pbiscan.rules.catalog",
+    "pbiscan.rules.dax",
+    "pbiscan.rules.model",
+    "pbiscan.rules.report",
+    "pbiscan.service",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_any_generics = true
+check_untyped_defs = true
+warn_return_any = true
+strict_equality = true
+
+[tool.coverage.run]
+source = ["pbiscan"]
+
+[tool.coverage.report]
+# Applies whenever tests run with --cov (as CI does); currently ~93%.
+fail_under = 90

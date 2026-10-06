@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -38,8 +39,12 @@ ESBUILD_SCRIPT = STUDIO_UI_DIR / "node_modules" / "esbuild" / "bin" / "esbuild"
 NODE_AVAILABLE = shutil.which("node") is not None
 NODE_MODULES_PRESENT = ESBUILD_SCRIPT.exists()
 
+# CI sets PBISCAN_REQUIRE_PARITY=1 so a missing Node toolchain fails the run
+# instead of silently skipping the only check that keeps the engines in sync.
+REQUIRE_PARITY = os.environ.get("PBISCAN_REQUIRE_PARITY") == "1"
+
 pytestmark = pytest.mark.skipif(
-    not (NODE_AVAILABLE and NODE_MODULES_PRESENT),
+    not (NODE_AVAILABLE and NODE_MODULES_PRESENT) and not REQUIRE_PARITY,
     reason="Node or studio-ui node_modules (esbuild) not available — skipping cross-engine parity test",
 )
 
@@ -52,6 +57,9 @@ def build_harness():
     repo path contains an `&` (as this one does), even though the underlying
     esbuild script runs fine when invoked directly.
     """
+    assert NODE_AVAILABLE and NODE_MODULES_PRESENT, (
+        "PBISCAN_REQUIRE_PARITY=1 but Node or studio-ui/node_modules is missing; run `npm ci` in studio-ui/"
+    )
     subprocess.run(
         [
             "node", str(ESBUILD_SCRIPT),

@@ -11,7 +11,7 @@ Each function:
 from __future__ import annotations
 
 import re
-from pbiscan.canonical.model import CanonicalReport, Table
+from pbiscan.canonical.model import CanonicalReport, Column, Table
 from pbiscan.engine.issue import RuleFinding
 from pbiscan.rules.catalog import new_finding
 
@@ -139,14 +139,14 @@ def check_high_cardinality(report: CanonicalReport) -> list[RuleFinding]:
     return findings
 
 
-def _is_high_cardinality_candidate(col) -> bool:
+def _is_high_cardinality_candidate(col: Column) -> bool:
     """Structural heuristic: string column that is unique and not in a relationship."""
     if col.data_type.lower() not in ("string", "text"):
         return False
     if col.in_relationship:
         # Relationship keys are expected to repeat; not a cardinality concern
         return False
-    return col.is_unique
+    return bool(col.is_unique)
 
 
 # ---------------------------------------------------------------------------

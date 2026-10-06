@@ -18,6 +18,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
+
+from pbiscan.engine.issue import AuditIssue
 
 
 class ConfigError(Exception):
@@ -29,7 +32,7 @@ class ConfigError(Exception):
 _SCORED_CATEGORIES = ("model", "dax", "report")
 
 
-def load_config(config_path: str | Path) -> dict:
+def load_config(config_path: str | Path) -> dict[str, Any]:
     """Load and validate rules.config.json.
 
     Raises ConfigError if required keys are missing.
@@ -41,6 +44,9 @@ def load_config(config_path: str | Path) -> dict:
     except (json.JSONDecodeError, OSError) as exc:
         raise ConfigError(f"Cannot load config from {path}: {exc}") from exc
 
+    if not isinstance(raw, dict):
+        raise ConfigError(f"Config in {path} must be a JSON object")
+
     # Validate required keys
     for key in ("weights", "deductions", "thresholds"):
         if key not in raw:
@@ -49,7 +55,7 @@ def load_config(config_path: str | Path) -> dict:
     return raw
 
 
-def score_category(issues: list, category: str, deductions: dict[str, int]) -> int:
+def score_category(issues: list[AuditIssue], category: str, deductions: dict[str, int]) -> int:
     """Calculate the health score for a single category.
 
     Args:
@@ -120,7 +126,7 @@ def score_overall(
     return round(weighted_sum, 1)
 
 
-def calculate_scores(issues: list, config: dict) -> dict:
+def calculate_scores(issues: list[AuditIssue], config: dict[str, Any]) -> dict[str, Any]:
     """Run the full scoring pipeline.
 
     Args:

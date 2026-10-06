@@ -53,9 +53,59 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      # Node runs the cross-engine parity test (Python vs studio-ui clientScanner.ts)
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: studio-ui/package-lock.json
+
+      - name: Install Studio UI dependencies
+        working-directory: studio-ui
+        run: npm ci
+
+      # PBISCAN_REQUIRE_PARITY makes a missing Node toolchain fail instead of skip.
+      # Coverage below the fail_under in pyproject.toml fails the run.
       - name: Run Test Suite
+        env:
+          PBISCAN_REQUIRE_PARITY: "1"
         run: |
           python -m pytest tests/ -v --cov=pbiscan --cov-report=term-missing
+
+  studio-dist:
+    name: Studio bundle is up to date
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: studio-ui/package-lock.json
+
+      - name: Install Studio UI dependencies
+        working-directory: studio-ui
+        run: npm ci
+
+      - name: Type-check and build
+        working-directory: studio-ui
+        run: |
+          node node_modules/typescript/bin/tsc --noEmit -p .
+          node node_modules/vite/bin/vite.js build
+
+      # pbiscan/studio/dist is committed (it ships in the wheel), so it must be
+      # exactly what the current studio-ui sources build to.
+      - name: Fail if committed pbiscan/studio/dist differs from a fresh build
+        run: |
+          if [ -n "$(git status --porcelain -- pbiscan/studio/dist)" ]; then
+            echo "::error title=Stale Studio bundle::pbiscan/studio/dist does not match studio-ui sources. Rebuild it (README > Automated Testing) and commit the result."
+            git status --porcelain -- pbiscan/studio/dist
+            exit 1
+          fi
 
   sarif-scan:
     name: Self-Scan & Upload SARIF
