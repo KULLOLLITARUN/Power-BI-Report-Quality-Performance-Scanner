@@ -477,3 +477,30 @@ class TestStudioAccessToken:
         assert query["token"] == [server.STUDIO_TOKEN]
         assert query["path"] == [str(project.resolve())]
         assert os.environ["PBISCAN_STUDIO_TOKEN"] == server.STUDIO_TOKEN
+
+
+class TestNativeDialogErrors:
+    """A failing file picker must not send exception text to the browser."""
+
+    def test_dialog_failure_returns_short_message_and_logs_details(self, monkeypatch, caplog):
+        import sys
+        import types
+        from pbiscan.server import _show_dialog_sync
+
+        fake_tk = types.ModuleType("tkinter")
+
+        def _broken_tk():
+            raise RuntimeError(r"no display at C:\Users\someone\secret")
+
+        fake_tk.Tk = _broken_tk  # type: ignore[attr-defined]
+        fake_tk.filedialog = types.ModuleType("tkinter.filedialog")  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "tkinter", fake_tk)
+        monkeypatch.setitem(sys.modules, "tkinter.filedialog", fake_tk.filedialog)
+
+        with caplog.at_level("ERROR", logger="pbiscan.server"):
+            res = _show_dialog_sync("folder")
+
+        assert res["canceled"] is True and res["path"] == ""
+        assert "secret" not in res["error"]
+        assert "Studio console" in res["error"]
+        assert "no display" in caplog.text

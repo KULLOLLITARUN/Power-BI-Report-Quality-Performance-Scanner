@@ -63,3 +63,31 @@ class TestEdgeCasesAndCLI:
         result = runner.invoke(scan, [str(proj_dir / "BrokenModel.pbip")])
         assert result.exit_code == 2
         assert "Extraction failed" in result.output
+
+
+class TestDebugFlag:
+    """Unexpected errors print one line by default and the full traceback under --debug."""
+
+    @staticmethod
+    def _invoke(args):
+        from unittest import mock
+        from click.testing import CliRunner
+        from pbiscan.cli import main
+        from pbiscan.service import ScanService
+
+        with mock.patch.object(ScanService, "execute_scan", side_effect=RuntimeError("boom in builder")):
+            return CliRunner().invoke(main, args)
+
+    def test_default_hides_traceback_and_points_to_debug(self, tmp_path):
+        res = self._invoke(["scan", str(tmp_path)])
+        assert res.exit_code == 2
+        assert "[ERROR] Scan failed: boom in builder" in res.output
+        assert "pbiscan --debug" in res.output
+        assert "Traceback" not in res.output
+
+    def test_debug_prints_traceback(self, tmp_path):
+        res = self._invoke(["--debug", "scan", str(tmp_path)])
+        assert res.exit_code == 2
+        assert "[ERROR] Scan failed: boom in builder" in res.output
+        assert "Traceback (most recent call last)" in res.output
+        assert "RuntimeError: boom in builder" in res.output

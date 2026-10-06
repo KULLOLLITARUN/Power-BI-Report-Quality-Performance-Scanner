@@ -396,3 +396,133 @@ class TestMcpCliAndServerFactory:
 
         asyncio.run(_check_tools())
 
+
+
+class TestMcpToolHandlerErrorPaths:
+    """Error branches of the tool handlers an agent can hit with bad input."""
+
+    def test_diff_models_missing_current_path(self):
+        res = handle_diff_models(str(GOLDEN_DIR / "test_bidirectional"), "nonexistent_path_404")
+        assert res["status"] == "ERROR"
+        assert "Current path does not exist" in res["error"]
+
+    def test_get_measure_lineage_missing_path(self):
+        res = handle_get_measure_lineage("nonexistent_path_404", measure_name="Total Sales")
+        assert res["status"] == "ERROR"
+
+    def test_list_suppressions_missing_path(self):
+        res = handle_list_suppressions("nonexistent_path_404")
+        assert res["status"] == "ERROR"
+
+    def test_add_suppression_missing_path(self):
+        res = handle_add_suppression("nonexistent_path_404", rule_id="MODEL_BIDIRECTIONAL", location="x")
+        assert res["status"] == "ERROR"
+
+    def test_add_suppression_refuses_to_overwrite_corrupt_file(self, tmp_path: Path):
+        supp_file = tmp_path / "pbiscan.suppressions.json"
+        supp_file.write_text("{ not valid json", encoding="utf-8")
+
+        res = handle_add_suppression(str(tmp_path), rule_id="MODEL_BIDIRECTIONAL", location="x")
+
+        assert res["status"] == "ERROR"
+        assert supp_file.read_text(encoding="utf-8") == "{ not valid json"
+
+    def test_apply_remediation_rejected_by_sandbox_writes_nothing(self, tmp_path: Path):
+        import shutil
+        from pbiscan.remediation.engine import RemediationEngine
+        from pbiscan.remediation.models import compute_file_sha256
+
+        model_dir = tmp_path / "model"
+        shutil.copytree(GOLDEN_DIR / "test_bidirectional", model_dir)
+        before = {p: compute_file_sha256(p) for p in model_dir.rglob("*") if p.is_file()}
+
+        rejected = mock.Mock(accepted=False, rejection_reasons=["sandbox rescan regressed"])
+        with mock.patch.object(RemediationEngine, "validate", return_value=rejected):
+            res = handle_apply_remediation(str(model_dir), patch_ids=[])
+
+        assert res["status"] == "REJECTED"
+        assert res["rejection_reasons"] == ["sandbox rescan regressed"]
+        assert {p: compute_file_sha256(p) for p in model_dir.rglob("*") if p.is_file()} == before
+
+    def test_apply_remediation_applies_patch_and_reports_backup(self, tmp_path: Path):
+        import shutil
+
+        model_dir = tmp_path / "model"
+        shutil.copytree(GOLDEN_DIR / "test_bidirectional", model_dir)
+
+        res = handle_apply_remediation(str(model_dir), patch_ids=[])
+
+        assert res["status"] == "APPLIED"
+        assert res["applied_count"] == 1
+        assert res["after_score"] >= res["before_score"]
+        assert Path(res["backup_location"]).exists()
+        findings = handle_scan_model(str(model_dir))["findings"]
+        assert not [f for f in findings if f["rule_id"] == "MODEL_BIDIRECTIONAL"]
+
+
+class TestMcpServerWiring:
+    """Call every registered tool, resource and prompt through FastMCP itself, so
+    a wrong argument name or a mis-wired handler fails here, not in an agent."""
+
+    @pytest.fixture
+    def server(self):
+        from pbiscan.mcp.server import MCP_AVAILABLE, create_server
+        if not MCP_AVAILABLE:
+            pytest.skip("mcp package is not installed")
+        return create_server()
+
+    @staticmethod
+    def _call(server, name: str, args: dict) -> dict:
+        import asyncio
+        result = asyncio.run(server.call_tool(name, args))
+        # FastMCP returns (content_blocks, structured_result) for dict-returning tools.
+        if isinstance(result, tuple):
+            return result[1].get("result", result[1])
+        return json.loads(result[0].text)
+
+    def test_read_only_tools(self, server, monkeypatch):
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+        fixture = str(GOLDEN_DIR / "test_bidirectional")
+
+        assert "findings" in self._call(server, "scan_model", {"path": fixture})
+        diff = self._call(server, "diff_models", {"baseline_path": fixture, "current_path": fixture})
+        assert diff["score_drift"]["baseline_score"] == diff["score_drift"]["current_score"]
+        lineage = self._call(server, "get_measure_lineage", {
+            "path": str(GOLDEN_DIR / "test_measure_referenced_by_another"), "measure_name": "Revenue Per Unit",
+        })
+        assert "Base Revenue" in lineage["outbound_references"]
+        assert self._call(server, "plan_remediation", {"path": fixture})["total_proposals"] == 1
+        assert self._call(server, "list_suppressions", {"path": fixture})["total_suppressions"] == 0
+        assert self._call(server, "suggest_dax_rewrite", {
+            "rule_id": "DAX_SUSPICIOUS_PATTERN", "dax_expression": "SUM(Sales[Amount])",
+        })["ai_generated"] is False
+
+    def test_destructive_tools(self, server, tmp_path: Path):
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        res = self._call(server, "add_suppression",
+                         {"path": str(proj), "rule_id": "MODEL_BIDIRECTIONAL", "location": "A <-> B"})
+        assert res["status"] == "SUCCESS"
+        saved = json.loads((proj / "pbiscan.suppressions.json").read_text(encoding="utf-8"))
+        assert "MCP Agent" in json.dumps(saved)
+
+        res = self._call(server, "apply_remediation", {"path": str(proj), "patch_ids": ["REM-NONE"]})
+        assert res["status"] in ("NO_OP", "ERROR")
+
+    def test_resources_and_prompts(self, server):
+        import asyncio
+
+        async def _check():
+            catalog = list(await server.read_resource("pbiscan://rules"))
+            assert "MODEL_BIDIRECTIONAL" in catalog[0].content
+            detail = list(await server.read_resource("pbiscan://rules/MODEL_BIDIRECTIONAL"))
+            assert json.loads(detail[0].content)["rule_id"] == "MODEL_BIDIRECTIONAL"
+            for name, args in [
+                ("audit-model", {"path": "C:/proj"}),
+                ("remediate-safely", {"path": "C:/proj"}),
+                ("inspect-dax-measure", {"path": "C:/proj", "measure_name": "Total Sales"}),
+            ]:
+                prompt = await server.get_prompt(name, args)
+                assert "C:/proj" in prompt.messages[0].content.text
+
+        asyncio.run(_check())

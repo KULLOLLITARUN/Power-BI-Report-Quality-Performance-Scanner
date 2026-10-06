@@ -10,9 +10,10 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import NoReturn, Optional
 
 import click
 
@@ -58,9 +59,21 @@ def _score_colour(score: float) -> str:
     return "\033[31m"        # red
 
 
+def _fail_unexpected(action: str, exc: Exception, exit_code: int) -> NoReturn:
+    """Report an unexpected error and exit; print the traceback under --debug."""
+    click.echo(f"[ERROR] {action}: {exc}", err=True)
+    ctx = click.get_current_context(silent=True)
+    if ctx is not None and ctx.find_root().params.get("debug"):
+        click.echo("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)), err=True)
+    else:
+        click.echo("Re-run with 'pbiscan --debug ...' to see the full traceback.", err=True)
+    sys.exit(exit_code)
+
+
 @click.group()
 @click.version_option(__version__, prog_name="pbiscan")
-def main() -> None:
+@click.option("--debug", is_flag=True, help="Print full tracebacks for unexpected errors.")
+def main(debug: bool) -> None:
     """pbiscan — Power BI Report Quality & Performance Scanner.
 
     Scans a PBIP project and produces an evidence-based quality audit.
@@ -143,8 +156,7 @@ def scan(
         click.echo(f"[ERROR] Extraction failed: {exc}", err=True)
         sys.exit(2)
     except Exception as exc:
-        click.echo(f"[ERROR] Scan failed: {exc}", err=True)
-        sys.exit(2)
+        _fail_unexpected("Scan failed", exc, exit_code=2)
 
     report = result.report
     issues = result.issues
@@ -214,8 +226,7 @@ def scan(
             if not quiet:
                 click.echo(f"\n  Report saved: {_colour(str(output_path), _GREEN)}")
         except Exception as exc:
-            click.echo(f"[ERROR] Failed to write report: {exc}", err=True)
-            sys.exit(1)
+            _fail_unexpected("Failed to write report", exc, exit_code=1)
     elif not quiet:
         click.echo("")
 
@@ -385,8 +396,7 @@ def diff(
             config_path=config,
         )
     except Exception as exc:
-        click.echo(f"[ERROR] Diff execution failed: {exc}", err=True)
-        sys.exit(2)
+        _fail_unexpected("Diff execution failed", exc, exit_code=2)
 
     # Render output
     fmt_lower = output_format.lower()
@@ -403,8 +413,7 @@ def diff(
             if not quiet:
                 click.echo(f"\n  Diff report saved: {_colour(str(out), _GREEN)}")
         except Exception as exc:
-            click.echo(f"[ERROR] Failed to write diff report: {exc}", err=True)
-            sys.exit(2)
+            _fail_unexpected("Failed to write diff report", exc, exit_code=2)
     elif not quiet:
         try:
             click.echo(rendered)
@@ -519,8 +528,7 @@ def fix(
         # Phase 3: Sandbox Validation Loop
         validation = RemediationEngine.validate(plan, scan_res, config_path=config)
     except Exception as exc:
-        click.echo(f"[ERROR] Remediation planning failed: {exc}", err=True)
-        sys.exit(2)
+        _fail_unexpected("Remediation planning failed", exc, exit_code=2)
 
     # Shown before any prompt or write. JSON output carries it as plan.warnings instead.
     if not quiet and output_format.lower() != "json":
@@ -581,8 +589,7 @@ def fix(
                 original_scan=scan_res,
             )
         except Exception as exc:
-            click.echo(f"[ERROR] Remediation apply failed with unexpected exception: {exc}", err=True)
-            sys.exit(2)
+            _fail_unexpected("Remediation apply failed with unexpected exception", exc, exit_code=2)
 
         rendered = json.dumps(manifest.to_dict(), indent=2) if output_format.lower() == "json" else RemediationEngine.render_preview(plan, validation, output_format)
 
@@ -664,8 +671,7 @@ def mcp_command():
     try:
         run_mcp_server()
     except Exception as exc:
-        click.echo(f"[ERROR] MCP server runtime error: {exc}", err=True)
-        sys.exit(1)
+        _fail_unexpected("MCP server runtime error", exc, exit_code=1)
 
 
 if __name__ == "__main__":

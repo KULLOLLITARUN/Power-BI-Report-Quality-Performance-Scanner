@@ -217,7 +217,12 @@ def _show_dialog_sync(mode: str) -> dict:
             return {"path": os.path.normpath(selected_path), "canceled": False}
         return {"path": "", "canceled": True}
     except Exception as exc:
-        return {"path": "", "canceled": True, "error": str(exc)}
+        logger.error("Native file dialog failed", exc_info=exc)
+        return {
+            "path": "",
+            "canceled": True,
+            "error": "Could not open the file picker. See the pbiscan Studio console for details.",
+        }
 
 
 @app.post("/api/native-dialog")
