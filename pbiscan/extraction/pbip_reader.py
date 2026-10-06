@@ -1,133 +1,55 @@
-"""PBIP Extraction layer — reads and parses PBIP artifact files.
+"""PBIP Extraction layer — locates the artifacts in a PBIP project and dispatches to
+the format parsers:
 
-This module returns raw parsed data ONLY.
+  tmdl_parser    — TMDL semantic model (definition/*.tmdl)
+  bim_parser     — model.bim (TMSL JSON)
+  report_parser  — legacy report.json
+  pbir_parser    — PBIR (definition/pages/*/page.json + visuals/)
 
-It must NOT:
-  - detect issues
-  - calculate scores
-  - generate recommendations
-  - classify severity
-  - contain rule logic
+This layer returns raw parsed data ONLY. It must NOT detect issues, calculate
+scores, generate recommendations, classify severity or contain rule logic.
 
-Error taxonomy:
-  INPUT_ERROR          — bad path, not a directory, etc.
-  PARSE_ERROR          — JSON decode failure
-  SCHEMA_ERROR         — required field missing in a parsed file
-  UNSUPPORTED_ARTIFACT — reserved for unrecognised artifact formats (not currently raised)
-  RULE_ERROR           — (used by engine, not here)
-  RENDER_ERROR         — (used by renderer, not here)
-  CONFIG_ERROR         — (used by scoring, not here)
+The error types and Raw* dataclasses live in `raw.py` and are re-exported here.
 """
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from pbiscan.extraction.bim_parser import parse_bim_model
+from pbiscan.extraction.pbir_parser import parse_pbir_pages, parse_pbir_report_level
+from pbiscan.extraction.raw import (
+    InputError,
+    ParseError,
+    PBIScanError,
+    RawExtraction,
+    RawPage,
+    RawRelationship,
+    RawTable,
+    RawVisual,
+    SchemaError,
+    UnsupportedArtifactError,
+)
+from pbiscan.extraction.report_parser import parse_report_json, parse_report_json_level
+from pbiscan.extraction.tmdl_parser import parse_tmdl_model
+
+__all__ = [
+    "InputError",
+    "PBIPReader",
+    "PBIScanError",
+    "ParseError",
+    "RawExtraction",
+    "RawPage",
+    "RawRelationship",
+    "RawTable",
+    "RawVisual",
+    "SchemaError",
+    "UnsupportedArtifactError",
+]
+
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Error types
-# ---------------------------------------------------------------------------
-
-class PBIScanError(Exception):
-    """Base error for all pbiscan errors."""
-    error_type: str = "UNKNOWN_ERROR"
-
-
-class InputError(PBIScanError):
-    """Bad input path or directory."""
-    error_type = "INPUT_ERROR"
-
-
-class ParseError(PBIScanError):
-    """JSON or file parsing failure."""
-    error_type = "PARSE_ERROR"
-
-
-class SchemaError(PBIScanError):
-    """Required field missing in a parsed artifact."""
-    error_type = "SCHEMA_ERROR"
-
-
-class UnsupportedArtifactError(PBIScanError):
-    """Unrecognised artifact format. Reserved; not currently raised by PBIPReader."""
-    error_type = "UNSUPPORTED_ARTIFACT"
-
-
-# ---------------------------------------------------------------------------
-# Raw extraction result
-# ---------------------------------------------------------------------------
-
-@dataclass
-class RawTable:
-    name: str
-    hidden: bool = False
-    is_date_table: bool = False
-    columns: list[dict[str, Any]] = field(default_factory=list)
-    measures: list[dict[str, Any]] = field(default_factory=list)
-    calculated_columns: list[dict[str, Any]] = field(default_factory=list)
-    annotations: list[dict[str, Any]] = field(default_factory=list)
-    calculation_items: list[dict[str, Any]] = field(default_factory=list)
-    partition_source: str = ""
-    source_file: str = ""
-
-
-@dataclass
-class RawRelationship:
-    from_table: str
-    from_column: str
-    to_table: str
-    to_column: str
-    raw: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class RawVisual:
-    visual_type: str
-    x: float = 0.0
-    y: float = 0.0
-    width: float = 0.0
-    height: float = 0.0
-    fields_used: list[str] = field(default_factory=list)
-    measure_refs: list[str] = field(default_factory=list)
-    is_slicer: bool = False
-    hidden: bool = False
-
-
-@dataclass
-class RawPage:
-    name: str
-    display_name: str = ""
-    visibility: int = 0
-    visuals: list[RawVisual] = field(default_factory=list)
-    # Measures referenced by page-level filters / page config (not by any one visual)
-    filter_measure_refs: list[str] = field(default_factory=list)
-
-
-@dataclass
-class RawExtraction:
-    """Everything parsed from a PBIP directory — no analysis, no scoring."""
-    report_name: str
-    source_path: str
-    tables: list[RawTable] = field(default_factory=list)
-    relationships: list[RawRelationship] = field(default_factory=list)
-    pages: list[RawPage] = field(default_factory=list)
-    roles: list[dict[str, Any]] = field(default_factory=list)
-    tmdl_roles: list[dict[str, Any]] = field(default_factory=list)
-    # Measures referenced by report-level filters, report config and bookmarks
-    report_measure_refs: list[str] = field(default_factory=list)
-    # Report-level ("thin report") measures: {"name", "table", "expression"}
-    report_extension_measures: list[dict[str, Any]] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-
-
-# ---------------------------------------------------------------------------
-# Reader
-# ---------------------------------------------------------------------------
 
 class PBIPReader:
     """Reads a PBIP project directory and returns a RawExtraction.
@@ -144,7 +66,7 @@ class PBIPReader:
         """Parse a PBIP directory.
 
         Args:
-            path: Path to the PBIP project directory.
+            path: Path to the PBIP project directory (or its .pbip file).
 
         Returns:
             RawExtraction with all parsed data.
@@ -166,31 +88,24 @@ class PBIPReader:
         else:
             # If a folder was passed, check for any .pbip file inside to name the report
             pbip_files = list(root.glob("*.pbip"))
-            if pbip_files:
-                report_name = pbip_files[0].stem
-            else:
-                report_name = root.name
+            report_name = pbip_files[0].stem if pbip_files else root.name
 
         if not root.is_dir():
             raise InputError(f"Path is not a directory: {root}")
 
-        # Locate sub-directories
-        semantic_model_dir = self._find_semantic_model_dir(root)
-        report_dir = self._find_report_dir(root)
+        semantic_model_dir = _find_dir(root, ".SemanticModel")
+        report_dir = _find_dir(root, ".Report")
 
-        # Parse model
         tables: list[RawTable] = []
         relationships: list[RawRelationship] = []
         roles: list[dict[str, Any]] = []
         tmdl_roles: list[dict[str, Any]] = []
         warnings: list[str] = []
         if semantic_model_dir:
-            tables, relationships, roles, tmdl_roles, w = self._parse_semantic_model(semantic_model_dir)
-            warnings.extend(w)
+            tables, relationships, roles, tmdl_roles = self._parse_semantic_model(semantic_model_dir)
         else:
             warnings.append("No SemanticModel directory found — model analysis skipped.")
 
-        # Parse report
         pages: list[RawPage] = []
         report_measure_refs: list[str] = []
         report_extension_measures: list[dict[str, Any]] = []
@@ -219,531 +134,41 @@ class PBIPReader:
             warnings=warnings,
         )
 
-    # ------------------------------------------------------------------
-    # Directory discovery
-    # ------------------------------------------------------------------
-
-    def _find_semantic_model_dir(self, root: Path) -> Optional[Path]:
-        """Find the .SemanticModel directory inside the PBIP root."""
-        for item in root.iterdir():
-            if item.is_dir() and item.name.endswith(".SemanticModel"):
-                logger.debug("SemanticModel dir: %s", item)
-                return item
-        return None
-
-    def _find_report_dir(self, root: Path) -> Optional[Path]:
-        """Find the .Report directory inside the PBIP root."""
-        for item in root.iterdir():
-            if item.is_dir() and item.name.endswith(".Report"):
-                logger.debug("Report dir: %s", item)
-                return item
-        return None
-
-    # ------------------------------------------------------------------
-    # Semantic model parsing
-    # ------------------------------------------------------------------
-
     def _parse_semantic_model(
         self, sm_dir: Path
-    ) -> tuple[list[RawTable], list[RawRelationship], list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-        """Parse the semantic model directory."""
-        warnings: list[str] = []
+    ) -> tuple[list[RawTable], list[RawRelationship], list[dict[str, Any]], list[dict[str, Any]]]:
+        """Parse model.bim if present, otherwise TMDL. Returns (tables, relationships, bim_roles, tmdl_roles)."""
         model_bim = sm_dir / "model.bim"
-
         if model_bim.exists():
             logger.info("Parsing model.bim: %s", model_bim)
-            raw_model = self._load_json(model_bim)
-            model_node = raw_model.get("model", raw_model)
-            tables = self._parse_tables(model_node.get("tables", []))
-            relationships = self._parse_relationships(model_node.get("relationships", []))
-            roles = model_node.get("roles", [])
-            return tables, relationships, roles, [], warnings
+            tables, relationships, roles = parse_bim_model(model_bim)
+            return tables, relationships, roles, []
 
-        # Check for TMDL format
-        tmdl_files = list(sm_dir.rglob("*.tmdl"))
-        if tmdl_files:
+        if any(sm_dir.rglob("*.tmdl")):
             logger.info("Parsing TMDL semantic model in: %s", sm_dir)
-            tables, relationships, tmdl_roles = self._parse_tmdl_semantic_model(sm_dir)
-            return tables, relationships, [], tmdl_roles, warnings
+            tables, relationships, tmdl_roles = parse_tmdl_model(sm_dir)
+            return tables, relationships, [], tmdl_roles
 
         raise SchemaError(f"No model.bim or TMDL definitions found in {sm_dir}")
 
-    def _parse_tmdl_semantic_model(
-        self, sm_dir: Path
-    ) -> tuple[list[RawTable], list[RawRelationship], list[dict[str, Any]]]:
-        """Parse TMDL semantic model format (definition/tables/*.tmdl, roles/*.tmdl, relationships.tmdl)."""
-        definition_dir = sm_dir / "definition" if (sm_dir / "definition").exists() else sm_dir
-        tables: list[RawTable] = []
-        relationships: list[RawRelationship] = []
-        tmdl_roles: list[dict[str, Any]] = []
-
-        # Parse tables
-        tables_dir = definition_dir / "tables"
-        if tables_dir.exists():
-            for tmdl_file in sorted(tables_dir.glob("*.tmdl")):
-                t = self._parse_single_tmdl_table(tmdl_file)
-                if t:
-                    tables.append(t)
-
-        # Parse roles
-        roles_dir = definition_dir / "roles"
-        if roles_dir.exists():
-            for role_file in sorted(roles_dir.glob("*.tmdl")):
-                try:
-                    r_content = role_file.read_text(encoding="utf-8")
-                    tmdl_roles.append({
-                        "name": role_file.stem,
-                        "content": r_content,
-                        "path": str(role_file),
-                    })
-                except (OSError, UnicodeDecodeError):
-                    pass
-
-        # Parse relationships
-        rel_file = definition_dir / "relationships.tmdl"
-        if rel_file.exists():
-            relationships = self._parse_tmdl_relationships(rel_file)
-
-        return tables, relationships, tmdl_roles
-
-    def _unquote_tmdl(self, s: str) -> str:
-        s = s.strip()
-        if s.startswith("'") and s.endswith("'") and len(s) >= 2:
-            return s[1:-1]
-        return s
-
-    def _parse_tmdl_col_ref(self, ref_str: str) -> tuple[str, str]:
-        """Parse 'Table Name'.ColumnName or TableName.ColumnName."""
-        ref_str = ref_str.strip()
-        import re
-        m = re.match(r"^('([^']+)'|([^.]+))\.(.*)$", ref_str)
-        if m:
-            tbl = m.group(2) or m.group(3)
-            col = self._unquote_tmdl(m.group(4))
-            return tbl, col
-        return "", ""
-
-    def _parse_single_tmdl_table(self, file_path: Path) -> Optional[RawTable]:
-        """Parse a single TMDL table file."""
-        try:
-            content = file_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            logger.warning("Could not read TMDL file %s: %s", file_path, exc)
-            return None
-
-        lines = content.splitlines()
-        table_name = ""
-        hidden = False
-        is_date_table = False
-        columns: list[dict[str, Any]] = []
-        measures: list[dict[str, Any]] = []
-        calc_cols: list[dict[str, Any]] = []
-        annotations: list[dict[str, Any]] = []
-        calculation_items: list[dict[str, Any]] = []
-        partition_source_lines: list[str] = []
-        in_partition_source = False
-
-        current_item_type: Optional[str] = None
-        current_item_data: dict[str, Any] = {}
-        current_expr_lines: list[str] = []
-
-        def flush_current():
-            nonlocal current_item_type, current_item_data, current_expr_lines
-            if not current_item_type:
-                return
-            if current_item_type == "measure":
-                current_item_data["expression"] = "\n".join(current_expr_lines).strip()
-                current_item_data["_table"] = table_name
-                measures.append(current_item_data)
-            elif current_item_type == "calc_col":
-                current_item_data["expression"] = "\n".join(current_expr_lines).strip()
-                current_item_data["type"] = "calculated"
-                current_item_data["_table"] = table_name
-                calc_cols.append(current_item_data)
-            elif current_item_type == "column":
-                current_item_data["_table"] = table_name
-                columns.append(current_item_data)
-            elif current_item_type == "calc_item":
-                current_item_data["expression"] = "\n".join(current_expr_lines).strip()
-                current_item_data["_table"] = table_name
-                calculation_items.append(current_item_data)
-            current_item_type = None
-            current_item_data = {}
-            current_expr_lines = []
-
-        for line in lines:
-            stripped = line.strip()
-            if not stripped:
-                if current_item_type in ("measure", "calc_col", "calc_item"):
-                    current_expr_lines.append("")
-                elif in_partition_source:
-                    partition_source_lines.append("")
-                continue
-
-            if line.startswith("///") or stripped.startswith("///"):
-                flush_current()
-                continue
-            elif line.startswith("table "):
-                flush_current()
-                table_name = self._unquote_tmdl(line[6:].strip())
-                if "DateTable" in table_name or "LocalDateTable" in table_name:
-                    is_date_table = True
-            elif current_item_type is None and stripped in ("isHidden", "isHidden: true"):
-                hidden = True
-            elif stripped.startswith("calculationItem "):
-                flush_current()
-                in_partition_source = False
-                current_item_type = "calc_item"
-                item_sig = stripped[16:].strip()
-                if "=" in item_sig:
-                    parts = item_sig.split("=", 1)
-                    item_name = self._unquote_tmdl(parts[0].strip())
-                    inline_expr = parts[1].strip()
-                    current_item_data = {"name": item_name, "format_string": ""}
-                    current_expr_lines = [inline_expr] if inline_expr else []
-                else:
-                    item_name = self._unquote_tmdl(item_sig)
-                    current_item_data = {"name": item_name, "format_string": ""}
-                    current_expr_lines = []
-            elif stripped.startswith("measure "):
-                flush_current()
-                in_partition_source = False
-                current_item_type = "measure"
-                measure_sig = stripped[8:].strip()
-                if "=" in measure_sig:
-                    parts = measure_sig.split("=", 1)
-                    m_name = self._unquote_tmdl(parts[0].strip())
-                    inline_expr = parts[1].strip()
-                    current_item_data = {"name": m_name, "annotations": []}
-                    current_expr_lines = [inline_expr] if inline_expr else []
-                else:
-                    m_name = self._unquote_tmdl(measure_sig)
-                    current_item_data = {"name": m_name, "annotations": []}
-                    current_expr_lines = []
-            elif stripped.startswith("column ") and "=" in stripped:
-                flush_current()
-                in_partition_source = False
-                current_item_type = "calc_col"
-                col_sig = stripped[7:].strip()
-                parts = col_sig.split("=", 1)
-                col_name = self._unquote_tmdl(parts[0].strip())
-                inline_expr = parts[1].strip()
-                current_item_data = {"name": col_name, "dataType": "string", "annotations": []}
-                current_expr_lines = [inline_expr] if inline_expr else []
-            elif stripped.startswith("column "):
-                flush_current()
-                in_partition_source = False
-                current_item_type = "column"
-                col_name = self._unquote_tmdl(stripped[7:].strip())
-                current_item_data = {"name": col_name, "dataType": "string", "annotations": []}
-            elif stripped.startswith("partition "):
-                flush_current()
-                in_partition_source = True
-            elif stripped.startswith("annotation "):
-                ann_str = stripped[11:].strip()
-                if "=" in ann_str:
-                    k, v = ann_str.split("=", 1)
-                    ann_dict = {"name": k.strip(), "value": v.strip().strip('"')}
-                else:
-                    ann_dict = {"name": ann_str, "value": "true"}
-                if ann_dict["name"] in ("PBI_IsDateTable", "__PBI_LocalDateTable"):
-                    is_date_table = True
-                if current_item_type in ("column", "calc_col", "measure"):
-                    current_item_data.setdefault("annotations", []).append(ann_dict)
-                else:
-                    annotations.append(ann_dict)
-            elif current_item_type == "calc_item":
-                if stripped.startswith("formatStringDefinition =") or stripped.startswith("formatStringDefinition:"):
-                    sep = "=" if "=" in stripped else ":"
-                    current_item_data["format_string"] = stripped.split(sep, 1)[1].strip()
-                else:
-                    current_expr_lines.append(stripped)
-            elif current_item_type in ("measure", "calc_col"):
-                if ":" in stripped and any(stripped.startswith(p) for p in ("formatString:", "lineageTag:", "dataType:", "summarizeBy:", "displayFolder:", "isHidden:")):
-                    k, v = stripped.split(":", 1)
-                    current_item_data[k.strip()] = v.strip()
-                else:
-                    current_expr_lines.append(stripped)
-            elif current_item_type == "column":
-                if ":" in stripped:
-                    k, v = stripped.split(":", 1)
-                    current_item_data[k.strip()] = v.strip()
-                elif stripped == "isHidden":
-                    current_item_data["isHidden"] = True
-            elif in_partition_source:
-                if stripped.startswith("source ="):
-                    partition_source_lines.append(stripped[8:].strip())
-                else:
-                    partition_source_lines.append(stripped)
-
-        flush_current()
-        if not table_name:
-            return None
-
-        return RawTable(
-            name=table_name,
-            hidden=hidden,
-            is_date_table=is_date_table,
-            columns=columns,
-            measures=measures,
-            calculated_columns=calc_cols,
-            annotations=annotations,
-            calculation_items=calculation_items,
-            partition_source="\n".join(partition_source_lines).strip(),
-            source_file=str(file_path),
-        )
-
-        flush_current()
-        if not table_name:
-            return None
-
-        return RawTable(
-            name=table_name,
-            hidden=hidden,
-            is_date_table=is_date_table,
-            columns=columns,
-            measures=measures,
-            calculated_columns=calc_cols,
-            annotations=annotations,
-        )
-
-    def _parse_tmdl_relationships(self, rel_file: Path) -> list[RawRelationship]:
-        """Parse TMDL relationships.tmdl file."""
-        try:
-            content = rel_file.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            return []
-
-        result: list[RawRelationship] = []
-        blocks = content.split("relationship ")
-        for block in blocks:
-            if not block.strip():
-                continue
-            props: dict[str, str] = {}
-            for line in block.splitlines():
-                line_s = line.strip()
-                if ":" in line_s:
-                    k, v = line_s.split(":", 1)
-                    props[k.strip()] = v.strip()
-
-            from_col_ref = props.get("fromColumn", "")
-            to_col_ref = props.get("toColumn", "")
-            f_t, f_c = self._parse_tmdl_col_ref(from_col_ref)
-            t_t, t_c = self._parse_tmdl_col_ref(to_col_ref)
-
-            if f_t and f_c and t_t and t_c:
-                raw_dict: dict[str, Any] = {
-                    "fromTable": f_t,
-                    "fromColumn": f_c,
-                    "toTable": t_t,
-                    "toColumn": t_c,
-                    "fromCardinality": props.get("fromCardinality", "many"),
-                    "toCardinality": props.get("toCardinality", "one"),
-                    "crossFilteringBehavior": props.get("crossFilteringBehavior", "oneDirection"),
-                    "isActive": props.get("isActive", "true").lower() != "false",
-                }
-                result.append(RawRelationship(
-                    from_table=f_t,
-                    from_column=f_c,
-                    to_table=t_t,
-                    to_column=t_c,
-                    raw=raw_dict,
-                ))
-
-        return result
-
-    def _parse_tables(self, raw_tables: list[dict]) -> list[RawTable]:
-        """Parse raw table definitions from model.bim."""
-        result: list[RawTable] = []
-        for raw in raw_tables:
-            name = raw.get("name", "")
-            if not name:
-                continue
-
-            # Detect date table via annotation
-            annotations = raw.get("annotations", [])
-            is_date_table = self._is_date_table_annotation(annotations)
-
-            # Separate regular columns, measures, and calculated columns
-            raw_columns = []
-            raw_measures = []
-            raw_calc_cols = []
-
-            for col in raw.get("columns", []):
-                col_type = col.get("type", "").lower()
-                if col_type == "calculated":
-                    raw_calc_cols.append({**col, "_table": name})
-                else:
-                    raw_columns.append({**col, "_table": name})
-
-            for m in raw.get("measures", []):
-                raw_measures.append({**m, "_table": name})
-
-            calc_group = raw.get("calculationGroup", {})
-            calc_items = calc_group.get("calculationItems", []) if calc_group else []
-            partitions = raw.get("partitions", [])
-            part_source = ""
-            if partitions:
-                src = partitions[0].get("source", {})
-                if isinstance(src, dict):
-                    part_source = src.get("expression", "")
-                    if isinstance(part_source, list):
-                        part_source = "\n".join(part_source)
-                elif isinstance(src, str):
-                    part_source = src
-
-            result.append(RawTable(
-                name=name,
-                hidden=raw.get("isHidden", False),
-                is_date_table=is_date_table,
-                columns=raw_columns,
-                measures=raw_measures,
-                calculated_columns=raw_calc_cols,
-                annotations=annotations,
-                calculation_items=calc_items,
-                partition_source=part_source,
-                source_file="model.bim",
-            ))
-        return result
-
-    def _is_date_table_annotation(self, annotations: list[dict]) -> bool:
-        """Check if annotations mark this as a date table."""
-        date_table_annotation_names = (
-            "PBI_IsDateTable",           # pbiscan convention
-            "__PBI_LocalDateTable",      # Power BI auto date/time
-            "PBI_TemporalTable",         # alternate Power BI marker
-        )
-        for ann in annotations:
-            if ann.get("name", "") in date_table_annotation_names:
-                value = str(ann.get("value", "")).lower()
-                if value in ("true", "1", "yes"):
-                    return True
-        return False
-
-    def _parse_relationships(self, raw_rels: list[dict]) -> list[RawRelationship]:
-        """Parse raw relationship definitions from model.bim."""
-        result: list[RawRelationship] = []
-        for raw in raw_rels:
-            from_table = raw.get("fromTable", "")
-            from_col = raw.get("fromColumn", "")
-            to_table = raw.get("toTable", "")
-            to_col = raw.get("toColumn", "")
-            if not all([from_table, from_col, to_table, to_col]):
-                logger.warning("Skipping incomplete relationship: %s", raw)
-                continue
-            result.append(RawRelationship(
-                from_table=from_table,
-                from_column=from_col,
-                to_table=to_table,
-                to_column=to_col,
-                raw=raw,
-            ))
-        return result
-
-    # ------------------------------------------------------------------
-    # Report parsing
-    # ------------------------------------------------------------------
-
-    def _parse_report(
-        self, report_dir: Path
-    ) -> tuple[list[RawPage], list[str]]:
-        """Parse the report directory.
-
-        Tries legacy report.json first, then PBIR format.
-        """
-        warnings: list[str] = []
-
-        # Legacy format: single report.json
+    def _parse_report(self, report_dir: Path) -> tuple[list[RawPage], list[str]]:
+        """Parse report pages. Tries legacy report.json first, then PBIR."""
         report_json = report_dir / "report.json"
         if report_json.exists():
             logger.info("Parsing report.json: %s", report_json)
-            pages = self._parse_report_json(report_json)
-            return pages, warnings
+            return parse_report_json(report_json), []
 
-        # PBIR format: definition/ folder with pages/ subfolder
         definition_dir = report_dir / "definition"
         if definition_dir.exists() and (definition_dir / "pages").exists():
             logger.info("Parsing PBIR format: %s", definition_dir)
-            pages = self._parse_pbir_format(definition_dir)
-            return pages, warnings
+            return parse_pbir_pages(definition_dir), []
 
-        warnings.append(
+        return [], [
             f"No supported report format found in {report_dir}. "
             "Expected: report.json or definition/pages/ (PBIR)."
-        )
-        return [], warnings
+        ]
 
-    def _parse_report_json(self, report_json: Path) -> list[RawPage]:
-        """Parse legacy report.json format."""
-        raw = self._load_json(report_json)
-        pages: list[RawPage] = []
-
-        sections = raw.get("sections", [])
-        for section in sections:
-            name = section.get("name", "")
-            display_name = section.get("displayName", name)
-            visibility = section.get("visibility", 0)
-
-            visuals = self._parse_visual_containers(
-                section.get("visualContainers", [])
-            )
-
-            # Page-level filters and config are stringified JSON in report.json
-            filter_refs = self._extract_measure_names_from_expr_tree(
-                [self._decode_json_field(section.get(k)) for k in ("filters", "config")]
-            )
-
-            pages.append(RawPage(
-                name=name,
-                display_name=display_name,
-                visibility=visibility,
-                visuals=visuals,
-                filter_measure_refs=sorted(filter_refs),
-            ))
-        return pages
-
-    def _parse_pbir_format(self, definition_dir: Path) -> list[RawPage]:
-        """Parse PBIR format: definition/pages/<name>/page.json + visuals/."""
-        pages: list[RawPage] = []
-        pages_dir = definition_dir / "pages"
-
-        for page_dir in sorted(pages_dir.iterdir()):
-            if not page_dir.is_dir():
-                continue
-
-            page_json_path = page_dir / "page.json"
-            if not page_json_path.exists():
-                continue
-
-            page_data = self._load_json(page_json_path)
-            name = page_data.get("name", page_dir.name)
-            display_name = page_data.get("displayName", name)
-            visibility = page_data.get("visibility", 0)
-
-            visuals: list[RawVisual] = []
-            visuals_dir = page_dir / "visuals"
-            if visuals_dir.exists():
-                for visual_dir in sorted(visuals_dir.iterdir()):
-                    visual_json = visual_dir / "visual.json"
-                    if visual_json.exists():
-                        v = self._parse_pbir_visual(self._load_json(visual_json))
-                        if v:
-                            visuals.append(v)
-
-            pages.append(RawPage(
-                name=name,
-                display_name=display_name,
-                visibility=visibility,
-                visuals=visuals,
-                # page.json filterConfig (page-level filter pane) and any other bindings
-                filter_measure_refs=sorted(self._extract_measure_names_from_expr_tree(page_data)),
-            ))
-
-        return pages
-
-    def _parse_report_level(
-        self, report_dir: Path
-    ) -> tuple[list[str], list[dict[str, Any]]]:
+    def _parse_report_level(self, report_dir: Path) -> tuple[list[str], list[dict[str, Any]]]:
         """Collect report-wide measure references and report-level measures.
 
         Covers report-level filters, report config and bookmarks (legacy
@@ -755,225 +180,25 @@ class PBIPReader:
         refs: set[str] = set()
         extensions: list[dict[str, Any]] = []
 
-        def load(path: Path) -> Any:
-            try:
-                return self._load_json(path)
-            except ParseError as exc:
-                logger.warning("Skipping unreadable report file %s: %s", path, exc)
-                return None
-
         legacy_json = report_dir / "report.json"
         if legacy_json.exists():
-            raw = load(legacy_json) or {}
-            config = self._decode_json_field(raw.get("config"))
-            refs |= self._extract_measure_names_from_expr_tree(
-                [self._decode_json_field(raw.get("filters")), config]
-            )
-            if isinstance(config, dict):
-                extensions.extend(self._collect_extension_measures(config.get("modelExtensions", [])))
+            legacy_refs, legacy_ext = parse_report_json_level(legacy_json)
+            refs |= legacy_refs
+            extensions.extend(legacy_ext)
 
         definition_dir = report_dir / "definition"
         if definition_dir.is_dir():
-            pbir_report = definition_dir / "report.json"
-            if pbir_report.exists():
-                refs |= self._extract_measure_names_from_expr_tree(load(pbir_report))
-
-            bookmarks_dir = definition_dir / "bookmarks"
-            if bookmarks_dir.is_dir():
-                for bookmark_file in sorted(bookmarks_dir.glob("*.json")):
-                    refs |= self._extract_measure_names_from_expr_tree(load(bookmark_file))
-
-            extensions_file = definition_dir / "reportExtensions.json"
-            if extensions_file.exists():
-                extensions.extend(self._collect_extension_measures([load(extensions_file)]))
+            pbir_refs, pbir_ext = parse_pbir_report_level(definition_dir)
+            refs |= pbir_refs
+            extensions.extend(pbir_ext)
 
         return sorted(refs), extensions
 
-    @staticmethod
-    def _collect_extension_measures(model_extensions: Any) -> list[dict[str, Any]]:
-        """Flatten `[{entities: [{name, measures: [{name, expression}]}]}]` into measure dicts."""
-        measures: list[dict[str, Any]] = []
-        if not isinstance(model_extensions, list):
-            return measures
-        for ext in model_extensions:
-            if not isinstance(ext, dict):
-                continue
-            for entity in ext.get("entities", []) or []:
-                if not isinstance(entity, dict):
-                    continue
-                for m in entity.get("measures", []) or []:
-                    if isinstance(m, dict) and m.get("name"):
-                        expr = m.get("expression", "")
-                        measures.append({
-                            "name": m["name"],
-                            "table": entity.get("name", ""),
-                            "expression": "\n".join(expr) if isinstance(expr, list) else str(expr or ""),
-                        })
-        return measures
 
-    @staticmethod
-    def _decode_json_field(value: Any) -> Any:
-        """Legacy report.json stores filters/config as JSON strings; decode them (or pass through)."""
-        if isinstance(value, str):
-            try:
-                return json.loads(value)
-            except json.JSONDecodeError:
-                return None
-        return value
-
-    def _extract_measure_names_from_expr_tree(self, obj: Any) -> set[str]:
-        """Recursively traverse any JSON/dict subtree and extract all Measure.Property expressions."""
-        refs: set[str] = set()
-        if isinstance(obj, dict):
-            # Check for direct Measure expression object e.g. {"Measure": {"Property": "TotalSales"}}
-            if "Measure" in obj and isinstance(obj["Measure"], dict):
-                prop = obj["Measure"].get("Property", "")
-                if prop:
-                    refs.add(prop)
-            # Recursively traverse child objects
-            for v in obj.values():
-                refs.update(self._extract_measure_names_from_expr_tree(v))
-        elif isinstance(obj, list):
-            for item in obj:
-                refs.update(self._extract_measure_names_from_expr_tree(item))
-        return refs
-
-    def _parse_pbir_visual(self, raw: dict) -> Optional[RawVisual]:
-        """Parse a single PBIR visual.json file."""
-        visual_node = raw.get("visual", {})
-        visual_type = visual_node.get("visualType", "unknown")
-
-        position = raw.get("position", {})
-        x = position.get("x", 0.0)
-        y = position.get("y", 0.0)
-        width = position.get("width", 0.0)
-        height = position.get("height", 0.0)
-
-        # Extract measure references from query state
-        query_measures, fields_used = self._extract_measure_refs_from_pbir_query(
-            visual_node.get("query", {})
-        )
-
-        # Recursively harvest measure references across the complete visual AST
-        # (including objects.referenceLabel, objects.title, objects.subTitle, conditional formatting, filters)
-        ast_measures = self._extract_measure_names_from_expr_tree(raw)
-        
-        all_measure_refs = sorted(list(set(query_measures) | ast_measures))
-        all_fields_used = sorted(list(set(fields_used) | ast_measures))
-
-        return RawVisual(
-            visual_type=visual_type,
-            x=x, y=y, width=width, height=height,
-            fields_used=all_fields_used,
-            measure_refs=all_measure_refs,
-            is_slicer=(visual_type.lower() == "slicer"),
-            hidden=raw.get("hidden", False),
-        )
-
-    def _extract_measure_refs_from_pbir_query(
-        self, query: dict
-    ) -> tuple[list[str], list[str]]:
-        """Extract measure names from PBIR query state."""
-        measure_refs: list[str] = []
-        fields_used: list[str] = []
-        query_state = query.get("queryState", {})
-        for _bucket_name, bucket in query_state.items():
-            for proj in bucket.get("projections", []):
-                field = proj.get("field", {})
-                if "Measure" in field:
-                    measure = field["Measure"]
-                    prop = measure.get("Property", "")
-                    if prop:
-                        measure_refs.append(prop)
-                        fields_used.append(prop)
-        return measure_refs, fields_used
-
-    def _parse_visual_containers(
-        self, containers: list[dict]
-    ) -> list[RawVisual]:
-        """Parse visualContainers array from legacy report.json."""
-        visuals: list[RawVisual] = []
-        for vc in containers:
-            v = self._parse_single_visual_container(vc)
-            if v:
-                visuals.append(v)
-        return visuals
-
-    def _parse_single_visual_container(self, vc: dict) -> Optional[RawVisual]:
-        """Parse one visualContainer entry from report.json."""
-        config_str = vc.get("config", "{}")
-        if isinstance(config_str, str):
-            try:
-                config = json.loads(config_str)
-            except json.JSONDecodeError:
-                logger.warning("Could not parse visual config JSON: %s…", config_str[:80])
-                config = {}
-        else:
-            config = config_str  # already a dict (some variants)
-
-        single_visual = config.get("singleVisual", {})
-        visual_type = single_visual.get("visualType", "unknown")
-
-        # Extract from prototypeQuery (most common in report.json)
-        measure_refs: list[str] = []
-        fields_used: list[str] = []
-
-        pq = single_visual.get("prototypeQuery", {})
-        for select_item in pq.get("Select", []):
-            name = select_item.get("Name", "")
-            if name:
-                clean_name = name.split(".", 1)[-1] if "." in name else name
-                fields_used.append(clean_name)
-            if "Measure" in select_item:
-                prop = select_item["Measure"].get("Property", "")
-                if prop:
-                    measure_refs.append(prop)
-
-        # Extract from projections (e.g. {"Values": [{"queryRef": "Sales.Net Sales"}]})
-        projections = single_visual.get("projections", {})
-        if isinstance(projections, dict):
-            for _bucket, items in projections.items():
-                if isinstance(items, list):
-                    for item in items:
-                        if isinstance(item, dict):
-                            qref = item.get("queryRef", "")
-                            if qref:
-                                clean_name = qref.split(".", 1)[-1] if "." in qref else qref
-                                fields_used.append(clean_name)
-                                measure_refs.append(clean_name)
-
-        # Recursively harvest measure references from objects / visual container JSON,
-        # plus the visual-level filter pane (a separate stringified `filters` field)
-        ast_measures = self._extract_measure_names_from_expr_tree(
-            [config, self._decode_json_field(vc.get("filters"))]
-        )
-        all_measure_refs = sorted(list(set(measure_refs) | ast_measures))
-        all_fields_used = sorted(list(set(fields_used) | ast_measures))
-
-        return RawVisual(
-            visual_type=visual_type,
-            x=float(vc.get("x", 0)),
-            y=float(vc.get("y", 0)),
-            width=float(vc.get("width", 0)),
-            height=float(vc.get("height", 0)),
-            fields_used=all_fields_used,
-            measure_refs=all_measure_refs,
-            is_slicer=(visual_type.lower() == "slicer"),
-            hidden=vc.get("hidden", False),
-        )
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    def _load_json(self, path: Path) -> dict:
-        """Load and parse a JSON file, raising ParseError on failure."""
-        try:
-            with open(path, encoding="utf-8") as f:
-                return json.load(f)
-        except json.JSONDecodeError as exc:
-            raise ParseError(f"JSON parse error in {path}: {exc}") from exc
-        except UnicodeDecodeError as exc:
-            raise ParseError(f"Cannot decode {path} as UTF-8: {exc}") from exc
-        except OSError as exc:
-            raise ParseError(f"Cannot read {path}: {exc}") from exc
+def _find_dir(root: Path, suffix: str) -> Optional[Path]:
+    """Return the first child directory of `root` whose name ends with `suffix`."""
+    for item in root.iterdir():
+        if item.is_dir() and item.name.endswith(suffix):
+            logger.debug("%s dir: %s", suffix, item)
+            return item
+    return None

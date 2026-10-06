@@ -272,7 +272,9 @@ To mark an approved architectural exception without disabling rules or deleting 
 PBIP Project (.pbip / TMDL / TMSL / PBIR)
                   │
                   ▼
-         Extraction Layer (pbip_reader.py)
+         Extraction Layer (extraction/pbip_reader.py)
+         ├── tmdl_parser.py / bim_parser.py      (semantic model)
+         └── report_parser.py / pbir_parser.py   (report.json / PBIR)
                   │
                   ▼
          Canonical Model (canonical/model.py, dax_graph.py)
