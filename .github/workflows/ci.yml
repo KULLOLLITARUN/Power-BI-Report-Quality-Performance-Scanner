@@ -52,6 +52,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+          # Turns each failing test into a GitHub annotation, readable on the
+          # run page without downloading the job log.
+          pip install pytest-github-actions-annotate-failures
 
       # Node runs the cross-engine parity test (Python vs studio-ui clientScanner.ts)
       - name: Set up Node
