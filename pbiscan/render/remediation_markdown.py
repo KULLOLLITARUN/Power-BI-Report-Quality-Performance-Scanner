@@ -53,6 +53,9 @@ class RemediationMarkdownRenderer:
             ])
             return "\n".join(lines)
 
+        for warning in plan.warnings:
+            lines.extend(["> [!WARNING]", f"> {warning}", ""])
+
         lines.append("### 📋 Proposed Remediation Patches")
         lines.append("")
 

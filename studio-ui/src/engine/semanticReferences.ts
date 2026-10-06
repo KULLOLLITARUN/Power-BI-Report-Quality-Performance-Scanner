@@ -67,6 +67,8 @@ export class SemanticReferenceIndex {
 const BRACKET_REF_PATTERN = /(?:'([^']+)'|\b([a-zA-Z_][a-zA-Z0-9_]*))?\[([^\]]+)\]/gi;
 const ISSELECTEDMEASURE_PATTERN = /\bISSELECTEDMEASURE\s*\(\s*(?:'([^']+)'\s*|([a-zA-Z_][a-zA-Z0-9_]*)\s*)?\[([^\]]+)\]/gi;
 const SELECTEDMEASURENAME_PATTERN = /\bSELECTEDMEASURENAME\s*\(\s*\)\s*(?:==?|=)\s*"([^"]+)"/gi;
+const SELECTEDMEASURENAME_CALL = /\bSELECTEDMEASURENAME\s*\(/i;
+const STRING_LITERAL = /"((?:[^"]|"")*)"/g;
 
 const IGNORED_BRACKET_NAMES = new Set([
   'name', 'value', 'value1', 'value2', 'value3', 'value4', 'ordinal',
@@ -124,6 +126,29 @@ export function extractCalcGroupReferences(
           source_expression: match[0],
           activates_root: true,
           confidence: 100,
+        });
+      }
+    }
+
+    // 2b. Every other SELECTEDMEASURENAME() form ("X" = SELECTEDMEASURENAME(), IN {...},
+    // SWITCH(SELECTEDMEASURENAME(), "X", ...), VAR m = ...) names measures by string:
+    // when the function appears, each string literal may be a measure name.
+    for (const [dax, obj] of [[itemDax, sourceObj], [formatDax, `${sourceObj}.formatStringDefinition`]]) {
+      if (!SELECTEDMEASURENAME_CALL.test(dax)) continue;
+      const seen = new Set(references.filter((r) => r.source_object === obj).map((r) => r.target_name));
+      for (const match of dax.matchAll(STRING_LITERAL)) {
+        const literal = match[1].replace(/""/g, '"').trim();
+        if (!literal || seen.has(literal) || IGNORED_BRACKET_NAMES.has(literal.toLowerCase())) continue;
+        seen.add(literal);
+        references.push({
+          target_name: literal,
+          target_type: 'measure',
+          source_type: 'calc_item_predicate',
+          source_object: obj,
+          source_file: sourceFile,
+          source_expression: match[0],
+          activates_root: true,
+          confidence: 80,
         });
       }
     }

@@ -1,0 +1,25 @@
+{
+  "name": "Drill",
+  "displayName": "Customer detail",
+  "visibility": "HiddenInViewMode",
+  "pageBinding": {
+    "name": "pb1",
+    "type": "Drillthrough",
+    "parameters": [
+      {
+        "name": "p1",
+        "boundFilter": "f1",
+        "fieldExpr": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Sales"
+              }
+            },
+            "Property": "Customer"
+          }
+        }
+      }
+    ]
+  }
+}

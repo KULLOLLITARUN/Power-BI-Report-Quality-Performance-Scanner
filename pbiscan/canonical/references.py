@@ -15,7 +15,7 @@ ReferenceSourceType = Literal[
     "visual_filter",           # Measure in visual/page filter pane
     "visual_property",         # Measure in visual title, subtitle, card label, conditional format
     "calc_item_dax",           # Explicit [Measure] reference in calculationItem DAX
-    "calc_item_predicate",     # Target measure in ISSELECTEDMEASURE([Measure]) predicate
+    "calc_item_predicate",     # Measure named by ISSELECTEDMEASURE([Measure]) or a SELECTEDMEASURENAME() string
     "field_parameter",         # Measure in calculated table NAMEOF('Table'[Measure])
     "field_parameter_grouped", # Measure in 4-tuple grouped calculated table
     "rls_table_permission",    # Measure in roles/Role.tmdl or model.bim tablePermission DAX

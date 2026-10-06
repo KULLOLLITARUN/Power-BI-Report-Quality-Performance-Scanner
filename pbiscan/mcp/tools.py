@@ -110,6 +110,7 @@ def handle_plan_remediation(path: str, rule_filter: Optional[str] = None) -> dic
     return {
         "plan": plan.to_dict(),
         "validation": val.to_dict(),
+        "warnings": plan.warnings,
         "total_proposals": len(plan.actionable_patches),
         "before_score": val.before_score,
         "after_score": val.after_score,

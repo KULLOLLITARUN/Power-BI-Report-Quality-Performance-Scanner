@@ -179,6 +179,15 @@ class RemediationPlan:
     def applied_patches(self) -> list[Patch]:
         return [p for p in self.patches if p.state == PatchLifecycleState.APPLIED]
 
+    @property
+    def warnings(self) -> list[str]:
+        """Caveats the user must see before applying this plan."""
+        from pbiscan.engine.recommendations import UNUSED_MEASURE_SCOPE_WARNING
+
+        if any(p.rule_id == "DAX_UNUSED_MEASURE" for p in self.actionable_patches):
+            return [UNUSED_MEASURE_SCOPE_WARNING]
+        return []
+
     def filter_by_patch_ids(self, patch_ids: list[str] | set[str]) -> RemediationPlan:
         """Create a new RemediationPlan containing only the specified patch IDs."""
         id_set = {pid.strip() for pid in patch_ids}
@@ -200,6 +209,7 @@ class RemediationPlan:
             "conflicts": [c.to_dict() for c in self.conflicts],
             "skipped_findings": self.skipped_findings,
             "unsupported_findings": self.unsupported_findings,
+            "warnings": self.warnings,
         }
 
 

@@ -45,7 +45,8 @@ These figures describe this 11-model corpus only. They are evidence, not a guara
 ### Known limitations
 
 - **Static analysis only.** pbiscan reads project files; it never connects to a dataset, so it cannot measure real query performance or VertiPaq memory. Performance rules flag *patterns* worth reviewing.
-- **"Unused" means unused in this project.** `DAX_UNUSED_MEASURE` cannot see other reports, Excel workbooks, paginated reports or external tools that query the same semantic model. Review before letting `pbiscan fix` delete a measure from a shared model.
+- **"Unused" means unused in this project.** `DAX_UNUSED_MEASURE` cannot see other reports, Excel workbooks, paginated reports or external tools that query the same semantic model. Review before letting `pbiscan fix` delete a measure from a shared model; `pbiscan fix` repeats this warning whenever its plan deletes a measure.
+- **Unreadable files switch off unused-measure detection.** A table, role, bookmark or other project file that can't be read or parsed is skipped and named in the scan warnings. Because it could be the only place a measure is used, `DAX_UNUSED_MEASURE` reports nothing for that scan.
 - **Heuristic rules are labelled.** Rules with confidence below 100% (e.g. `MODEL_FACT_TO_FACT`, `DAX_SUSPICIOUS_PATTERN`) are heuristics and will sometimes flag intentional designs; suppress those with `pbiscan.suppressions.json`.
 
 ---
@@ -145,7 +146,7 @@ pbiscan fix "path/to/my_report.pbip" --interactive --apply
 # CI governance gate: fail the build if any safe fix is available but unapplied
 pbiscan fix "path/to/my_report.pbip" --fail-on-remediation-available --quiet
 ```
-Supports `MODEL_BIDIRECTIONAL`, `DAX_UNUSED_MEASURE`, `M_HARDCODED_DATA_SOURCE`, and `MODEL_AUTO_DATETIME_BLOAT`. Applying patches creates a timestamped backup directory first and validates each patch against a fresh scan fingerprint before touching disk.
+Supports `MODEL_BIDIRECTIONAL`, `DAX_UNUSED_MEASURE`, `M_HARDCODED_DATA_SOURCE`, and `MODEL_AUTO_DATETIME_BLOAT`. Every plan is first applied to a sandbox copy and rescanned. Each edited file is re-parsed and compared with the original: JSON must still load, and a TMDL table must keep its columns and every remaining measure's expression. A patch is rejected if it leaves any project file unreadable. Applying creates a timestamped backup first, writes all files or none, and restores the backup if the final rescan fails.
 
 ### 7. Model Context Protocol (MCP) Server
 Connect PBIP Sentinel to AI agents (Claude Desktop, Cursor, Claude Code, Antigravity) with standard stdio JSON-RPC. Allows agents to inspect quality scores, query measure DAG lineage, and propose remediation plans:

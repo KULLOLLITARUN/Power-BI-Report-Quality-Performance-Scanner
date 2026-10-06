@@ -1,0 +1,32 @@
+{
+  "name": "card",
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Sales"
+                    }
+                  },
+                  "Property": "Revenue"
+                }
+              },
+              "queryRef": "Sales.Revenue"
+            }
+          ]
+        }
+      }
+    },
+    "visualTooltip": {
+      "show": true,
+      "type": "ReportPage",
+      "section": "Tip"
+    }
+  }
+}

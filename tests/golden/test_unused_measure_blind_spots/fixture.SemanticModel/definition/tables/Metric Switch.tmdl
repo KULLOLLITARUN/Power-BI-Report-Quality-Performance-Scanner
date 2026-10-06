@@ -1,0 +1,13 @@
+table 'Metric Switch'
+	calculationGroup
+
+	column 'Metric Switch'
+		dataType: string
+		sourceColumn: Name
+
+	calculationItem Scaled = SWITCH(SELECTEDMEASURENAME(), "Margin %", SELECTEDMEASURE() * 100, SELECTEDMEASURE())
+
+	calculationItem Signed = IF("Discount" = SELECTEDMEASURENAME() || SELECTEDMEASURENAME() IN { "Return Rate" }, -SELECTEDMEASURE(), SELECTEDMEASURE())
+
+	calculationItem Formatted = SELECTEDMEASURE()
+		formatStringDefinition = SWITCH(SELECTEDMEASURENAME(), "Units", "#,0", SELECTEDMEASUREFORMATSTRING())

@@ -27,6 +27,8 @@ _SELECTEDMEASURENAME_PATTERN = re.compile(
     r"\bSELECTEDMEASURENAME\s*\(\s*\)\s*(?:==?|=)\s*\"([^\"]+)\"",
     re.IGNORECASE,
 )
+_SELECTEDMEASURENAME_CALL = re.compile(r"\bSELECTEDMEASURENAME\s*\(", re.IGNORECASE)
+_STRING_LITERAL = re.compile(r'"((?:[^"]|"")*)"')
 
 # Reserved keywords and column aliases inside calculation groups to ignore
 _IGNORED_BRACKET_NAMES = {
@@ -97,6 +99,34 @@ def extract_calc_group_references(
                         source_expression=match.group(0),
                         activates_root=True,
                         confidence=100,
+                    )
+                )
+
+        # 2b. Every other SELECTEDMEASURENAME() form — "X" = SELECTEDMEASURENAME(),
+        # SELECTEDMEASURENAME() IN {"X", "Y"}, SWITCH(SELECTEDMEASURENAME(), "X", ...),
+        # VAR m = SELECTEDMEASURENAME() ... — names measures by string. When the
+        # function appears, any string literal in the expression may be a measure
+        # name, so each one is recorded; a literal that names no measure is harmless.
+        for dax, obj in ((item_dax, source_obj), (format_dax, f"{source_obj}.formatStringDefinition")):
+            if not _SELECTEDMEASURENAME_CALL.search(dax):
+                continue
+            seen = {r.target_name for r in references if r.source_object == obj}
+            for match in _STRING_LITERAL.finditer(dax):
+                literal = match.group(1).replace('""', '"').strip()
+                if not literal or literal in seen or literal.lower() in _IGNORED_BRACKET_NAMES:
+                    continue
+                seen.add(literal)
+                references.append(
+                    SemanticReference(
+                        target_name=literal,
+                        target_table=None,
+                        target_type="measure",
+                        source_type="calc_item_predicate",
+                        source_object=obj,
+                        source_file=source_file,
+                        source_expression=match.group(0),
+                        activates_root=True,
+                        confidence=80,
                     )
                 )
 

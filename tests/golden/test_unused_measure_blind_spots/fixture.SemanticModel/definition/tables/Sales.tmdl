@@ -1,0 +1,36 @@
+table Sales
+
+	measure Revenue = SUM(Sales[Amount])
+
+	/// Only used by a visual on the hidden drillthrough page.
+	measure 'Drill Only' = COUNTROWS(Sales)
+
+	/// Only used by a visual on the hidden tooltip page.
+	measure 'Tooltip Only' = AVERAGE(Sales[Amount])
+
+	/// Only named in SWITCH(SELECTEDMEASURENAME(), "Margin %", ...).
+	measure 'Margin %' = DIVIDE([Revenue], 2)
+
+	/// Only named in "Discount" = SELECTEDMEASURENAME() (reversed comparison).
+	measure Discount = [Revenue] * 0.1
+
+	/// Only named in SELECTEDMEASURENAME() IN { "Return Rate" }.
+	measure 'Return Rate' = DIVIDE(1, 3)
+
+	/// Only named in a formatStringDefinition switch.
+	measure Units = SUM(Sales[Qty])
+
+	/// True-positive control: referenced by nothing.
+	measure Orphan = 42
+
+	column Amount
+		dataType: double
+
+	column Qty
+		dataType: int64
+
+	column Customer
+		dataType: string
+
+	column OrderDate
+		dataType: dateTime

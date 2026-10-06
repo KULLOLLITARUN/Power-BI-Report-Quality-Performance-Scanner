@@ -1,0 +1,10 @@
+{
+  "name": "Tip",
+  "displayName": "Tooltip",
+  "visibility": "HiddenInViewMode",
+  "type": "Tooltip",
+  "pageBinding": {
+    "name": "pb2",
+    "type": "Tooltip"
+  }
+}

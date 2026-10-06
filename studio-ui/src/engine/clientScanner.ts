@@ -983,10 +983,12 @@ function processModernPbirPages(
       const data = JSON.parse(file.content);
       // page.json filterConfig (page-level filter pane) and any other bindings
       for (const m of extractMeasureNamesFromExprTree(data)) visualMeasureRefs.add(m);
-      const visibility = typeof data.visibility === 'number' ? data.visibility : 0;
+      // PBIR visibility is "AlwaysVisible" / "HiddenInViewMode" (mirrors pbir_parser.page_visibility)
+      const hidden = data.visibility === 'HiddenInViewMode'
+        || (typeof data.visibility === 'number' && data.visibility !== 0);
       pageMap.set(pageId, {
         displayName: data.displayName || pageId,
-        isHidden: visibility !== 0,
+        isHidden: hidden,
         visualCount: 0,
         slicerCount: 0,
       });

@@ -28,6 +28,40 @@ def temp_bidirectional_model(tmp_path: Path) -> Path:
     return model_dir
 
 
+SCOPE_WARNING = "Unused in this report is not the same as unused in the model"
+
+
+class TestUnusedMeasureScopeWarning:
+    """Deleting a measure needs a caveat that static analysis of one project can't
+    see other reports, Excel workbooks or XMLA clients using the same model."""
+
+    def test_console_plan_warns_before_measure_deletion(self, temp_multirule_model: Path):
+        res = CliRunner().invoke(main, ["fix", str(temp_multirule_model), "--rule", "DAX_UNUSED_MEASURE"])
+        assert res.exit_code == 3
+        assert SCOPE_WARNING in res.output
+
+    def test_json_and_markdown_plans_carry_the_warning(self, temp_multirule_model: Path, tmp_path: Path):
+        json_out, md_out = tmp_path / "plan.json", tmp_path / "plan.md"
+        runner = CliRunner()
+        runner.invoke(main, ["fix", str(temp_multirule_model), "-r", "DAX_UNUSED_MEASURE", "-f", "json", "-o", str(json_out)])
+        runner.invoke(main, ["fix", str(temp_multirule_model), "-r", "DAX_UNUSED_MEASURE", "-f", "markdown", "-o", str(md_out)])
+
+        warnings = json.loads(json_out.read_text(encoding="utf-8"))["plan"]["warnings"]
+        assert len(warnings) == 1 and warnings[0].startswith(SCOPE_WARNING)
+        assert SCOPE_WARNING in md_out.read_text(encoding="utf-8")
+
+    def test_no_warning_when_no_measure_is_deleted(self, temp_bidirectional_model: Path):
+        res = CliRunner().invoke(main, ["fix", str(temp_bidirectional_model)])
+        assert res.exit_code == 3
+        assert SCOPE_WARNING not in res.output
+
+    def test_mcp_plan_carries_the_warning(self, temp_multirule_model: Path):
+        from pbiscan.mcp.tools import handle_plan_remediation
+
+        result = handle_plan_remediation(str(temp_multirule_model), rule_filter="DAX_UNUSED_MEASURE")
+        assert result["warnings"] and result["warnings"][0].startswith(SCOPE_WARNING)
+
+
 class TestCliRemediationUxAndSelectiveApply:
     def test_cli_fix_plan_only_console_cards(self, temp_bidirectional_model: Path):
         runner = CliRunner()

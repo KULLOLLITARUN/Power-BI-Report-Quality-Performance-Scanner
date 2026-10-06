@@ -40,6 +40,7 @@ _DIM   = "\033[2m"
 _GREEN = "\033[32m"
 _CYAN  = "\033[36m"
 _RED   = "\033[31m"
+_YELLOW = "\033[33m"
 
 
 def _colour(text: str, code: str) -> str:
@@ -509,6 +510,11 @@ def fix(
     except Exception as exc:
         click.echo(f"[ERROR] Remediation planning failed: {exc}", err=True)
         sys.exit(2)
+
+    # Shown before any prompt or write. JSON output carries it as plan.warnings instead.
+    if not quiet and output_format.lower() != "json":
+        for warning in plan.warnings:
+            click.echo(_colour(f"\n[WARN] {warning}", _YELLOW), err=True)
 
     # Interactive Review Mode
     if interactive and plan.actionable_patches:

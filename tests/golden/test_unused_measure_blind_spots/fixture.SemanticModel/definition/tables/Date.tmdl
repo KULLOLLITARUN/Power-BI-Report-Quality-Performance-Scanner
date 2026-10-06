@@ -1,0 +1,6 @@
+table Date
+
+	column Date
+		dataType: dateTime
+
+	annotation PBI_IsDateTable = true

@@ -293,6 +293,16 @@ RECOMMENDATIONS: dict[str, dict[str, str]] = {
 }
 
 
+# Shown wherever `pbiscan fix` proposes deleting a measure (CLI, JSON/Markdown
+# plans, MCP plan_remediation).
+UNUSED_MEASURE_SCOPE_WARNING = (
+    "Unused in this report is not the same as unused in the model. pbiscan only "
+    "sees this PBIP project: other reports, Analyze in Excel workbooks, paginated "
+    "reports and XMLA or API clients that use the same semantic model are invisible "
+    "to it. Confirm each measure is not used elsewhere before deleting it."
+)
+
+
 def get_recommendation(rule_id: str) -> dict[str, str]:
     """Return the recommendation entry for a given rule_id.
 

@@ -43,7 +43,7 @@ def parse_pbir_pages(definition_dir: Path) -> list[RawPage]:
         with expect_structure(page_json_path):
             name = page_data.get("name", page_dir.name)
             display_name = page_data.get("displayName", name)
-            visibility = page_data.get("visibility", 0)
+            visibility = page_visibility(page_data.get("visibility"))
 
         visuals: list[RawVisual] = []
         visuals_dir = page_dir / "visuals"
@@ -67,6 +67,19 @@ def parse_pbir_pages(definition_dir: Path) -> list[RawPage]:
         ))
 
     return pages
+
+
+def page_visibility(value: Any) -> int:
+    """Map PBIR page visibility ("AlwaysVisible" / "HiddenInViewMode") to 0 = visible, 1 = hidden.
+
+    Drillthrough and tooltip pages are usually HiddenInViewMode. Their visuals
+    still count as measure usage; only the per-page bloat rules skip them.
+    """
+    if value == "HiddenInViewMode":
+        return 1
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    return 0
 
 
 def parse_pbir_report_level(

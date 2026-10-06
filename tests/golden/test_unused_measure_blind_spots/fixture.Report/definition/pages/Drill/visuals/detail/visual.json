@@ -1,0 +1,27 @@
+{
+  "name": "detail",
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Sales"
+                    }
+                  },
+                  "Property": "Drill Only"
+                }
+              },
+              "queryRef": "Sales.Drill Only"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
