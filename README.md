@@ -2,7 +2,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Workbench-pbip--sentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbip-sentinel.netlify.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Tests: 527 Passing](https://img.shields.io/badge/Tests-527%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
+[![Tests: 547 Passing](https://img.shields.io/badge/Tests-547%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![Python: 3.10 | 3.11 | 3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue?style=for-the-badge&logo=python&logoColor=white)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![SARIF: OASIS v2.1.0](https://img.shields.io/badge/SARIF-OASIS%20v2.1.0-blueviolet?style=for-the-badge)](https://sarifweb.azurewebsites.net/)
 
@@ -22,7 +22,7 @@ It inspects semantic model definitions (**TMDL** / **TMSL**), DAX calculation ex
 - 🩹 **Safe Remediation Engine** (`pbiscan fix`): Plans and, on request, applies reversible fixes for `MODEL_BIDIRECTIONAL`, `DAX_UNUSED_MEASURE`, `M_HARDCODED_DATA_SOURCE`, and `MODEL_AUTO_DATETIME_BLOAT` — with automatic timestamped backups, an interactive review mode, and a `--fail-on-remediation-available` CI gate.
 - 🔀 **Historical Scan Diff** (`pbiscan diff`): Compares two scans and reports new/resolved/persistent findings plus score drift, with `--fail-on-regression` and related quality-gate flags for PR checks.
 - 🕸️ **Transitive DAX Graph Reachability**: Cycle-safe dependency DAG that distinguishes truly unreferenced measures from internal calculation building blocks.
-- 📑 **Unified Semantic Reference Index**: Accurately tracks measure usage across PBIR Visuals, Calculation Groups (`SELECTEDMEASURE`), Field Parameters, and Row-Level Security (RLS) filters.
+- 📑 **Unified Semantic Reference Index**: Tracks measure usage across visuals (PBIR and legacy), visual/page/report filters, bookmarks, report-level measures, Calculation Groups (`SELECTEDMEASURE`), Field Parameters, and Row-Level Security (RLS) filters.
 - 💻 **Interactive Studio Web UI**: Fast local web application (`pbiscan studio`) featuring an interactive DAX canvas DAG, Model Topology explorer, before/after TMDL remediation diff previews, and 1-click suppressions.
 - 🔕 **Transparent Suppressions**: Suppress approved business exceptions via `pbiscan.suppressions.json` without altering findings auditability.
 - 🐍 **Zero-Prerequisite Pure Python**: Runs headlessly on Linux, macOS, and Windows with zero external binary or .NET dependencies.
@@ -35,10 +35,18 @@ PBIP Sentinel follows a strict **Observation $\to$ Proof $\to$ Implementation** 
 
 | Metric | Result | Description |
 | :--- | :--- | :--- |
-| **Real Customer Models Audited** | **11 Models** | Enterprise models across Sales, HR, Finance, and Retail |
-| **Classified Findings** | **94 / 94 True Positives** | 100% precision with **0 false positives** |
-| **Crash Rate** | **0.00%** | Zero crashes or unhandled exceptions across the corpus |
-| **Automated Test Suite** | **527 / 527 Passing** | Unit tests, golden fixtures, and API contracts (~1 min execution) |
+| **Real-World Models Audited** | **11 Models** | PBIP models across Sales, HR, Finance, and Retail |
+| **Classified Findings** | **94 / 94 True Positives** | Every finding on this corpus was manually classified; none were false positives |
+| **Crash Rate** | **0 / 11** | No crashes or unhandled exceptions across the corpus |
+| **Automated Test Suite** | **547 / 547 Passing** | Unit tests, golden fixtures, and API contracts (~1 min execution) |
+
+These figures describe this 11-model corpus only. They are evidence, not a guarantee: other models can exercise patterns the corpus does not contain. If you hit a false positive, please [open an issue](.github/ISSUE_TEMPLATE/bug_report.md).
+
+### Known limitations
+
+- **Static analysis only.** pbiscan reads project files; it never connects to a dataset, so it cannot measure real query performance or VertiPaq memory. Performance rules flag *patterns* worth reviewing.
+- **"Unused" means unused in this project.** `DAX_UNUSED_MEASURE` cannot see other reports, Excel workbooks, paginated reports or external tools that query the same semantic model. Review before letting `pbiscan fix` delete a measure from a shared model.
+- **Heuristic rules are labelled.** Rules with confidence below 100% (e.g. `MODEL_FACT_TO_FACT`, `DAX_SUSPICIOUS_PATTERN`) are heuristics and will sometimes flag intentional designs; suppress those with `pbiscan.suppressions.json`.
 
 ---
 
@@ -293,7 +301,7 @@ PBIP Project (.pbip / TMDL / TMSL / PBIR)
 ## 🧪 Automated Testing
 
 ```bash
-# Run all 527 unit, golden contract, and integration tests
+# Run all 547 unit, golden contract, and integration tests
 pytest tests/ -v
 ```
 

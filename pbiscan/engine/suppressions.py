@@ -7,12 +7,17 @@ while keeping them transparently visible and auditable in reports.
 from __future__ import annotations
 from dataclasses import dataclass
 import json
+import logging
 from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from pbiscan.engine.issue import Issue
+
+logger = logging.getLogger(__name__)
+
+SUPPRESSIONS_FILENAME = "pbiscan.suppressions.json"
 
 
 def _normalise_loc(loc: str) -> str:
@@ -61,53 +66,62 @@ class SuppressionRule:
         return False
 
 
-def load_suppressions(path: str | Path) -> list[SuppressionRule]:
+def load_suppressions(path: str | Path, warnings: Optional[list[str]] = None) -> list[SuppressionRule]:
     """Reads pbiscan.suppressions.json from the scan target directory.
-    
-    Absent file = no suppressions, not an error.
+
+    Absent file = no suppressions, not an error. An unreadable or malformed
+    file also yields no suppressions, but is reported: it is logged, and the
+    message is appended to `warnings` when a list is passed, so the user can
+    see why previously suppressed findings reappeared.
     """
     p = Path(path)
     suppressions_file: Optional[Path] = None
 
     if p.is_file():
-        if p.name == "pbiscan.suppressions.json":
+        if p.name == SUPPRESSIONS_FILENAME:
             suppressions_file = p
         else:
             # Check sibling in same directory
-            candidate = p.parent / "pbiscan.suppressions.json"
+            candidate = p.parent / SUPPRESSIONS_FILENAME
             if candidate.is_file():
                 suppressions_file = candidate
     elif p.is_dir():
-        candidate = p / "pbiscan.suppressions.json"
+        candidate = p / SUPPRESSIONS_FILENAME
         if candidate.is_file():
             suppressions_file = candidate
 
     if not suppressions_file or not suppressions_file.exists():
         return []
 
-    try:
-        data = json.loads(suppressions_file.read_text(encoding="utf-8"))
-        raw_list = data.get("suppressions", [])
-        rules: list[SuppressionRule] = []
-        for item in raw_list:
-            rule_id = item.get("rule_id", "")
-            loc = item.get("location") or item.get("location_pattern", "*")
-            reason = item.get("reason", "Suppressed by team policy")
-            added_by = item.get("added_by")
-            added_at = item.get("added_at")
-            if rule_id:
-                rules.append(SuppressionRule(
-                    rule_id=rule_id,
-                    location_pattern=loc,
-                    reason=reason,
-                    added_by=added_by,
-                    added_at=added_at,
-                ))
-        return rules
-    except Exception:
-        # Invalid JSON or unreadable file: return empty list safely
+    def report(problem: str) -> list[SuppressionRule]:
+        message = f"Ignoring suppressions in {suppressions_file}: {problem}"
+        logger.warning(message)
+        if warnings is not None:
+            warnings.append(message)
         return []
 
+    try:
+        data = json.loads(suppressions_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return report(str(exc))
+
+    if not isinstance(data, dict) or not isinstance(data.get("suppressions", []), list):
+        return report('expected an object with a "suppressions" list')
+
+    rules: list[SuppressionRule] = []
+    for item in data.get("suppressions", []):
+        if not isinstance(item, dict):
+            continue
+        rule_id = item.get("rule_id", "")
+        if rule_id:
+            rules.append(SuppressionRule(
+                rule_id=rule_id,
+                location_pattern=item.get("location") or item.get("location_pattern", "*"),
+                reason=item.get("reason", "Suppressed by team policy"),
+                added_by=item.get("added_by"),
+                added_at=item.get("added_at"),
+            ))
+    return rules
 
 def apply_suppressions(issues: list[Issue], suppressions: list[SuppressionRule]) -> list[Issue]:
     """Marks matching issues as suppressed=True with suppression_reason set.

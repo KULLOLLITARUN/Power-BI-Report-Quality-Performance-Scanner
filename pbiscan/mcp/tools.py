@@ -184,12 +184,21 @@ def handle_add_suppression(
 
     data: dict[str, Any] = {"suppressions": []}
     if supp_file.exists():
+        # Never overwrite an existing file we can't parse — that would silently
+        # delete the team's existing suppressions.
         try:
             data = json.loads(supp_file.read_text(encoding="utf-8"))
-            if not isinstance(data.get("suppressions"), list):
-                data["suppressions"] = []
-        except Exception:
-            data = {"suppressions": []}
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            return {
+                "status": "ERROR",
+                "error": f"{supp_file.name} is unreadable ({exc}); fix or remove it before adding suppressions.",
+            }
+        if not isinstance(data, dict) or not isinstance(data.get("suppressions", []), list):
+            return {
+                "status": "ERROR",
+                "error": f'{supp_file.name} must be an object with a "suppressions" list; fix it before adding suppressions.',
+            }
+        data.setdefault("suppressions", [])
 
     new_supp = {
         "rule_id": rule_id.strip().upper(),

@@ -34,7 +34,12 @@ class MeasurePatcher(BasePatcher):
     rule_id = "DAX_UNUSED_MEASURE"
 
     def analyze(self, issue: AuditIssue, report: CanonicalReport, model_dir: Path) -> PatchEvidence:
-        """Exhaustively verify measure isolation before proposing deletion."""
+        """Verify the measure has no consumer on any surface this scanner can see.
+
+        Static analysis cannot see other reports, Excel workbooks or external
+        tools that query the same semantic model; deletion is only proven safe
+        for this project.
+        """
         preconditions = [
             "measure_identified",
             "zero_transitive_measure_dependents",
@@ -141,6 +146,8 @@ class MeasurePatcher(BasePatcher):
                             unknown_surface_found = True
                             break
                 except Exception:
+                    # Deliberately broad: any failure to inspect a file means we can't
+                    # prove the measure is unused there, so refuse deletion.
                     unknown_surface_found = True
                     break
 
@@ -263,7 +270,7 @@ class MeasurePatcher(BasePatcher):
                     text = p.read_text(encoding="utf-8")
                     if f"measure '{measure_name}'" in text or f"measure {measure_name} " in text or f"measure {measure_name}=" in text:
                         return p
-                except Exception:
+                except (OSError, UnicodeDecodeError):
                     continue
 
         # 2. BIM model.bim / database.json
@@ -369,7 +376,7 @@ class MeasurePatcher(BasePatcher):
                         original_text="".join(lines[cand1_start:cand1_end]),
                         replacement_text="",
                     )
-                except Exception:
+                except json.JSONDecodeError:
                     pass
 
                 # Candidate 2: leading comma
@@ -392,7 +399,7 @@ class MeasurePatcher(BasePatcher):
                                 original_text=orig,
                                 replacement_text=repl,
                             )
-                        except Exception:
+                        except json.JSONDecodeError:
                             pass
 
                 # Fallback: candidate 1

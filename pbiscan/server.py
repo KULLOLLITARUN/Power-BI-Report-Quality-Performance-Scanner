@@ -4,6 +4,7 @@ Serves endpoints for project scanning, filesystem browsing, and static React SPA
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, Optional
@@ -15,6 +16,7 @@ from pydantic import BaseModel
 
 from pbiscan import __version__
 from pbiscan.diff import DiffService, QualityGatePolicy
+from pbiscan.engine.scoring import ConfigError
 from pbiscan.extraction.pbip_reader import PBIScanError
 from pbiscan.service import ScanService
 
@@ -68,6 +70,18 @@ async def local_origin_guard(request: Request, call_next):
             return JSONResponse(status_code=403, content={"detail": "Origin not allowed"})
 
     return await call_next(request)
+
+logger = logging.getLogger(__name__)
+
+
+def _internal_error(action: str, exc: Exception) -> HTTPException:
+    """Log the full traceback server-side; return only a short message to the client."""
+    logger.error("%s", action, exc_info=exc)
+    return HTTPException(
+        status_code=500,
+        detail=f"{action} ({type(exc).__name__}). See the pbiscan Studio console for details.",
+    )
+
 
 # Path to static frontend build
 STATIC_DIR = Path(__file__).parent / "studio" / "dist"
@@ -173,10 +187,10 @@ async def scan_project(req: ScanRequest):
             config_path=req.config_path,
         )
         return result.to_dict()
-    except PBIScanError as exc:
+    except (PBIScanError, ConfigError) as exc:
         raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Scan failed: {exc}")
+        raise _internal_error("Scan failed", exc)
 
 
 @app.post("/api/browse")
@@ -230,15 +244,25 @@ async def add_suppression(req: SuppressRequest):
     supp_dir = proj_path if proj_path.is_dir() else proj_path.parent
     supp_file = supp_dir / "pbiscan.suppressions.json"
 
+    import json as json_mod
+
     data: dict[str, Any] = {"suppressions": []}
     if supp_file.exists():
+        # Never overwrite an existing file we can't parse — that would silently
+        # delete the team's existing suppressions.
         try:
-            import json as json_mod
             data = json_mod.loads(supp_file.read_text(encoding="utf-8"))
-            if not isinstance(data.get("suppressions"), list):
-                data["suppressions"] = []
-        except Exception:
-            data = {"suppressions": []}
+        except (OSError, UnicodeDecodeError, json_mod.JSONDecodeError) as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{supp_file.name} is unreadable ({exc}); fix or remove it before adding suppressions.",
+            )
+        if not isinstance(data, dict) or not isinstance(data.get("suppressions", []), list):
+            raise HTTPException(
+                status_code=409,
+                detail=f'{supp_file.name} must be an object with a "suppressions" list; fix it before adding suppressions.',
+            )
+        data.setdefault("suppressions", [])
 
     data["suppressions"].append({
         "rule_id": req.rule_id,
@@ -246,7 +270,6 @@ async def add_suppression(req: SuppressRequest):
         "reason": req.reason or "Suppressed via Studio",
     })
 
-    import json as json_mod
     supp_file.write_text(json_mod.dumps(data, indent=2), encoding="utf-8")
 
     return {"status": "ok", "message": f"Added suppression to {supp_file.name}"}
@@ -264,10 +287,10 @@ async def export_audit(req: ExportRequest):
             project_path=proj_path,
             config_path=req.config_path,
         )
-    except PBIScanError as exc:
+    except (PBIScanError, ConfigError) as exc:
         raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Export failed: {exc}")
+        raise _internal_error("Export failed", exc)
 
     fmt = req.format.lower()
     if fmt == "json":
@@ -306,10 +329,10 @@ async def diff_audit(req: DiffRequest):
             config_path=req.config_path,
         )
         return diff_res.to_dict()
-    except PBIScanError as exc:
+    except (PBIScanError, ConfigError) as exc:
         raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Diff failed: {exc}")
+        raise _internal_error("Diff failed", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -347,10 +370,10 @@ async def plan_remediation(req: RemediationPlanRequest):
             "baseline_score": scan_res.overall_score,
             "project_name": proj_path.name,
         }
-    except PBIScanError as exc:
+    except (PBIScanError, ConfigError) as exc:
         raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Remediation planning failed: {exc}")
+        raise _internal_error("Remediation planning failed", exc)
 
 
 @app.post("/api/remediation/apply")
@@ -378,10 +401,10 @@ async def apply_remediation(req: RemediationApplyRequest):
             "success": success,
             "manifest": manifest.to_dict(),
         }
-    except PBIScanError as exc:
+    except (PBIScanError, ConfigError) as exc:
         raise HTTPException(status_code=422, detail=f"{exc.error_type}: {exc}")
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Remediation apply failed: {exc}")
+        raise _internal_error("Remediation apply failed", exc)
 
 
 @app.get("/api/remediation/history")
@@ -396,7 +419,7 @@ async def get_remediation_history(project_path: str):
         history = RemediationAuditStore.list_manifests(proj_path)
         return {"history": history}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve remediation history: {exc}")
+        raise _internal_error("Failed to retrieve remediation history", exc)
 
 
 @app.get("/api/remediation/manifest/{manifest_id}")
@@ -415,7 +438,7 @@ async def get_remediation_manifest(manifest_id: str, project_path: str):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve manifest: {exc}")
+        raise _internal_error("Failed to retrieve manifest", exc)
 
 
 # ---------------------------------------------------------------------------

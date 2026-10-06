@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
@@ -20,6 +21,23 @@ from pbiscan.remediation.models import (
 from pbiscan.remediation.planner import RemediationPlanner
 from pbiscan.remediation.validator import SandboxValidator
 from pbiscan.service import ScanResult, ScanService
+
+
+logger = logging.getLogger(__name__)
+
+
+def _save_manifest_best_effort(manifest: RemediationManifest, model_path: Path) -> None:
+    """Persist an audit manifest for an apply that already failed.
+
+    A failure here must not mask the original failure being reported, so it is
+    logged instead of raised.
+    """
+    from pbiscan.remediation.store import RemediationAuditStore
+
+    try:
+        RemediationAuditStore.save_manifest(manifest, model_path)
+    except Exception as exc:
+        logger.warning("Could not save remediation audit manifest for %s: %s", model_path, exc)
 
 
 class RemediationEngine:
@@ -68,7 +86,8 @@ class RemediationEngine:
         if original_scan is None:
             try:
                 original_scan = ScanService.execute_scan(plan.model_path, config_path=config_path)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Baseline scan failed; manifest will have no baseline fingerprint: %s", exc)
                 original_scan = None
         baseline_fp = compute_scan_fingerprint(original_scan) if original_scan else ""
 
@@ -88,11 +107,7 @@ class RemediationEngine:
                 conflicts=[c.to_dict() for c in plan.conflicts],
                 rejection_reasons=validation_result.rejection_reasons,
             )
-            try:
-                from pbiscan.remediation.store import RemediationAuditStore
-                RemediationAuditStore.save_manifest(manifest, plan.model_path)
-            except Exception:
-                pass
+            _save_manifest_best_effort(manifest, plan.model_path)
             return False, manifest
 
         # 2. Re-verify source hashes on real workspace to protect against stale changes
@@ -119,11 +134,7 @@ class RemediationEngine:
                     conflicts=[c.to_dict() for c in plan.conflicts],
                     rejection_reasons=[reason],
                 )
-                try:
-                    from pbiscan.remediation.store import RemediationAuditStore
-                    RemediationAuditStore.save_manifest(manifest, plan.model_path)
-                except Exception:
-                    pass
+                _save_manifest_best_effort(manifest, plan.model_path)
                 return False, manifest
 
         # 3. Create transactional backup
@@ -159,11 +170,7 @@ class RemediationEngine:
                 conflicts=[c.to_dict() for c in plan.conflicts],
                 rejection_reasons=[f"Disk write error: {e}" for e in apply_errors],
             )
-            try:
-                from pbiscan.remediation.store import RemediationAuditStore
-                RemediationAuditStore.save_manifest(manifest, plan.model_path)
-            except Exception:
-                pass
+            _save_manifest_best_effort(manifest, plan.model_path)
             return False, manifest
 
         # 5. Execute final verification scan on real workspace
@@ -203,11 +210,7 @@ class RemediationEngine:
                 conflicts=[c.to_dict() for c in plan.conflicts],
                 rejection_reasons=[f"Final verification failed, rolled back to backup: {exc}"],
             )
-            try:
-                from pbiscan.remediation.store import RemediationAuditStore
-                RemediationAuditStore.save_manifest(manifest, plan.model_path)
-            except Exception:
-                pass
+            _save_manifest_best_effort(manifest, plan.model_path)
             return False, manifest
 
         # 6. Mark patches as APPLIED and assemble manifest

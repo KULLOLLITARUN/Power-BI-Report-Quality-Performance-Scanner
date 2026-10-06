@@ -19,7 +19,7 @@ from pbiscan import __version__
 from pbiscan.canonical.builder import CanonicalBuilder
 from pbiscan.canonical.model import CanonicalReport
 from pbiscan.engine.issue import AuditIssue, IssueGenerator
-from pbiscan.engine.scoring import calculate_scores, load_config
+from pbiscan.engine.scoring import ConfigError, calculate_scores, load_config
 from pbiscan.engine.suppressions import load_suppressions, apply_suppressions
 from pbiscan.extraction.pbip_reader import PBIPReader
 from pbiscan.render.html_report import HtmlRenderer
@@ -53,42 +53,38 @@ def resolve_config(
 
     Resolution order:
     1. explicit_config dictionary if provided
-    2. config_path file if provided and exists
+    2. config_path file if provided
     3. .pbiscan.config.json inside project_path directory (if project_path provided)
     4. rules.config.json in current working directory
     5. rules.config.json in package root
     6. DEFAULT_CONFIG fallback
+
+    The first config file found wins. A file that exists but is invalid raises
+    ConfigError rather than silently falling through to a different config —
+    a broken config must never quietly change CI quality-gate thresholds.
+
+    Raises:
+        ConfigError: if config_path does not exist, or the selected file is invalid.
     """
     if explicit_config is not None:
         return explicit_config
 
     if config_path:
         cp = Path(config_path)
-        if cp.exists():
-            return load_config(cp)
+        if not cp.exists():
+            raise ConfigError(f"Config file not found: {cp}")
+        return load_config(cp)
 
+    candidates: list[Path] = []
     if project_path:
         pp = Path(project_path)
-        proj_cfg = pp / ".pbiscan.config.json" if pp.is_dir() else pp.parent / ".pbiscan.config.json"
-        if proj_cfg.exists():
-            try:
-                return load_config(proj_cfg)
-            except Exception:
-                pass
+        candidates.append(pp / ".pbiscan.config.json" if pp.is_dir() else pp.parent / ".pbiscan.config.json")
+    candidates.append(Path("rules.config.json"))
+    candidates.append(Path(__file__).parent.parent / "rules.config.json")
 
-    local = Path("rules.config.json")
-    if local.exists():
-        try:
-            return load_config(local)
-        except Exception:
-            pass
-
-    package_root = Path(__file__).parent.parent / "rules.config.json"
-    if package_root.exists():
-        try:
-            return load_config(package_root)
-        except Exception:
-            pass
+    for candidate in candidates:
+        if candidate.exists():
+            return load_config(candidate)
 
     return copy.deepcopy(DEFAULT_CONFIG)
 
@@ -395,7 +391,8 @@ class ScanService:
 
         # Step 5: Load and Apply Suppressions
         supp_dir = Path(suppressions_path) if suppressions_path else proj_path
-        suppressions = load_suppressions(supp_dir)
+        scan_warnings: list[str] = list(raw.warnings)
+        suppressions = load_suppressions(supp_dir, warnings=scan_warnings)
         issues = apply_suppressions(issues, suppressions)
 
         # Step 6: Scoring
@@ -413,5 +410,5 @@ class ScanService:
             issues=issues,
             scores=scores,
             config=effective_config,
-            warnings=list(raw.warnings) if hasattr(raw, "warnings") and raw.warnings else [],
+            warnings=scan_warnings,
         )

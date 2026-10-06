@@ -247,7 +247,7 @@ class AutoDatePatcher(BasePatcher):
         content = bim_file.read_text(encoding="utf-8")
         try:
             data = json.loads(content)
-        except Exception:
+        except json.JSONDecodeError:
             return None
 
         # Check model.tables

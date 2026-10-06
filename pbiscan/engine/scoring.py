@@ -4,12 +4,12 @@ Formula:
     Category Score = max(0, 100 - total_deductions)
     Overall Score  = weighted average of active category scores
 
-Architecture decisions (v1):
-    - Security category is EXCLUDED from weighted average when no security
-      rules fire (Option A per design decision). This avoids artificially
-      inflating scores with a perfect security score.
-    - CRITICAL/HIGH/LOW deductions are defined in config but not used by v1
-      rules. They are validated to ensure future rules work correctly.
+Architecture decisions:
+    - Only model, dax and report are scored. The security category is always
+      excluded (no security rules exist yet), and the remaining weights are
+      renormalised so the maximum overall score is still 100.
+    - Severities in use: HIGH, MEDIUM, WARNING, ADVISORY. CRITICAL and LOW
+      deductions are defined in config for future rules but no rule emits them.
     - Missing severity in config raises ConfigError (spec §19 requirement).
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ class ConfigError(Exception):
     error_type = "CONFIG_ERROR"
 
 
-# Categories scored in v1 (security reserved for future)
+# Scored categories (security is reserved: no rules emit it yet)
 _SCORED_CATEGORIES = ("model", "dax", "report")
 
 

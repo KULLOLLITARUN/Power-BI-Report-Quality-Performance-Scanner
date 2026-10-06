@@ -13,7 +13,7 @@ Error taxonomy:
   INPUT_ERROR          — bad path, not a directory, etc.
   PARSE_ERROR          — JSON decode failure
   SCHEMA_ERROR         — required field missing in a parsed file
-  UNSUPPORTED_ARTIFACT — file format not yet supported (e.g. pure TMDL)
+  UNSUPPORTED_ARTIFACT — reserved for unrecognised artifact formats (not currently raised)
   RULE_ERROR           — (used by engine, not here)
   RENDER_ERROR         — (used by renderer, not here)
   CONFIG_ERROR         — (used by scoring, not here)
@@ -54,7 +54,7 @@ class SchemaError(PBIScanError):
 
 
 class UnsupportedArtifactError(PBIScanError):
-    """File format not yet supported."""
+    """Unrecognised artifact format. Reserved; not currently raised by PBIPReader."""
     error_type = "UNSUPPORTED_ARTIFACT"
 
 
@@ -132,11 +132,12 @@ class RawExtraction:
 class PBIPReader:
     """Reads a PBIP project directory and returns a RawExtraction.
 
-    Supported semantic model format: model.bim (TMSL JSON).
-    TMDL (split .tmdl files) is not yet supported in v1.
+    Semantic model formats: model.bim (TMSL JSON) and TMDL
+    (definition/*.tmdl, including tables/, relationships.tmdl and roles/).
 
-    Supported report format: report.json (legacy PBIP report format).
-    PBIR (split page/visual JSON files) support is planned for v1.1.
+    Report formats: legacy report.json (sections/visualContainers) and PBIR
+    (definition/pages/*/page.json + visuals/*/visual.json), plus report-level
+    filters, bookmarks and reportExtensions.json for measure-usage tracking.
     """
 
     def read(self, path: str | Path) -> RawExtraction:
