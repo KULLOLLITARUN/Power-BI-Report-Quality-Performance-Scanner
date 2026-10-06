@@ -158,6 +158,28 @@ def test_scores_match_python_engine(fixture_dir: Path):
     assert ts_result["overall"] == py_result.overall_score, fixture_dir.name
 
 
+def _py_page_layout(fixture_dir: Path) -> list:
+    pages = ScanService.execute_scan(fixture_dir).to_dict().get("pages", [])
+    layout = [
+        [
+            p["display_name"], p["width"], p["height"],
+            sorted(
+                ([v["visual_type"], v["x"], v["y"], v["width"], v["height"], "|".join(v["table_refs"]), v["is_slicer"]]
+                 for v in p["visuals"]),
+                key=lambda row: json.dumps(row, separators=(",", ":")),
+            ),
+        ]
+        for p in pages
+    ]
+    return sorted(layout, key=lambda row: row[0])
+
+
+@pytest.mark.parametrize("fixture_dir", _fixture_dirs(), ids=lambda p: p.name)
+def test_page_layout_matches_python_engine(fixture_dir: Path):
+    """Studio's report layer draws visuals from this data in both engines."""
+    assert _run_ts_scanner(fixture_dir)["page_layout"] == _py_page_layout(fixture_dir), fixture_dir.name
+
+
 def test_scoring_constants_match_python_defaults():
     """Every severity's deduction, scored weight and rule's catalog metadata must
     agree, including severities no current rule emits (fixtures alone would

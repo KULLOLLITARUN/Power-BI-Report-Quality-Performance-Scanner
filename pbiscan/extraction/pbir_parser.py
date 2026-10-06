@@ -14,6 +14,7 @@ from pbiscan.extraction.raw import (
     RawVisual,
     collect_extension_measures,
     expect_structure,
+    extract_entity_names,
     extract_measure_names,
     load_json,
 )
@@ -44,6 +45,7 @@ def parse_pbir_pages(definition_dir: Path) -> list[RawPage]:
             name = page_data.get("name", page_dir.name)
             display_name = page_data.get("displayName", name)
             visibility = page_visibility(page_data.get("visibility"))
+            width, height = canvas_size(page_data)
 
         visuals: list[RawVisual] = []
         visuals_dir = page_dir / "visuals"
@@ -61,12 +63,24 @@ def parse_pbir_pages(definition_dir: Path) -> list[RawPage]:
             name=name,
             display_name=display_name,
             visibility=visibility,
+            width=width,
+            height=height,
             visuals=visuals,
             # page.json filterConfig (page-level filter pane) and any other bindings
             filter_measure_refs=sorted(extract_measure_names(page_data)),
         ))
 
     return pages
+
+
+def canvas_size(page: dict[str, Any]) -> tuple[float, float]:
+    """Page canvas (width, height); falls back to the 1280 x 720 default for missing or bad values."""
+    def num(key: str, default: float) -> float:
+        value = page.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+            return float(value)
+        return default
+    return num("width", 1280.0), num("height", 720.0)
 
 
 def page_visibility(value: Any) -> int:
@@ -137,6 +151,7 @@ def parse_pbir_visual(raw: dict[str, Any]) -> Optional[RawVisual]:
         height=position.get("height", 0.0),
         fields_used=sorted(set(fields_used) | ast_measures),
         measure_refs=sorted(set(query_measures) | ast_measures),
+        table_refs=sorted(extract_entity_names(visual_node.get("query", {}))),
         is_slicer=(visual_type.lower() == "slicer"),
         hidden=raw.get("hidden", False),
     )

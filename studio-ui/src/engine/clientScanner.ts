@@ -1,4 +1,4 @@
-import { ScanResult, AuditFinding, TableInfo, RelationshipInfo, MeasureInfo, CalculatedColumnInfo, PageInfo, ScoreData } from '../types';
+import { ScanResult, AuditFinding, TableInfo, RelationshipInfo, MeasureInfo, CalculatedColumnInfo, PageInfo, ScoreData, VisualInfo } from '../types';
 import {
   SemanticReferenceIndex,
   CalcItem,
@@ -796,6 +796,10 @@ function processLegacyReportJson(
   files: DroppedFile[], pages: PageInfo[], visualMeasureRefs: Set<string>, unreadFiles: string[]
 ) {
   for (const file of files) {
+    // PBIR's definition/report.json is report-level config, not the legacy page list:
+    // pbiscan reads pages only from <Report>/report.json (PBIPReader._parse_pages).
+    // Its measure references are still collected below; only the page list skips it.
+    const listsPages = !/(^|\/)definition\/report\.json$/i.test(file.path.replace(/\\/g, '/'));
     try {
       const data = JSON.parse(file.content);
       if (!data.sections || !Array.isArray(data.sections)) continue;
@@ -807,6 +811,7 @@ function processLegacyReportJson(
 
         let slicerCount = 0;
         const containers = Array.isArray(s.visualContainers) ? s.visualContainers : [];
+        const visuals: VisualInfo[] = [];
         for (const vc of containers) {
           const configStr = vc.config || "{}";
           let config: any = {};
@@ -825,10 +830,19 @@ function processLegacyReportJson(
           if (visualType === 'slicer') slicerCount++;
 
           const pq = singleVisual.prototypeQuery || {};
+          const ownMeasures = new Set<string>();
+          const ownFields = new Set<string>();
+          const ownTables = new Set<string>();
+          for (const src of Array.isArray(pq.From) ? pq.From : []) {
+            if (src && typeof src.Entity === 'string' && src.Entity) ownTables.add(src.Entity);
+          }
           for (const selectItem of pq.Select || []) {
+            if (typeof selectItem?.Name === 'string' && selectItem.Name) {
+              ownFields.add(selectItem.Name.includes('.') ? selectItem.Name.split('.').slice(1).join('.') : selectItem.Name);
+            }
             if (selectItem.Measure) {
               const prop = selectItem.Measure.Property;
-              if (prop) visualMeasureRefs.add(prop);
+              if (prop) { visualMeasureRefs.add(prop); ownMeasures.add(prop); }
             }
           }
 
@@ -841,13 +855,26 @@ function processLegacyReportJson(
                   if (qref) {
                     const clean = qref.includes('.') ? qref.split('.').slice(1).join('.') : qref;
                     visualMeasureRefs.add(clean);
+                    ownMeasures.add(clean);
+                    ownFields.add(clean);
                   }
                 }
               }
             }
           }
 
-          for (const m of extractMeasureNamesFromExprTree([config, decodeJsonField(vc.filters)])) visualMeasureRefs.add(m);
+          for (const m of extractMeasureNamesFromExprTree([config, decodeJsonField(vc.filters)])) {
+            visualMeasureRefs.add(m); ownMeasures.add(m); ownFields.add(m);
+          }
+          visuals.push({
+            visual_type: singleVisual.visualType || 'unknown',
+            x: numOr0(vc.x), y: numOr0(vc.y), width: numOr0(vc.width), height: numOr0(vc.height),
+            measure_refs: [...ownMeasures].sort(),
+            fields_used: [...ownFields].sort(),
+            table_refs: [...ownTables].sort(),
+            is_slicer: visualType === 'slicer',
+            hidden: !!vc.hidden,
+          });
         }
 
         // Page-level filters and config are stringified JSON in report.json
@@ -855,6 +882,7 @@ function processLegacyReportJson(
           visualMeasureRefs.add(m);
         }
 
+        if (!listsPages) continue;
         const visibility = typeof s.visibility === 'number' ? s.visibility : 0;
         pages.push({
           name: s.name || `Section_${pages.length + 1}`,
@@ -862,6 +890,8 @@ function processLegacyReportJson(
           is_hidden: visibility !== 0,
           visual_count: containers.length,
           slicer_count: slicerCount,
+          ...canvasSize(s),
+          visuals,
         });
       }
     } catch {
@@ -870,6 +900,29 @@ function processLegacyReportJson(
     }
   }
 }
+
+/** Every SourceRef.Entity (model table name) in a JSON subtree. Mirrors raw.extract_entity_names. */
+function extractEntityNames(node: any, out: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(node)) {
+    for (const item of node) extractEntityNames(item, out);
+  } else if (node && typeof node === 'object') {
+    const ref = node.SourceRef;
+    if (ref && typeof ref === 'object' && typeof ref.Entity === 'string' && ref.Entity) out.add(ref.Entity);
+    for (const v of Object.values(node)) extractEntityNames(v, out);
+  }
+  return out;
+}
+
+/** Page canvas size with the 1280 x 720 default. Mirrors pbir_parser.canvas_size. */
+function canvasSize(page: any): { width: number; height: number } {
+  const num = (v: any, d: number) => (typeof v === 'number' && v > 0 ? v : d);
+  return { width: num(page?.width, 1280), height: num(page?.height, 720) };
+}
+
+const numOr0 = (v: any): number => {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
 
 /** Legacy report.json stores filters/config as JSON strings; decode them (or pass through). */
 function decodeJsonField(value: any): any {
@@ -974,6 +1027,9 @@ function processModernPbirPages(
     isHidden: boolean;
     visualCount: number;
     slicerCount: number;
+    width: number;
+    height: number;
+    visuals: VisualInfo[];
   }
   const pageMap = new Map<string, PageAgg>();
 
@@ -991,10 +1047,12 @@ function processModernPbirPages(
         isHidden: hidden,
         visualCount: 0,
         slicerCount: 0,
+        ...canvasSize(data),
+        visuals: [],
       });
     } catch {
       unreadFiles.push(file.path);
-      pageMap.set(pageId, { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0 });
+      pageMap.set(pageId, { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0, width: 1280, height: 720, visuals: [] });
     }
   }
 
@@ -1002,7 +1060,7 @@ function processModernPbirPages(
     const pageId = pageIdFromPath(file.path);
     let agg = pageMap.get(pageId);
     if (!agg) {
-      agg = { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0 };
+      agg = { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0, width: 1280, height: 720, visuals: [] };
       pageMap.set(pageId, agg);
     }
     agg.visualCount++;
@@ -1014,20 +1072,32 @@ function processModernPbirPages(
       if (visualType === 'slicer') agg.slicerCount++;
 
       // queryState projections (mirrors PBIPReader._extract_measure_refs_from_pbir_query)
+      const ownMeasures = new Set<string>();
       const queryState = visualNode.query?.queryState || {};
       for (const bucket of Object.values(queryState)) {
         const projections = (bucket as any)?.projections;
         if (Array.isArray(projections)) {
           for (const proj of projections) {
             const prop = proj?.field?.Measure?.Property;
-            if (prop) visualMeasureRefs.add(prop);
+            if (prop) { visualMeasureRefs.add(prop); ownMeasures.add(prop); }
           }
         }
       }
 
       // Full recursive AST walk (objects.referenceLabel/title/subTitle/conditional
       // formatting/filters, etc.) — mirrors PBIPReader._extract_measure_names_from_expr_tree.
-      for (const m of extractMeasureNamesFromExprTree(raw)) visualMeasureRefs.add(m);
+      for (const m of extractMeasureNamesFromExprTree(raw)) { visualMeasureRefs.add(m); ownMeasures.add(m); }
+
+      const pos = raw.position || {};
+      agg.visuals.push({
+        visual_type: visualNode.visualType || 'unknown',
+        x: numOr0(pos.x), y: numOr0(pos.y), width: numOr0(pos.width), height: numOr0(pos.height),
+        measure_refs: [...ownMeasures].sort(),
+        fields_used: [...ownMeasures].sort(),
+        table_refs: [...extractEntityNames(visualNode.query || {})].sort(),
+        is_slicer: visualType === 'slicer',
+        hidden: !!raw.hidden,
+      });
     } catch {
       // Malformed visual.json — counted above; its measure refs are unknown.
       unreadFiles.push(file.path);
@@ -1043,6 +1113,9 @@ function processModernPbirPages(
       is_hidden: agg.isHidden,
       visual_count: agg.visualCount,
       slicer_count: agg.slicerCount,
+      width: agg.width,
+      height: agg.height,
+      visuals: agg.visuals,
     });
   }
 }

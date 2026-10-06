@@ -40,12 +40,30 @@ export interface CalculatedColumnInfo {
   data_type: string;
 }
 
+export interface VisualInfo {
+  visual_type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  measure_refs: string[];
+  fields_used: string[];
+  /** Model tables the visual's query reads (display only; no rule uses it). */
+  table_refs: string[];
+  is_slicer: boolean;
+  hidden: boolean;
+}
+
 export interface PageInfo {
   name: string;
   display_name: string;
   is_hidden: boolean;
   visual_count: number;
   slicer_count: number;
+  /** Canvas size in report units (Power BI default 1280 x 720). Absent in older scan JSON. */
+  width?: number;
+  height?: number;
+  visuals?: VisualInfo[];
 }
 
 export interface AuditFinding {

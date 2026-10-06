@@ -89,6 +89,9 @@ class RawVisual:
     height: float = 0.0
     fields_used: list[str] = field(default_factory=list)
     measure_refs: list[str] = field(default_factory=list)
+    # Model tables the visual's query reads from (SourceRef entities). Display-only:
+    # no rule reads it, so it cannot change what a scan reports.
+    table_refs: list[str] = field(default_factory=list)
     is_slicer: bool = False
     hidden: bool = False
 
@@ -98,6 +101,9 @@ class RawPage:
     name: str
     display_name: str = ""
     visibility: int = 0
+    # Canvas size in report units; Power BI's default page is 1280 x 720.
+    width: float = 1280.0
+    height: float = 720.0
     visuals: list[RawVisual] = field(default_factory=list)
     # Measures referenced by page-level filters / page config (not by any one visual)
     filter_measure_refs: list[str] = field(default_factory=list)
@@ -205,6 +211,23 @@ def extract_measure_names(obj: Any) -> set[str]:
         for item in obj:
             refs.update(extract_measure_names(item))
     return refs
+
+
+def extract_entity_names(obj: Any) -> set[str]:
+    """Recursively collect every SourceRef.Entity (model table name) in a JSON subtree."""
+    names: set[str] = set()
+    if isinstance(obj, dict):
+        ref = obj.get("SourceRef")
+        if isinstance(ref, dict):
+            entity = ref.get("Entity")
+            if entity and isinstance(entity, str):
+                names.add(entity)
+        for v in obj.values():
+            names.update(extract_entity_names(v))
+    elif isinstance(obj, list):
+        for item in obj:
+            names.update(extract_entity_names(item))
+    return names
 
 
 def collect_extension_measures(model_extensions: Any) -> list[dict[str, Any]]:

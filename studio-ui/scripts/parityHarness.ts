@@ -4,6 +4,7 @@
 // same fixture. See tests/unit/test_client_scanner_parity.py.
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
+import type { PageInfo } from '../src/types';
 import { parseDroppedPbip, DroppedFile, SEVERITY_DEDUCTIONS, CATEGORY_WEIGHTS, RULE_CATALOG, overallScore } from '../src/engine/clientScanner';
 
 function collectFiles(root: string): DroppedFile[] {
@@ -36,6 +37,18 @@ if (process.argv[2] === '--overall-scores') {
   process.exit(0);
 }
 
+// Visual layout per page, keyed by display name, in a canonical order (see test_page_layout_matches_python_engine)
+function pageLayout(pages: PageInfo[]) {
+  return pages
+    .map((p) => [
+      p.display_name, p.width ?? 1280, p.height ?? 720,
+      (p.visuals || [])
+        .map((v) => [v.visual_type, v.x, v.y, v.width, v.height, v.table_refs.join('|'), v.is_slicer])
+        .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    ])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+}
+
 const fixtureDir = process.argv[2];
 if (!fixtureDir) {
   console.error('Usage: parityHarness.cjs <fixture-dir> [--verbose] | --scoring-constants | --overall-scores');
@@ -59,6 +72,7 @@ if (process.argv[3] === '--verbose') {
         .map((f) => f.location)
         .sort(),
       warnings: result.warnings,
+      page_layout: pageLayout(result.pages),
     })
   );
 }

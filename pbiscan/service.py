@@ -244,13 +244,20 @@ class ScanResult:
                 "name": p.name,
                 "display_name": p.display_name or p.name,
                 "is_hidden": p.is_hidden,
+                "width": p.width,
+                "height": p.height,
                 "visual_count": p.visual_count,
                 "slicer_count": p.slicer_count,
                 "visuals": [
                     {
                         "visual_type": v.visual_type,
+                        "x": v.x,
+                        "y": v.y,
+                        "width": v.width,
+                        "height": v.height,
                         "measure_refs": list(v.measure_refs),
                         "fields_used": list(v.fields_used),
+                        "table_refs": list(v.table_refs),
                         "is_slicer": v.is_slicer,
                         "hidden": v.hidden,
                     }

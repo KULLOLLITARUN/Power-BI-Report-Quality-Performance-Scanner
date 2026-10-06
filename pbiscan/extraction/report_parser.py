@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
+from pbiscan.extraction.pbir_parser import canvas_size
 from pbiscan.extraction.raw import (
     ParseError,
     RawPage,
@@ -39,6 +40,7 @@ def _parse_sections(raw: dict[str, Any]) -> list[RawPage]:
         name = section.get("name", "")
         display_name = section.get("displayName", name)
         visibility = section.get("visibility", 0)
+        width, height = canvas_size(section)
 
         visuals = parse_visual_containers(section.get("visualContainers", []))
 
@@ -51,6 +53,8 @@ def _parse_sections(raw: dict[str, Any]) -> list[RawPage]:
             name=name,
             display_name=display_name,
             visibility=visibility,
+            width=width,
+            height=height,
             visuals=visuals,
             filter_measure_refs=sorted(filter_refs),
         ))
@@ -119,6 +123,11 @@ def parse_visual_container(vc: dict[str, Any]) -> Optional[RawVisual]:
     fields_used: list[str] = []
 
     pq = single_visual.get("prototypeQuery", {})
+    # prototypeQuery.From maps aliases to model tables: [{"Name": "s", "Entity": "Sales"}]
+    table_refs = {
+        src["Entity"] for src in pq.get("From", [])
+        if isinstance(src, dict) and isinstance(src.get("Entity"), str) and src["Entity"]
+    }
     for select_item in pq.get("Select", []):
         name = select_item.get("Name", "")
         if name:
@@ -156,6 +165,7 @@ def parse_visual_container(vc: dict[str, Any]) -> Optional[RawVisual]:
         height=float(vc.get("height", 0)),
         fields_used=all_fields_used,
         measure_refs=all_measure_refs,
+        table_refs=sorted(table_refs),
         is_slicer=(visual_type.lower() == "slicer"),
         hidden=vc.get("hidden", False),
     )

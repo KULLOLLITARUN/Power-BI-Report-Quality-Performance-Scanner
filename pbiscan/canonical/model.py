@@ -201,6 +201,7 @@ class Visual:
     height: float = 0.0
     fields_used: list[str] = field(default_factory=list)   # e.g. ["Sales.Total Revenue"]
     measure_refs: list[str] = field(default_factory=list)  # e.g. ["Total Revenue"]
+    table_refs: list[str] = field(default_factory=list)    # model tables the query reads, e.g. ["Sales"]
     is_slicer: bool = False
     hidden: bool = False
 
@@ -216,6 +217,8 @@ class Page:
     name: str
     display_name: str = ""
     visibility: int = 0   # 0 = visible, 1 = hidden
+    width: float = 1280.0   # canvas size in report units
+    height: float = 720.0
 
     visuals: list[Visual] = field(default_factory=list)
 
