@@ -9,6 +9,7 @@ import {
   extractMeasureNamesFromExprTree,
 } from './semanticReferences';
 import { buildDaxGraph } from './daxGraph';
+import { SUPPRESSIONS_FILENAME, applySuppressions, loadSuppressions } from './suppressions';
 
 export interface DroppedFile {
   name: string;
@@ -428,6 +429,15 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
   }
 
+  // Apply pbiscan.suppressions.json from the project root (the shallowest copy)
+  const warnings: string[] = [];
+  const suppressionsFile = validFiles
+    .filter((f) => f.name.toLowerCase() === SUPPRESSIONS_FILENAME)
+    .sort((a, b) => a.path.split('/').length - b.path.split('/').length)[0];
+  if (suppressionsFile) {
+    applySuppressions(findings, loadSuppressions(suppressionsFile.content, suppressionsFile.path, warnings));
+  }
+
   // Calculate Scores
   const scores = calculateClientScores(findings);
 
@@ -441,7 +451,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     measures,
     calculated_columns: calcCols,
     pages,
-    warnings: [],
+    warnings,
     summary: {
       total_findings: findings.length,
       table_count: tables.length,
@@ -998,19 +1008,48 @@ function processModernPbirPages(
   }
 }
 
+// Mirror DEFAULT_CONFIG in pbiscan/service.py (and rules.config.json);
+// tests/unit/test_client_scanner_parity.py fails if they drift apart.
+export const SEVERITY_DEDUCTIONS: Record<AuditFinding['severity'], number> = {
+  CRITICAL: 15,
+  HIGH: 10,
+  MEDIUM: 5,
+  WARNING: 3,
+  ADVISORY: 1,
+  LOW: 2,
+};
+export const CATEGORY_WEIGHTS = { model: 0.35, dax: 0.25, report: 0.2 } as const;
+
+/** Python's round(x, 1): ties go to the even digit. toFixed() rounds ties up.
+ * A double can only sit exactly on a tie at .x25 or .x75 — exactly when x * 4
+ * (an exact operation) is an odd integer. */
+function roundHalfEven1(x: number): number {
+  const quarters = x * 4;
+  if (Number.isInteger(quarters) && quarters % 2 !== 0) {
+    const lower = Math.floor(x * 10);
+    return (lower % 2 === 0 ? lower : lower + 1) / 10;
+  }
+  return Number(x.toFixed(1));
+}
+
+/** Same float operations, in the same order, as score_overall() in
+ * pbiscan/engine/scoring.py, so both engines produce identical scores. */
+export function overallScore(modelScore: number, daxScore: number, reportScore: number): number {
+  const w = CATEGORY_WEIGHTS;
+  const totalWeight = 0 + w.model + w.dax + w.report;
+  const weightedSum =
+    0 + modelScore * (w.model / totalWeight) + daxScore * (w.dax / totalWeight) + reportScore * (w.report / totalWeight);
+  return roundHalfEven1(weightedSum);
+}
+
 function calculateClientScores(findings: AuditFinding[]): ScoreData {
   let modelDeductions = 0;
   let daxDeductions = 0;
   let reportDeductions = 0;
 
   for (const f of findings) {
-    let ded = 5;
-    if (f.severity === 'CRITICAL') ded = 15;
-    else if (f.severity === 'HIGH') ded = 10;
-    else if (f.severity === 'MEDIUM') ded = 5;
-    else if (f.severity === 'WARNING') ded = 3;
-    else if (f.severity === 'ADVISORY' || f.severity === 'LOW') ded = 1;
-
+    if (f.suppressed) continue;
+    const ded = SEVERITY_DEDUCTIONS[f.severity] ?? 5;
     if (f.category === 'model') modelDeductions += ded;
     else if (f.category === 'dax') daxDeductions += ded;
     else if (f.category === 'report') reportDeductions += ded;
@@ -1020,8 +1059,7 @@ function calculateClientScores(findings: AuditFinding[]): ScoreData {
   const daxScore = Math.max(0, 100 - daxDeductions);
   const reportScore = Math.max(0, 100 - reportDeductions);
 
-  // Weights: model 0.35, dax 0.25, report 0.20 (normalized across active categories)
-  const overall = Number(((modelScore * 0.35 + daxScore * 0.25 + reportScore * 0.20) / 0.80).toFixed(1));
+  const overall = overallScore(modelScore, daxScore, reportScore);
 
   return {
     overall,

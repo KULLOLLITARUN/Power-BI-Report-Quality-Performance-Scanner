@@ -59,6 +59,8 @@ export interface AuditFinding {
   recommendation: string;
   confidence: number;
   location?: string;
+  suppressed?: boolean;
+  suppression_reason?: string;
 }
 
 export interface ScoreData {

@@ -15,6 +15,7 @@ computed identically on both engines, not just every other rule.
 """
 from __future__ import annotations
 
+import copy
 import json
 import shutil
 import subprocess
@@ -22,7 +23,8 @@ from pathlib import Path
 
 import pytest
 
-from pbiscan.service import ScanService
+from pbiscan.engine.scoring import _SCORED_CATEGORIES, score_overall
+from pbiscan.service import DEFAULT_CONFIG, ScanService
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 STUDIO_UI_DIR = REPO_ROOT / "studio-ui"
@@ -95,3 +97,44 @@ def test_rule_ids_match_python_engine(fixture_dir: Path):
         f"  python: {py_rule_ids}\n"
         f"  ts:     {ts_rule_ids}"
     )
+
+
+@pytest.mark.parametrize("fixture_dir", _fixture_dirs(), ids=lambda p: p.name)
+def test_scores_match_python_engine(fixture_dir: Path):
+    py_result = ScanService.execute_scan(fixture_dir, config=copy.deepcopy(DEFAULT_CONFIG))
+    ts_result = _run_ts_scanner(fixture_dir)
+
+    assert ts_result["category_scores"] == py_result.category_scores, fixture_dir.name
+    assert ts_result["overall"] == py_result.overall_score, fixture_dir.name
+
+
+def test_scoring_constants_match_python_defaults():
+    """Every severity's deduction and every scored weight must agree, including
+    severities no current rule emits (fixtures alone would never catch those)."""
+    result = subprocess.run(
+        ["node", str(HARNESS_BUNDLE), "--scoring-constants"],
+        capture_output=True, text=True, timeout=30, check=True,
+    )
+    ts = json.loads(result.stdout)
+
+    assert ts["deductions"] == DEFAULT_CONFIG["deductions"]
+    assert ts["weights"] == {cat: DEFAULT_CONFIG["weights"][cat] for cat in _SCORED_CATEGORIES}
+
+
+def test_overall_score_rounding_matches_python():
+    """Both engines must round identically, including exact .x25/.x75 ties
+    (Python rounds those half-to-even; JavaScript's toFixed rounds them up)."""
+    triples = [(m, d, r) for m in range(0, 101, 3) for d in range(0, 101, 7) for r in range(0, 101, 9)]
+    triples += [(99, 99, 100), (100, 98, 100), (97, 98, 100)]
+    result = subprocess.run(
+        ["node", str(HARNESS_BUNDLE), "--overall-scores"],
+        input=json.dumps(triples), capture_output=True, text=True, timeout=30, check=True,
+    )
+    ts_scores = json.loads(result.stdout)
+    weights = DEFAULT_CONFIG["weights"]
+    mismatches = [
+        (t, ts, py)
+        for t, ts in zip(triples, ts_scores)
+        if ts != (py := score_overall(dict(zip(_SCORED_CATEGORIES, t)), weights))
+    ]
+    assert not mismatches, mismatches[:10]

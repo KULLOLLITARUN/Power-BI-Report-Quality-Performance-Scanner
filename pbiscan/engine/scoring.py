@@ -105,14 +105,18 @@ def score_overall(
         for cat in active_categories
         if cat in category_scores
     }
-    total_weight = sum(active_weights.values())
+    # Plain left-to-right float additions, not sum(): Python 3.12 made sum()
+    # use compensated summation, which can change the last digit between
+    # Python versions. clientScanner.ts repeats exactly these operations.
+    total_weight = 0.0
+    for w in active_weights.values():
+        total_weight += w
     if total_weight == 0:
         return 100.0
 
-    weighted_sum = sum(
-        category_scores[cat] * (w / total_weight)
-        for cat, w in active_weights.items()
-    )
+    weighted_sum = 0.0
+    for cat, w in active_weights.items():
+        weighted_sum += category_scores[cat] * (w / total_weight)
     return round(weighted_sum, 1)
 
 

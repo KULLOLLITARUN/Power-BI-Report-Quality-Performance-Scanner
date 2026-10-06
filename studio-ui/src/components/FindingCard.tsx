@@ -121,6 +121,15 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding }) => {
               <span className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
                 {finding.title}
               </span>
+              {finding.suppressed && (
+                <span
+                  className="text-[10px] font-mono uppercase tracking-wide shrink-0"
+                  style={{ color: 'var(--text-secondary)' }}
+                  title={finding.suppression_reason ? `Suppressed: ${finding.suppression_reason}` : 'Suppressed'}
+                >
+                  (suppressed)
+                </span>
+              )}
               {finding.location && (
                 <span className="font-mono text-[11px] truncate hidden lg:inline" style={{ color: 'var(--text-secondary)' }}>
                   [{finding.location}]

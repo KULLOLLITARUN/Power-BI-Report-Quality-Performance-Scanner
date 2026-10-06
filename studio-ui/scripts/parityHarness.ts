@@ -4,7 +4,7 @@
 // same fixture. See tests/unit/test_client_scanner_parity.py.
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
-import { parseDroppedPbip, DroppedFile } from '../src/engine/clientScanner';
+import { parseDroppedPbip, DroppedFile, SEVERITY_DEDUCTIONS, CATEGORY_WEIGHTS, overallScore } from '../src/engine/clientScanner';
 
 function collectFiles(root: string): DroppedFile[] {
   const out: DroppedFile[] = [];
@@ -24,9 +24,21 @@ function collectFiles(root: string): DroppedFile[] {
   return out;
 }
 
+if (process.argv[2] === '--scoring-constants') {
+  process.stdout.write(JSON.stringify({ deductions: SEVERITY_DEDUCTIONS, weights: CATEGORY_WEIGHTS }));
+  process.exit(0);
+}
+
+// Overall score for every [model, dax, report] triple read as JSON from stdin
+if (process.argv[2] === '--overall-scores') {
+  const triples: [number, number, number][] = JSON.parse(readFileSync(0, 'utf-8'));
+  process.stdout.write(JSON.stringify(triples.map(([m, d, r]) => overallScore(m, d, r))));
+  process.exit(0);
+}
+
 const fixtureDir = process.argv[2];
 if (!fixtureDir) {
-  console.error('Usage: parityHarness.mjs <fixture-dir>');
+  console.error('Usage: parityHarness.cjs <fixture-dir> [--verbose] | --scoring-constants | --overall-scores');
   process.exit(1);
 }
 

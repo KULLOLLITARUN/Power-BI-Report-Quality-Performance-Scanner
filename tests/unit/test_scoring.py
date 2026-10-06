@@ -1,8 +1,9 @@
 """Unit tests — scoring engine."""
 from __future__ import annotations
+from pathlib import Path
 import pytest
 from pbiscan.engine.scoring import (
-    score_category, score_overall, calculate_scores, ConfigError,
+    score_category, score_overall, calculate_scores, ConfigError, load_config,
 )
 from pbiscan.engine.issue import AuditIssue
 
@@ -98,3 +99,13 @@ class TestCalculateScores:
         issues[0].severity = "EXTREME"
         with pytest.raises(ConfigError):
             calculate_scores(issues, self._config())
+
+
+def test_default_config_matches_shipped_rules_config():
+    """DEFAULT_CONFIG (used when no config file is found) must score exactly
+    like the shipped rules.config.json."""
+    from pbiscan.service import DEFAULT_CONFIG
+
+    shipped = load_config(Path(__file__).parent.parent.parent / "rules.config.json")
+    for key in ("weights", "deductions", "thresholds"):
+        assert DEFAULT_CONFIG[key] == shipped[key], key
