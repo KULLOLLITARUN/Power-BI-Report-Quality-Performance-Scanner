@@ -439,9 +439,10 @@ async def mcp_status():
         except Exception:
             mcp_version = None
 
-    import os
-    groq_key = os.environ.get("GROQ_API_KEY")
-    groq_model = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+    from pbiscan.mcp.groq_client import DEFAULT_GROQ_MODEL, is_groq_configured
+
+    groq_configured = is_groq_configured()  # also loads .env, matching the rewrite tool
+    groq_model = os.environ.get("GROQ_MODEL", DEFAULT_GROQ_MODEL)
 
     return {
         "mcp_installed": spec is not None,
@@ -449,7 +450,7 @@ async def mcp_status():
         "python_executable": sys.executable,
         "server_command": "pbiscan",
         "server_args": ["mcp"],
-        "groq_configured": bool(groq_key),
+        "groq_configured": groq_configured,
         "groq_model": groq_model,
     }
 

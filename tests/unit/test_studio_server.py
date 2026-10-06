@@ -2,6 +2,8 @@
 
 from pathlib import Path
 import json
+import os
+from unittest import mock
 import pytest
 from fastapi.testclient import TestClient
 from pbiscan import __version__
@@ -284,6 +286,22 @@ class TestAgentMcpIntegrationApi:
         assert real_key not in body_text
         assert real_key[:6] not in body_text
         assert real_key[-4:] not in body_text
+
+    def test_mcp_status_sees_groq_key_from_dotenv(self, client, monkeypatch, tmp_path):
+        """Status must agree with the rewrite tool, which loads GROQ_API_KEY from .env."""
+        import pbiscan.mcp.groq_client as groq_client
+
+        (tmp_path / ".env").write_text("GROQ_API_KEY=from-dotenv\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(groq_client, "_dotenv_loaded", False)
+
+        # load_dotenv writes os.environ directly; patch.dict restores it afterwards
+        with mock.patch.dict(os.environ):
+            for var in ("GROQ_API_KEY", "GROQ_MODEL", "PBISCAN_DISABLE_DOTENV"):
+                os.environ.pop(var, None)
+            data = client.get("/api/mcp/status").json()
+        assert data["groq_configured"] is True
+        assert data["groq_model"] == groq_client.DEFAULT_GROQ_MODEL
 
     def test_mcp_tools_matches_real_server_classification(self, client):
         resp = client.get("/api/mcp/tools")

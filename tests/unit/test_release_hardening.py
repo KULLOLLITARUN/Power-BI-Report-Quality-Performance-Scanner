@@ -148,6 +148,21 @@ class TestConfigurationPrecedence:
         resolved = resolve_config(config_path=None, project_path=empty_dir)
         assert resolved["thresholds"]["maxVisualsPerPage"] == DEFAULT_CONFIG["thresholds"]["maxVisualsPerPage"]
 
+    def test_default_config_fallback_is_isolated_copy(self, tmp_path, monkeypatch):
+        """Mutating a resolved default config must not alter DEFAULT_CONFIG itself."""
+        import pbiscan.service as service
+
+        # Hide both the cwd and package-root rules.config.json so the true fallback runs
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(service, "__file__", str(tmp_path / "pkg" / "service.py"))
+        original = DEFAULT_CONFIG["thresholds"]["maxVisualsPerPage"]
+
+        resolved = resolve_config(config_path=None, project_path=tmp_path)
+        resolved["thresholds"]["maxVisualsPerPage"] = 999
+
+        assert DEFAULT_CONFIG["thresholds"]["maxVisualsPerPage"] == original
+        assert resolve_config(config_path=None, project_path=tmp_path)["thresholds"]["maxVisualsPerPage"] == original
+
 
 class TestAdversarialAndCorruptInputs:
     """Test scanner resiliency against empty folders and invalid formats."""

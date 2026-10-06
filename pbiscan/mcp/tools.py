@@ -230,13 +230,34 @@ def handle_list_suppressions(path: str) -> dict[str, Any]:
     }
 
 
+_EXPLANATION_MARKER = "###EXPLANATION###"
+
 _GROQ_SYSTEM_PROMPT = (
     "You are a DAX optimization advisor for Power BI. Given a flagged anti-pattern and the "
     "offending expression, propose a corrected DAX rewrite and a one-paragraph explanation of "
-    "why it's better. Respond with ONLY the rewritten DAX expression on the first line, then a "
-    "blank line, then the explanation. Do not include markdown code fences. Never invent table "
-    "or column names that aren't present in the input expression."
+    "why it's better. Respond with ONLY the rewritten DAX expression (it may span several lines), "
+    f"then a line containing exactly {_EXPLANATION_MARKER}, then the explanation. Do not include "
+    "markdown code fences. Never invent table or column names that aren't present in the input "
+    "expression."
 )
+
+
+def _split_ai_rewrite(reply: str) -> tuple[str, str]:
+    """Split a Groq reply into (rewrite, explanation).
+
+    Prefers the explicit marker line so multi-line DAX containing blank lines
+    stays intact; falls back to the first blank line for replies that ignore it.
+    """
+    if _EXPLANATION_MARKER in reply:
+        rewrite, _, explanation = reply.partition(_EXPLANATION_MARKER)
+    else:
+        rewrite, _, explanation = reply.partition("\n\n")
+    rewrite = rewrite.strip()
+    if rewrite.startswith("```"):
+        # Model ignored the no-fences instruction: drop the ```dax opener and closing fence
+        rewrite = rewrite.split("\n", 1)[1] if "\n" in rewrite else ""
+        rewrite = rewrite.rstrip().removesuffix("```").strip()
+    return rewrite, explanation.strip()
 
 
 def handle_suggest_dax_rewrite(
@@ -280,9 +301,9 @@ def handle_suggest_dax_rewrite(
     if ai_reply is None:
         return result
 
-    parts = ai_reply.split("\n\n", 1)
+    rewrite, explanation = _split_ai_rewrite(ai_reply)
     result["ai_generated"] = True
     result["ai_model"] = os.environ.get("GROQ_MODEL", DEFAULT_GROQ_MODEL)
-    result["suggested_rewrite"] = parts[0].strip()
-    result["rewrite_explanation"] = parts[1].strip() if len(parts) > 1 else ""
+    result["suggested_rewrite"] = rewrite
+    result["rewrite_explanation"] = explanation
     return result

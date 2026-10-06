@@ -227,6 +227,27 @@ class TestSuggestDaxRewriteGroqIntegration:
         assert "DIVIDE avoids" in res["rewrite_explanation"]
         assert res["ai_model"]
 
+    def test_multiline_rewrite_with_blank_lines_is_kept_whole(self, monkeypatch):
+        monkeypatch.setenv("GROQ_API_KEY", "test-key")
+        rewrite = (
+            "VAR Units = SUM(Sales[Units])\n\n"
+            "VAR Amount = SUM(Sales[Amount])\n\n"
+            "RETURN DIVIDE(Amount, Units, 0)"
+        )
+        fake_reply = f"{rewrite}\n###EXPLANATION###\nVariables evaluate once and DIVIDE is safe."
+        with mock.patch("pbiscan.mcp.tools.call_groq_chat", return_value=fake_reply):
+            res = handle_suggest_dax_rewrite("DAX_SUSPICIOUS_PATTERN", "SUM(Sales[Amount]) / SUM(Sales[Units])")
+        assert res["suggested_rewrite"] == rewrite
+        assert res["rewrite_explanation"] == "Variables evaluate once and DIVIDE is safe."
+
+    def test_code_fenced_rewrite_is_unwrapped(self, monkeypatch):
+        monkeypatch.setenv("GROQ_API_KEY", "test-key")
+        fake_reply = "```dax\nDIVIDE([A], [B])\n```\n###EXPLANATION###\nSafe division."
+        with mock.patch("pbiscan.mcp.tools.call_groq_chat", return_value=fake_reply):
+            res = handle_suggest_dax_rewrite("DAX_SUSPICIOUS_PATTERN", "[A] / [B]")
+        assert res["suggested_rewrite"] == "DIVIDE([A], [B])"
+        assert res["rewrite_explanation"] == "Safe division."
+
     def test_groq_failure_falls_back_to_static_recommendation(self, monkeypatch):
         monkeypatch.setenv("GROQ_API_KEY", "test-key")
         with mock.patch("pbiscan.mcp.tools.call_groq_chat", return_value=None):
@@ -295,9 +316,12 @@ class TestDotenvLoader:
         monkeypatch.delenv("GROQ_MODEL", raising=False)
         monkeypatch.setattr(groq_client_mod, "_dotenv_loaded", False)
 
-        groq_client_mod.load_dotenv_if_present()
-        assert os.environ["GROQ_API_KEY"] == "from-dotenv-file"
-        assert os.environ["GROQ_MODEL"] == "some-model"
+        # load_dotenv writes os.environ directly; patch.dict restores it so the
+        # loaded values don't leak into later tests
+        with mock.patch.dict(os.environ):
+            groq_client_mod.load_dotenv_if_present()
+            assert os.environ["GROQ_API_KEY"] == "from-dotenv-file"
+            assert os.environ["GROQ_MODEL"] == "some-model"
 
     def test_real_environment_variable_always_wins_over_dotenv_file(self, monkeypatch, tmp_path):
         import pbiscan.mcp.groq_client as groq_client_mod

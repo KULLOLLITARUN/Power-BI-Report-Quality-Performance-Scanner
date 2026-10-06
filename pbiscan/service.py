@@ -9,6 +9,7 @@ Guarantees the core invariant:
 """
 from __future__ import annotations
 
+import copy
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -89,7 +90,7 @@ def resolve_config(
         except Exception:
             pass
 
-    return DEFAULT_CONFIG.copy()
+    return copy.deepcopy(DEFAULT_CONFIG)
 
 
 @dataclass
