@@ -86,7 +86,7 @@ class TestAddSuppression:
     def test_failed_write_leaves_original_and_no_temp_file(self, project):
         supp = project / SUPPRESSIONS_FILENAME
         original = supp.read_text(encoding="utf-8")
-        with mock.patch("pbiscan.engine.suppressions.os.replace", side_effect=OSError("disk full")):
+        with mock.patch("pbiscan.fileio.os.replace", side_effect=OSError("disk full")):
             with pytest.raises(OSError):
                 add_suppression(project, "R", "x", "y")
         assert supp.read_text(encoding="utf-8") == original

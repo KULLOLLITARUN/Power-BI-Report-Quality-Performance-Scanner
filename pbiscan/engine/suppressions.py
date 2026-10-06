@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 import logging
-import os
 from pathlib import Path
 import re
-import tempfile
 from typing import TYPE_CHECKING, Any, Optional
+
+from pbiscan.fileio import atomic_write_text
 
 if TYPE_CHECKING:
     from pbiscan.engine.issue import Issue
@@ -193,20 +193,5 @@ def add_suppression(
     entry["added_at"] = datetime.now(timezone.utc).isoformat()
     data["suppressions"].append(entry)
 
-    _atomic_write_text(supp_file, json.dumps(data, indent=2))
+    atomic_write_text(supp_file, json.dumps(data, indent=2))
     return supp_file, len(data["suppressions"])
-
-
-def _atomic_write_text(path: Path, text: str) -> None:
-    """Write via a temp file in the same directory, then rename over the target,
-    so a crash mid-write leaves either the old file or the new one, never half of each."""
-    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_name, path)
-    except BaseException:
-        Path(tmp_name).unlink(missing_ok=True)
-        raise

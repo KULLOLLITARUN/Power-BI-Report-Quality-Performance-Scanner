@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import Optional
 
 from pbiscan.diff import DiffService, QualityGatePolicy
+from pbiscan.fileio import atomic_write_text
 from pbiscan.service import ScanResult, ScanService
+from pbiscan.remediation.integrity import check_patched_text, new_unread_files
 from pbiscan.remediation.models import (
     Patch,
     PatchLifecycleState,
@@ -23,8 +25,14 @@ class SandboxValidator:
 
     @classmethod
     def apply_patches_to_dir(cls, patches: list[Patch], target_dir: Path) -> list[str]:
-        """Apply patch chunks to files inside target_dir. Returns list of errors if any."""
+        """Apply patch chunks to files inside target_dir. Returns list of errors if any.
+
+        Every patched file is built in memory and re-parsed (check_patched_text)
+        first; nothing is written unless all of them pass, and each file is then
+        replaced atomically with its original line endings.
+        """
         errors: list[str] = []
+        pending: list[tuple[Path, str, str]] = []
 
         # Group patches and their chunks by resolved target file
         patches_by_filename: dict[str, list[Patch]] = {}
@@ -88,9 +96,21 @@ class SandboxValidator:
                 else:
                     lines[start_idx:end_idx] = []
 
-            if not chunk_error:
-                sandbox_file.write_text("".join(lines), encoding="utf-8")
+            if chunk_error:
+                continue
 
+            patched = "".join(lines)
+            problems = check_patched_text(sandbox_file, content, patched)
+            if problems:
+                errors.extend(problems)
+                continue
+            newline = "\r\n" if b"\r\n" in sandbox_file.read_bytes() else "\n"
+            pending.append((sandbox_file, patched, newline))
+
+        if errors:
+            return errors
+        for path, text, line_ending in pending:
+            atomic_write_text(path, text, newline=line_ending)
         return errors
 
     @classmethod
@@ -164,6 +184,28 @@ class SandboxValidator:
                     resolved_findings=[],
                     before_score=original_scan.overall_score,
                     after_score=0.0,
+                )
+
+            # 3b. A patch must not leave any file the scanner can no longer read:
+            # its findings would vanish and look resolved.
+            broken = new_unread_files(original_scan, after_scan)
+            if broken:
+                for p in actionable:
+                    p.state = PatchLifecycleState.REJECTED
+                return PatchValidationResult(
+                    accepted=False,
+                    rejection_reasons=[
+                        f"Patched model has file(s) that no longer parse: {', '.join(broken)}"
+                    ],
+                    finding_resolved=False,
+                    resolved_count=0,
+                    expected_resolved_count=len(actionable),
+                    score_delta=0.0,
+                    new_high_critical_count=0,
+                    new_findings=[],
+                    resolved_findings=[],
+                    before_score=original_scan.overall_score,
+                    after_score=after_scan.overall_score,
                 )
 
             # 4. Compare Before vs After using DiffService

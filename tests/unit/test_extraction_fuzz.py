@@ -152,11 +152,17 @@ def test_reader_survives_any_tmdl_table_bytes(data: bytes) -> None:
             "fixture.SemanticModel/definition/tables/Fuzz.tmdl": data,
         })
         raw = PBIPReader().read(project)
-        # The readable table always survives; an unusable one is reported, not dropped silently.
+        # The readable table always survives. The fuzzed file is exactly one of:
+        # parsed, reported as unread, or ignored because it is blank. Never dropped silently.
         assert "Good" in [t.name for t in raw.tables]
         fuzz_file = str(project / "fixture.SemanticModel/definition/tables/Fuzz.tmdl")
-        parsed_names = [t.source_file for t in raw.tables]
-        assert (fuzz_file in parsed_names) != (fuzz_file in raw.unread_files)
+        parsed = fuzz_file in [t.source_file for t in raw.tables]
+        unread = fuzz_file in raw.unread_files
+        try:
+            blank = not decode_text(data).strip()
+        except PBIScanError:
+            blank = False
+        assert [parsed, unread, blank].count(True) == 1
 
 
 @FUZZ_IO

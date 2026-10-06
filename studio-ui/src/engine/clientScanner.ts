@@ -71,7 +71,8 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
 
     // Table TMDL
-    if (lowerPath.endsWith('.tmdl') && lowerPath.includes('/tables/')) {
+    // An empty table file (e.g. one emptied by `pbiscan fix`) defines and uses nothing.
+    if (lowerPath.endsWith('.tmdl') && lowerPath.includes('/tables/') && file.content.trim()) {
       if (!parseTableTmdl(file.content, tables, measures, calcCols, mSources, calcGroupEntries)) {
         unreadFiles.push(file.path);
       }

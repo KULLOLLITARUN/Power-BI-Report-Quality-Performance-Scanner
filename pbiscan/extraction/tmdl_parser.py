@@ -21,9 +21,9 @@ _FENCE = "```"
 def parse_tmdl_model(sm_dir: Path) -> RawModel:
     """Parse a TMDL semantic model directory into tables, relationships and raw role files.
 
-    A file that cannot be read, or a table file with no `table` declaration, is
-    skipped with a warning and listed in `unread_files` instead of failing the
-    whole scan.
+    A file that cannot be read, or a non-empty table file with no `table`
+    declaration, is skipped with a warning and listed in `unread_files` instead
+    of failing the whole scan. An empty table file is ignored.
     """
     definition_dir = sm_dir / "definition" if (sm_dir / "definition").exists() else sm_dir
     model = RawModel()
@@ -32,11 +32,16 @@ def parse_tmdl_model(sm_dir: Path) -> RawModel:
     if tables_dir.exists():
         for tmdl_file in sorted(tables_dir.glob("*.tmdl")):
             try:
-                t = parse_tmdl_table(tmdl_file)
+                content = read_text(tmdl_file)
             except ParseError as exc:
                 logger.warning("%s", exc)
                 model.skip(tmdl_file, str(exc))
                 continue
+            if not content.strip():
+                # Defines and references nothing (e.g. a table emptied by `pbiscan fix`).
+                logger.debug("Ignoring empty TMDL file %s", tmdl_file)
+                continue
+            t = parse_tmdl_table_text(content, str(tmdl_file))
             if t is None:
                 model.skip(tmdl_file, "no `table` declaration found")
             else:

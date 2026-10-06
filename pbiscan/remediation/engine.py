@@ -10,6 +10,7 @@ from typing import Optional, Tuple
 
 from pbiscan import __version__
 from pbiscan.remediation.backup import BackupManager
+from pbiscan.remediation.integrity import new_unread_files
 from pbiscan.remediation.models import (
     PatchLifecycleState,
     PatchValidationResult,
@@ -176,6 +177,12 @@ class RemediationEngine:
         # 5. Execute final verification scan on real workspace
         try:
             final_scan = ScanService.execute_scan(plan.model_path, config_path=config_path)
+            broken = (
+                new_unread_files(original_scan, final_scan) if original_scan
+                else list(final_scan.report.unread_files if final_scan.report else [])
+            )
+            if broken:
+                raise ValueError(f"Patched model has file(s) that no longer parse: {', '.join(broken)}")
             if final_scan.overall_score < validation_result.before_score:
                 raise ValueError(
                     f"Final scan score ({final_scan.overall_score:.1f}) regressed below baseline ({validation_result.before_score:.1f})"
