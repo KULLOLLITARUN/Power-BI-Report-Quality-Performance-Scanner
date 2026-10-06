@@ -2,7 +2,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Workbench-pbip--sentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbip-sentinel.netlify.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Tests: 384 Passing](https://img.shields.io/badge/Tests-384%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
+[![Tests: 523 Passing](https://img.shields.io/badge/Tests-523%20Passing-brightgreen?style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![Python: 3.10 | 3.11 | 3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue?style=for-the-badge&logo=python&logoColor=white)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
 [![SARIF: OASIS v2.1.0](https://img.shields.io/badge/SARIF-OASIS%20v2.1.0-blueviolet?style=for-the-badge)](https://sarifweb.azurewebsites.net/)
 
@@ -38,7 +38,7 @@ PBIP Sentinel follows a strict **Observation $\to$ Proof $\to$ Implementation** 
 | **Real Customer Models Audited** | **11 Models** | Enterprise models across Sales, HR, Finance, and Retail |
 | **Classified Findings** | **94 / 94 True Positives** | 100% precision with **0 false positives** |
 | **Crash Rate** | **0.00%** | Zero crashes or unhandled exceptions across the corpus |
-| **Automated Test Suite** | **384 / 384 Passing** | Unit tests, golden fixtures, and API contracts (`~8s` execution) |
+| **Automated Test Suite** | **523 / 523 Passing** | Unit tests, golden fixtures, and API contracts (~1 min execution) |
 
 ---
 
@@ -48,8 +48,8 @@ PBIP Sentinel follows a strict **Observation $\to$ Proof $\to$ Implementation** 
 | Code | Rule ID | Severity | Confidence | Description & Impact |
 |:---|:---|:---:|:---:|:---|
 | `M001` | `MODEL_BIDIRECTIONAL` | `WARNING` | 100% | Detects bidirectional relationship cross-filtering that risks ambiguous filter paths. |
-| `M002` | `MODEL_MANY_TO_MANY` | `HIGH` | 100% | Flags many-to-many cardinality relationships that degrade VertiPaq performance. |
-| `M003` | `MODEL_NO_DATE_TABLE` | `ADVISORY` | 70% | Warns if the model lacks a dedicated marked Date dimension table. |
+| `M002` | `MODEL_MANY_TO_MANY` | `WARNING` | 100% | Flags many-to-many cardinality relationships that degrade VertiPaq performance. |
+| `M003` | `MODEL_NO_DATE_TABLE` | `WARNING` | 70% | Warns if the model lacks a dedicated marked Date dimension table. |
 | `M004` | `MODEL_HIGH_CARDINALITY` | `ADVISORY` | 87% | Identifies high-cardinality string columns inflating memory footprint. |
 | `M005` | `MODEL_FACT_TO_FACT` | `ADVISORY` | 60% | Heuristic detection of direct relationships between transactional fact tables. |
 | `M006` | `M_HARDCODED_DATA_SOURCE` | `HIGH` | 95% | Detects hardcoded developer machine file paths (`C:\Users\...`) in M-partitions that break scheduled gateway refresh. |
@@ -61,7 +61,7 @@ PBIP Sentinel follows a strict **Observation $\to$ Proof $\to$ Implementation** 
 | `D001` | `DAX_SUSPICIOUS_PATTERN` | `ADVISORY` | ≤65% | Flags suboptimal DAX patterns (e.g. `FILTER(ALL(...))`) needing review. |
 | `D002` | `DAX_EXCESSIVE_CALC_COLUMNS` | `MEDIUM` | 100% | Warns on tables with >4 calculated columns consuming uncompressed memory. |
 | `D003` | `DAX_DUPLICATE_MEASURE` | `MEDIUM` | 90% | Identifies duplicate normalized DAX formulas across different measures. |
-| `D004` | `DAX_UNUSED_MEASURE` | `HIGH` | 95% | Multi-hop transitive scan flagging measures not bound to visuals, calc groups, field params, or RLS. |
+| `D004` | `DAX_UNUSED_MEASURE` | `ADVISORY` | 95% | Multi-hop transitive scan flagging measures not bound to visuals, filters, bookmarks, report-level measures, calc groups, field params, or RLS. |
 
 ### Report Layout & Density (2 Rules)
 | Code | Rule ID | Severity | Confidence | Description & Impact |
@@ -293,7 +293,7 @@ PBIP Project (.pbip / TMDL / TMSL / PBIR)
 ## 🧪 Automated Testing
 
 ```bash
-# Run all 384 unit, golden contract, and integration tests
+# Run all 523 unit, golden contract, and integration tests
 pytest tests/ -v
 ```
 
