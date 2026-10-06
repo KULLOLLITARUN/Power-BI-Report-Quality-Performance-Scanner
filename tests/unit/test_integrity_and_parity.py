@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
-from pbiscan.server import app
+from pbiscan.server import STUDIO_TOKEN, TOKEN_HEADER, app
 from pbiscan.service import ScanService
+
+TOKEN_HEADERS = {TOKEN_HEADER: STUDIO_TOKEN}
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden"
 
@@ -15,7 +17,7 @@ class TestDemoFallbackIntegrity:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app, base_url="http://127.0.0.1")
+        return TestClient(app, base_url="http://127.0.0.1", headers=TOKEN_HEADERS)
 
     def test_scan_failure_returns_404_not_demo(self, client):
         """Invalid path returns 404 error and does not return synthetic demo data."""
@@ -39,7 +41,7 @@ class TestScanAndExportConfigurationParity:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app, base_url="http://127.0.0.1")
+        return TestClient(app, base_url="http://127.0.0.1", headers=TOKEN_HEADERS)
 
     def test_visual_bloat_threshold_parity(self, client, tmp_path):
         """test_visualbloat fixture has 16 visuals (default threshold 15 fires REPORT_VISUAL_BLOAT).

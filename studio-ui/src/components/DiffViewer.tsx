@@ -20,6 +20,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { DiffResult, FindingTransition } from '../types';
+import { apiFetch } from '../utils/api';
 
 interface DiffViewerProps {
   initialBaselinePath?: string;
@@ -57,7 +58,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
       return;
     }
     try {
-      const res = await fetch('/api/native-dialog', {
+      const res = await apiFetch('/api/native-dialog', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode }),
@@ -102,7 +103,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
         payload.max_score_drop = Number(maxScoreDrop);
       }
 
-      const res = await fetch('/api/diff', {
+      const res = await apiFetch('/api/diff', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

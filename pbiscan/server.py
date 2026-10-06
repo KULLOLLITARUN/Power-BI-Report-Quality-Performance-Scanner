@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -35,12 +36,23 @@ app = FastAPI(
 DEV_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 
+# Per-run access token. The Host/Origin checks stop web pages; this stops other
+# local processes (another user's, or a sandboxed one that can reach loopback)
+# from driving the API. `pbiscan studio` generates it, passes it here through
+# the environment, and opens the browser at /?token=<it>; the SPA then sends it
+# in TOKEN_HEADER on every /api/* call. Setting PBISCAN_STUDIO_TOKEN yourself
+# pins it (e.g. for the Vite dev server).
+TOKEN_ENV = "PBISCAN_STUDIO_TOKEN"
+TOKEN_HEADER = "X-PBIScan-Token"
+STUDIO_TOKEN = os.environ.get(TOKEN_ENV) or secrets.token_urlsafe(32)
+TOKEN_EXEMPT_PATHS = {"/api/health"}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(DEV_ORIGINS),
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", TOKEN_HEADER],
 )
 
 
@@ -71,6 +83,18 @@ async def local_origin_guard(request: Request, call_next):
         allowed_origins = {f"http://{host_header.lower()}", f"https://{host_header.lower()}", *DEV_ORIGINS}
         if origin.lower() not in allowed_origins:
             return JSONResponse(status_code=403, content={"detail": "Origin not allowed"})
+
+    path = request.url.path
+    if path.startswith("/api/") and path not in TOKEN_EXEMPT_PATHS and request.method != "OPTIONS":
+        supplied = request.headers.get(TOKEN_HEADER, "")
+        if not secrets.compare_digest(supplied.encode(), STUDIO_TOKEN.encode()):
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "detail": "Missing or invalid Studio access token. Open Studio from the "
+                              "URL printed by `pbiscan studio`."
+                },
+            )
 
     return await call_next(request)
 
@@ -517,8 +541,11 @@ async def serve_spa(full_path: str):
 
 
 def start_server(host: str = "127.0.0.1", port: int = 8000, reload: bool = False):
-    """Start the Uvicorn web server."""
+    """Start the Uvicorn web server (development entry point; `pbiscan studio` is the usual one)."""
     import uvicorn
+    # Reload runs the app in a child process; the environment carries the same token there.
+    os.environ[TOKEN_ENV] = STUDIO_TOKEN
+    print(f"pbiscan Studio: http://{host}:{port}/?token={STUDIO_TOKEN}")
     uvicorn.run("pbiscan.server:app", host=host, port=port, reload=reload)
 
 

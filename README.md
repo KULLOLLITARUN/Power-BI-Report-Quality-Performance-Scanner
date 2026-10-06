@@ -106,6 +106,8 @@ Opens the local developer workspace at `http://127.0.0.1:8000`:
 - **Model Topology & Provenance**: Table schema inspector, relationships, and RLS/Calc Group bindings.
 - **Instant Export**: 1-click download of HTML, SARIF, JUnit XML, or JSON reports.
 
+Studio only answers on loopback by default, rejects requests from other websites, and generates a random access token on every run. The browser is opened at a URL containing that token; API calls without it are refused, so other processes on the machine can't use Studio to browse or modify your files. If you open Studio in a new tab, use the full URL printed in the terminal. To pin the token (for example when running the Vite dev server), set `PBISCAN_STUDIO_TOKEN`.
+
 ### 2. Standard Terminal Scan
 ```bash
 pbiscan scan "path/to/my_report.pbip"

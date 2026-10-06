@@ -1,9 +1,11 @@
 """Integration tests for pbiscan Studio FastAPI backend API."""
 from fastapi.testclient import TestClient
 
-from pbiscan.server import app
+from pbiscan.server import STUDIO_TOKEN, TOKEN_HEADER, app
 
-client = TestClient(app, base_url="http://127.0.0.1")
+TOKEN_HEADERS = {TOKEN_HEADER: STUDIO_TOKEN}
+
+client = TestClient(app, base_url="http://127.0.0.1", headers=TOKEN_HEADERS)
 
 
 def test_health_endpoint():

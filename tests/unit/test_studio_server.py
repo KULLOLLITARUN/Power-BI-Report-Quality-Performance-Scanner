@@ -7,7 +7,9 @@ from unittest import mock
 import pytest
 from fastapi.testclient import TestClient
 from pbiscan import __version__
-from pbiscan.server import app
+from pbiscan.server import STUDIO_TOKEN, TOKEN_HEADER, app
+
+TOKEN_HEADERS = {TOKEN_HEADER: STUDIO_TOKEN}
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden"
 
@@ -17,7 +19,7 @@ class TestStudioServerApi:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app, base_url="http://127.0.0.1")
+        return TestClient(app, base_url="http://127.0.0.1", headers=TOKEN_HEADERS)
 
     def test_health_check(self, client):
         response = client.get("/api/health")
@@ -261,7 +263,7 @@ class TestAgentMcpIntegrationApi:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app, base_url="http://127.0.0.1")
+        return TestClient(app, base_url="http://127.0.0.1", headers=TOKEN_HEADERS)
 
     def test_mcp_status_reports_environment(self, client):
         resp = client.get("/api/mcp/status")
@@ -351,7 +353,7 @@ class TestStudioServerLocalSecurity:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app, base_url="http://127.0.0.1:8000")
+        return TestClient(app, base_url="http://127.0.0.1:8000", headers=TOKEN_HEADERS)
 
     @pytest.mark.parametrize("path", [
         "/..%2F..%2F..%2Fpyproject.toml",
@@ -401,3 +403,77 @@ class TestStudioServerLocalSecurity:
         monkeypatch.setenv("PBISCAN_STUDIO_ALLOWED_HOSTS", "192.168.1.20")
         lan = TestClient(app, base_url="http://192.168.1.20:8000")
         assert lan.get("/api/health").status_code == 200
+
+
+class TestStudioAccessToken:
+    """Every /api/* route except /api/health needs the per-run token, so another
+    local process (that can reach loopback but wasn't given the URL) can't drive
+    Studio's filesystem and remediation endpoints."""
+
+    @pytest.fixture
+    def anonymous(self):
+        return TestClient(app, base_url="http://127.0.0.1:8000")
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("post", "/api/scan", {"path": str(GOLDEN_DIR / "test_unusedmeasure")}),
+        ("post", "/api/browse", {"path": str(GOLDEN_DIR)}),
+        ("post", "/api/export", {"project_path": str(GOLDEN_DIR / "test_unusedmeasure"), "format": "json"}),
+        ("post", "/api/remediation/plan", {"project_path": str(GOLDEN_DIR / "test_unusedmeasure")}),
+        ("post", "/api/remediation/apply", {"project_path": str(GOLDEN_DIR / "test_unusedmeasure")}),
+        ("post", "/api/dax/rewrite", {"dax_expression": "1"}),
+        ("get", "/api/remediation/history?project_path=.", None),
+        ("get", "/api/mcp/status", None),
+    ])
+    def test_api_requires_token(self, anonymous, method, path, body):
+        kwargs = {"json": body} if body is not None else {}
+        response = getattr(anonymous, method)(path, **kwargs)
+        assert response.status_code == 401
+        assert "pbiscan studio" in response.json()["detail"]
+
+    def test_wrong_token_rejected(self, anonymous):
+        response = anonymous.post("/api/browse", json={}, headers={TOKEN_HEADER: STUDIO_TOKEN + "x"})
+        assert response.status_code == 401
+
+    def test_rejected_write_does_not_touch_disk(self, anonymous, tmp_path):
+        response = anonymous.post("/api/suppress", json={
+            "project_path": str(tmp_path), "rule_id": "DAX_UNUSED_MEASURE", "location": "Measure: X",
+        })
+        assert response.status_code == 401
+        assert list(tmp_path.iterdir()) == []
+
+    def test_health_and_spa_need_no_token(self, anonymous):
+        assert anonymous.get("/api/health").status_code == 200
+        assert anonymous.get("/").status_code == 200
+
+    def test_token_header_allowed_in_dev_preflight(self, anonymous):
+        response = anonymous.options("/api/scan", headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": f"content-type,{TOKEN_HEADER.lower()}",
+        })
+        assert response.status_code == 200
+        assert TOKEN_HEADER.lower() in response.headers["access-control-allow-headers"].lower()
+
+    def test_studio_command_opens_tokenized_url(self, monkeypatch, tmp_path):
+        """The browser URL carries the server's token, and a path with '&' or '#'
+        survives as one query value."""
+        from click.testing import CliRunner
+
+        from pbiscan import server
+        from pbiscan.cli import main
+
+        monkeypatch.delenv("PBISCAN_STUDIO_TOKEN", raising=False)
+        monkeypatch.delenv("PBISCAN_STUDIO_ALLOWED_HOSTS", raising=False)
+        monkeypatch.setattr(server, "STUDIO_TOKEN", server.STUDIO_TOKEN)  # restored after the test
+        project = tmp_path / "R&D #1"
+        project.mkdir()
+        opened: list[str] = []
+        with mock.patch("webbrowser.open", side_effect=opened.append), mock.patch("uvicorn.run"):
+            result = CliRunner().invoke(main, ["studio", str(project)])
+        assert result.exit_code == 0, result.output
+
+        from urllib.parse import parse_qs, urlparse
+        query = parse_qs(urlparse(opened[0]).query)
+        assert query["token"] == [server.STUDIO_TOKEN]
+        assert query["path"] == [str(project.resolve())]
+        assert os.environ["PBISCAN_STUDIO_TOKEN"] == server.STUDIO_TOKEN

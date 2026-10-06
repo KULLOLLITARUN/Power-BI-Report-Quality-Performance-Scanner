@@ -10,6 +10,7 @@ import { PagesViewer } from './components/PagesViewer';
 import { DiffViewer } from './components/DiffViewer';
 import { RemediationPanel } from './components/RemediationPanel';
 import { AgentIntegrationPanel } from './components/AgentIntegrationPanel';
+import { apiFetch } from './utils/api';
 import { FileBrowserModal } from './components/FileBrowserModal';
 import { ScanResult } from './types';
 import { useTheme } from './hooks/useTheme';
@@ -117,7 +118,7 @@ export const App: React.FC = () => {
     setIsDemoMode(false);
 
     try {
-      const res = await fetch('/api/scan', {
+      const res = await apiFetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: targetPath.trim() }),
@@ -264,7 +265,7 @@ export const App: React.FC = () => {
   // Native Windows File / Folder Picker with In-App Fallback
   const handleNativeBrowse = async (mode: 'file' | 'folder' = 'file') => {
     try {
-      const res = await fetch('/api/native-dialog', {
+      const res = await apiFetch('/api/native-dialog', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode }),

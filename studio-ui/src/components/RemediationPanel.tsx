@@ -76,6 +76,7 @@ interface ManifestRecord {
 }
 
 import { AuditFinding } from '../types';
+import { apiFetch } from '../utils/api';
 
 interface RemediationPanelProps {
   projectPath: string;
@@ -198,7 +199,7 @@ export const RemediationPanel: React.FC<RemediationPanelProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/remediation/plan', {
+      const res = await apiFetch('/api/remediation/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project_path: projectPath }),
@@ -232,7 +233,7 @@ export const RemediationPanel: React.FC<RemediationPanelProps> = ({
     if (!hasBackend || !projectPath) return;
     setHistoryLoading(true);
     try {
-      const res = await fetch(`/api/remediation/history?project_path=${encodeURIComponent(projectPath)}`);
+      const res = await apiFetch(`/api/remediation/history?project_path=${encodeURIComponent(projectPath)}`);
       if (res.ok) {
         const ct = res.headers.get('content-type') || '';
         if (ct.includes('application/json')) {
@@ -297,7 +298,7 @@ export const RemediationPanel: React.FC<RemediationPanelProps> = ({
     setSuccessMessage(null);
 
     try {
-      const res = await fetch('/api/remediation/apply', {
+      const res = await apiFetch('/api/remediation/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

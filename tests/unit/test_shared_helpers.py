@@ -25,8 +25,10 @@ from pbiscan.engine.suppressions import (
     load_suppressions,
 )
 from pbiscan.mcp.tools import handle_add_suppression, handle_get_measure_lineage
-from pbiscan.server import app
+from pbiscan.server import STUDIO_TOKEN, TOKEN_HEADER, app
 from pbiscan.service import ScanService
+
+TOKEN_HEADERS = {TOKEN_HEADER: STUDIO_TOKEN}
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden"
 
@@ -40,7 +42,7 @@ def project(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(app, base_url="http://127.0.0.1")
+    return TestClient(app, base_url="http://127.0.0.1", headers=TOKEN_HEADERS)
 
 
 class TestAddSuppression:

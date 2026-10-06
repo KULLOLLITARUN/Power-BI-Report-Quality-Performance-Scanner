@@ -15,15 +15,17 @@ from pbiscan.diff import (
 from pbiscan.engine.issue import AuditIssue
 from pbiscan.render.diff_console import DiffConsoleRenderer
 from pbiscan.render.diff_markdown import DiffMarkdownRenderer
-from pbiscan.server import app
+from pbiscan.server import STUDIO_TOKEN, TOKEN_HEADER, app
 from pbiscan.service import ScanResult, ScanService
+
+TOKEN_HEADERS = {TOKEN_HEADER: STUDIO_TOKEN}
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden"
 
 
 @pytest.fixture
 def client():
-    return TestClient(app, base_url="http://127.0.0.1")
+    return TestClient(app, base_url="http://127.0.0.1", headers=TOKEN_HEADERS)
 
 
 @pytest.fixture

@@ -257,15 +257,27 @@ def scan(
 @click.option("--no-browser", is_flag=True, help="Do not automatically open browser.")
 def studio(path: str | None, port: int, host: str, no_browser: bool) -> None:
     """Launch pbiscan Studio interactive developer web UI."""
+    import os
+    import secrets
     import webbrowser
+    from urllib.parse import urlencode
+
     import uvicorn
 
-    url = f"http://{host}:{port}"
+    # Per-run API token (see pbiscan.server.TOKEN_ENV); only this URL carries it.
+    token = os.environ.get("PBISCAN_STUDIO_TOKEN") or secrets.token_urlsafe(32)
+    os.environ["PBISCAN_STUDIO_TOKEN"] = token
+    from pbiscan import server
+    server.STUDIO_TOKEN = token  # in case the module was imported before the env var was set
+
+    query = {"token": token}
     if path:
-        url += f"?path={Path(path).resolve()}"
+        query["path"] = str(Path(path).resolve())
+    url = f"http://{host}:{port}/?{urlencode(query)}"
 
     click.echo(f"\n{_colour('pbiscan Studio', _BOLD)} - Starting visual workspace...")
     click.echo(f"  Local Server: {_colour(url, _CYAN)}")
+    click.echo("  The token in this URL is required for API access; don't share it.")
     click.echo(f"  Press {_colour('Ctrl+C', _BOLD)} to stop.\n")
 
     if not no_browser:
@@ -273,7 +285,6 @@ def studio(path: str | None, port: int, host: str, no_browser: bool) -> None:
 
     # The server's Host-header guard only trusts loopback names by default;
     # an explicitly chosen bind address must be trusted too.
-    import os
     extra_hosts = os.environ.get("PBISCAN_STUDIO_ALLOWED_HOSTS", "")
     os.environ["PBISCAN_STUDIO_ALLOWED_HOSTS"] = ",".join(filter(None, [extra_hosts, host]))
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Plug, Terminal, Copy, Check, CircleCheck, CircleAlert, ShieldCheck, ShieldAlert, BookOpen } from 'lucide-react';
+import { apiFetch } from '../utils/api';
 
 interface McpStatus {
   mcp_installed: boolean;
@@ -84,7 +85,7 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
     setDaxLoading(true);
     setDaxOutput(null);
     try {
-      const res = await fetch('/api/dax/rewrite', {
+      const res = await apiFetch('/api/dax/rewrite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -108,9 +109,9 @@ export const AgentIntegrationPanel: React.FC<AgentIntegrationPanelProps> = ({ ha
     (async () => {
       try {
         const [statusRes, toolsRes, rulesRes] = await Promise.all([
-          fetch('/api/mcp/status').then((r) => r.json()),
-          fetch('/api/mcp/tools').then((r) => r.json()),
-          fetch('/api/mcp/rules').then((r) => r.json()),
+          apiFetch('/api/mcp/status').then((r) => r.json()),
+          apiFetch('/api/mcp/tools').then((r) => r.json()),
+          apiFetch('/api/mcp/rules').then((r) => r.json()),
         ]);
         setStatus(statusRes);
         setTools(toolsRes);

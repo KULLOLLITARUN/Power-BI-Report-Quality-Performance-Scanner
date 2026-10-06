@@ -9,6 +9,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { BrowseResult } from '../types';
+import { apiFetch } from '../utils/api';
 
 interface FileBrowserModalProps {
   isOpen: boolean;
@@ -29,7 +30,7 @@ export const FileBrowserModal: React.FC<FileBrowserModalProps> = ({
   const fetchDirectory = async (path?: string) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/browse', {
+      const res = await apiFetch('/api/browse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path }),
