@@ -1,0 +1,15 @@
+{
+  "name": "extension",
+  "entities": [
+    {
+      "name": "Sales",
+      "measures": [
+        {
+          "name": "Report Ratio",
+          "dataType": "Double",
+          "expression": "DIVIDE([ExtensionBaseMetric], 2)"
+        }
+      ]
+    }
+  ]
+}

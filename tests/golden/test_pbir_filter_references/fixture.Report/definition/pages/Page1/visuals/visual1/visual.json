@@ -1,0 +1,27 @@
+{
+  "name": "visual1",
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Sales"
+                    }
+                  },
+                  "Property": "TotalSales"
+                }
+              },
+              "queryRef": "Sales.TotalSales"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

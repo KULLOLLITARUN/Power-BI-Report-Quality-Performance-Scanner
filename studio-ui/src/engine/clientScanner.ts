@@ -47,6 +47,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   const reportJsonFiles: DroppedFile[] = [];
   const pageJsonFiles: DroppedFile[] = [];
   const visualJsonFiles: DroppedFile[] = [];
+  const reportLevelFiles: DroppedFile[] = [];
 
   // 1. Process TMDL files
   for (const file of validFiles) {
@@ -80,6 +81,8 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
       visualJsonFiles.push(file);
     } else if (lowerPath.endsWith('report.json')) {
       reportJsonFiles.push(file);
+    } else if (lowerPath.endsWith('reportextensions.json') || (lowerPath.includes('/bookmarks/') && lowerPath.endsWith('.json'))) {
+      reportLevelFiles.push(file);
     }
   }
 
@@ -129,6 +132,9 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   const visualMeasureRefs = new Set<string>();
   processLegacyReportJson(reportJsonFiles, pages, visualMeasureRefs);
   processModernPbirPages(pageJsonFiles, visualJsonFiles, pages, visualMeasureRefs);
+  // Page/report-level filters, bookmarks and report-level ("thin report") measures
+  // (mirrors PBIPReader._parse_report_level + CanonicalBuilder steps 1b-1d)
+  processReportLevelReferences(reportJsonFiles, reportLevelFiles, knownMeasureNames, visualMeasureRefs);
 
   // Build the DAX dependency graph (measures + calculated columns) for
   // multi-hop, cycle-safe D004 reachability — mirrors
@@ -801,7 +807,12 @@ function processLegacyReportJson(files: DroppedFile[], pages: PageInfo[], visual
             }
           }
 
-          for (const m of extractMeasureNamesFromExprTree(config)) visualMeasureRefs.add(m);
+          for (const m of extractMeasureNamesFromExprTree([config, decodeJsonField(vc.filters)])) visualMeasureRefs.add(m);
+        }
+
+        // Page-level filters and config are stringified JSON in report.json
+        for (const m of extractMeasureNamesFromExprTree([decodeJsonField(s.filters), decodeJsonField(s.config)])) {
+          visualMeasureRefs.add(m);
         }
 
         const visibility = typeof s.visibility === 'number' ? s.visibility : 0;
@@ -815,6 +826,81 @@ function processLegacyReportJson(files: DroppedFile[], pages: PageInfo[], visual
       }
     } catch {
       // Non-JSON or malformed report.json — skip.
+    }
+  }
+}
+
+/** Legacy report.json stores filters/config as JSON strings; decode them (or pass through). */
+function decodeJsonField(value: any): any {
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return value;
+}
+
+/** Flatten `[{entities: [{measures: [{name, expression}]}]}]` into DAX expressions. */
+function collectExtensionExpressions(modelExtensions: any): string[] {
+  const out: string[] = [];
+  if (!Array.isArray(modelExtensions)) return out;
+  for (const ext of modelExtensions) {
+    for (const entity of (ext && Array.isArray(ext.entities)) ? ext.entities : []) {
+      for (const m of (entity && Array.isArray(entity.measures)) ? entity.measures : []) {
+        if (m && m.name) out.push(Array.isArray(m.expression) ? m.expression.join('\n') : String(m.expression || ''));
+      }
+    }
+  }
+  return out;
+}
+
+/** Report-wide references: report-level filters/config (legacy and PBIR report.json),
+ * PBIR bookmarks, and model measures used inside report-level ("thin report") measures. */
+function processReportLevelReferences(
+  reportFiles: DroppedFile[],
+  reportLevelFiles: DroppedFile[],
+  knownMeasureNames: Set<string>,
+  visualMeasureRefs: Set<string>
+) {
+  const extensionExpressions: string[] = [];
+
+  for (const file of reportFiles) {
+    try {
+      const data = JSON.parse(file.content);
+      if (Array.isArray(data.sections)) {
+        // Legacy report.json: stringified report-level filters + config (with modelExtensions)
+        const config = decodeJsonField(data.config);
+        for (const m of extractMeasureNamesFromExprTree([decodeJsonField(data.filters), config])) visualMeasureRefs.add(m);
+        if (config && typeof config === 'object') extensionExpressions.push(...collectExtensionExpressions(config.modelExtensions));
+      } else {
+        // PBIR definition/report.json
+        for (const m of extractMeasureNamesFromExprTree(data)) visualMeasureRefs.add(m);
+      }
+    } catch {
+      // Malformed report.json — skip.
+    }
+  }
+
+  for (const file of reportLevelFiles) {
+    try {
+      const data = JSON.parse(file.content);
+      if (file.path.toLowerCase().endsWith('reportextensions.json')) {
+        extensionExpressions.push(...collectExtensionExpressions([data]));
+      } else {
+        for (const m of extractMeasureNamesFromExprTree(data)) visualMeasureRefs.add(m);
+      }
+    } catch {
+      // Malformed bookmark / reportExtensions.json — skip.
+    }
+  }
+
+  const measureLookup = new Map([...knownMeasureNames].map((n) => [n.toLowerCase(), n]));
+  for (const expr of extensionExpressions) {
+    for (const match of expr.matchAll(/\[([^\]]+)\]/g)) {
+      const target = measureLookup.get(match[1].trim().toLowerCase());
+      if (target) visualMeasureRefs.add(target);
     }
   }
 }
@@ -850,6 +936,8 @@ function processModernPbirPages(
     const pageId = pageIdFromPath(file.path);
     try {
       const data = JSON.parse(file.content);
+      // page.json filterConfig (page-level filter pane) and any other bindings
+      for (const m of extractMeasureNamesFromExprTree(data)) visualMeasureRefs.add(m);
       const visibility = typeof data.visibility === 'number' ? data.visibility : 0;
       pageMap.set(pageId, {
         displayName: data.displayName || pageId,

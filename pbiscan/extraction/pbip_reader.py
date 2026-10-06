@@ -104,6 +104,8 @@ class RawPage:
     display_name: str = ""
     visibility: int = 0
     visuals: list[RawVisual] = field(default_factory=list)
+    # Measures referenced by page-level filters / page config (not by any one visual)
+    filter_measure_refs: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -116,6 +118,10 @@ class RawExtraction:
     pages: list[RawPage] = field(default_factory=list)
     roles: list[dict[str, Any]] = field(default_factory=list)
     tmdl_roles: list[dict[str, Any]] = field(default_factory=list)
+    # Measures referenced by report-level filters, report config and bookmarks
+    report_measure_refs: list[str] = field(default_factory=list)
+    # Report-level ("thin report") measures: {"name", "table", "expression"}
+    report_extension_measures: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -185,9 +191,12 @@ class PBIPReader:
 
         # Parse report
         pages: list[RawPage] = []
+        report_measure_refs: list[str] = []
+        report_extension_measures: list[dict[str, Any]] = []
         if report_dir:
             pages, w = self._parse_report(report_dir)
             warnings.extend(w)
+            report_measure_refs, report_extension_measures = self._parse_report_level(report_dir)
         else:
             warnings.append("No Report directory found — report analysis skipped.")
 
@@ -204,6 +213,8 @@ class PBIPReader:
             pages=pages,
             roles=roles,
             tmdl_roles=tmdl_roles,
+            report_measure_refs=report_measure_refs,
+            report_extension_measures=report_extension_measures,
             warnings=warnings,
         )
 
@@ -676,11 +687,17 @@ class PBIPReader:
                 section.get("visualContainers", [])
             )
 
+            # Page-level filters and config are stringified JSON in report.json
+            filter_refs = self._extract_measure_names_from_expr_tree(
+                [self._decode_json_field(section.get(k)) for k in ("filters", "config")]
+            )
+
             pages.append(RawPage(
                 name=name,
                 display_name=display_name,
                 visibility=visibility,
                 visuals=visuals,
+                filter_measure_refs=sorted(filter_refs),
             ))
         return pages
 
@@ -717,9 +734,91 @@ class PBIPReader:
                 display_name=display_name,
                 visibility=visibility,
                 visuals=visuals,
+                # page.json filterConfig (page-level filter pane) and any other bindings
+                filter_measure_refs=sorted(self._extract_measure_names_from_expr_tree(page_data)),
             ))
 
         return pages
+
+    def _parse_report_level(
+        self, report_dir: Path
+    ) -> tuple[list[str], list[dict[str, Any]]]:
+        """Collect report-wide measure references and report-level measures.
+
+        Covers report-level filters, report config and bookmarks (legacy
+        report.json and PBIR definition/report.json + bookmarks/), plus
+        report-level "thin report" measures (legacy config.modelExtensions and
+        PBIR definition/reportExtensions.json), whose DAX can depend on model
+        measures that no visual binds directly.
+        """
+        refs: set[str] = set()
+        extensions: list[dict[str, Any]] = []
+
+        def load(path: Path) -> Any:
+            try:
+                return self._load_json(path)
+            except ParseError as exc:
+                logger.warning("Skipping unreadable report file %s: %s", path, exc)
+                return None
+
+        legacy_json = report_dir / "report.json"
+        if legacy_json.exists():
+            raw = load(legacy_json) or {}
+            config = self._decode_json_field(raw.get("config"))
+            refs |= self._extract_measure_names_from_expr_tree(
+                [self._decode_json_field(raw.get("filters")), config]
+            )
+            if isinstance(config, dict):
+                extensions.extend(self._collect_extension_measures(config.get("modelExtensions", [])))
+
+        definition_dir = report_dir / "definition"
+        if definition_dir.is_dir():
+            pbir_report = definition_dir / "report.json"
+            if pbir_report.exists():
+                refs |= self._extract_measure_names_from_expr_tree(load(pbir_report))
+
+            bookmarks_dir = definition_dir / "bookmarks"
+            if bookmarks_dir.is_dir():
+                for bookmark_file in sorted(bookmarks_dir.glob("*.json")):
+                    refs |= self._extract_measure_names_from_expr_tree(load(bookmark_file))
+
+            extensions_file = definition_dir / "reportExtensions.json"
+            if extensions_file.exists():
+                extensions.extend(self._collect_extension_measures([load(extensions_file)]))
+
+        return sorted(refs), extensions
+
+    @staticmethod
+    def _collect_extension_measures(model_extensions: Any) -> list[dict[str, Any]]:
+        """Flatten `[{entities: [{name, measures: [{name, expression}]}]}]` into measure dicts."""
+        measures: list[dict[str, Any]] = []
+        if not isinstance(model_extensions, list):
+            return measures
+        for ext in model_extensions:
+            if not isinstance(ext, dict):
+                continue
+            for entity in ext.get("entities", []) or []:
+                if not isinstance(entity, dict):
+                    continue
+                for m in entity.get("measures", []) or []:
+                    if isinstance(m, dict) and m.get("name"):
+                        expr = m.get("expression", "")
+                        measures.append({
+                            "name": m["name"],
+                            "table": entity.get("name", ""),
+                            "expression": "\n".join(expr) if isinstance(expr, list) else str(expr or ""),
+                        })
+        return measures
+
+    @staticmethod
+    def _decode_json_field(value: Any) -> Any:
+        """Legacy report.json stores filters/config as JSON strings; decode them (or pass through)."""
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return None
+        return value
 
     def _extract_measure_names_from_expr_tree(self, obj: Any) -> set[str]:
         """Recursively traverse any JSON/dict subtree and extract all Measure.Property expressions."""
@@ -842,8 +941,11 @@ class PBIPReader:
                                 fields_used.append(clean_name)
                                 measure_refs.append(clean_name)
 
-        # Recursively harvest measure references from objects / visual container JSON
-        ast_measures = self._extract_measure_names_from_expr_tree(config)
+        # Recursively harvest measure references from objects / visual container JSON,
+        # plus the visual-level filter pane (a separate stringified `filters` field)
+        ast_measures = self._extract_measure_names_from_expr_tree(
+            [config, self._decode_json_field(vc.get("filters"))]
+        )
         all_measure_refs = sorted(list(set(measure_refs) | ast_measures))
         all_fields_used = sorted(list(set(fields_used) | ast_measures))
 

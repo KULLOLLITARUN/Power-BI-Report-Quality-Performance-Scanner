@@ -1,0 +1,22 @@
+{
+  "name": "Page1",
+  "displayName": "Overview",
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "pf1",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Sales"
+              }
+            },
+            "Property": "PageFilterMetric"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
+  }
+}

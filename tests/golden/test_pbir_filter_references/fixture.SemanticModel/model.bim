@@ -1,0 +1,50 @@
+{
+  "name": "fixture",
+  "compatibilityLevel": 1550,
+  "model": {
+    "culture": "en-US",
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {
+            "name": "ID",
+            "dataType": "int64",
+            "sourceColumn": "ID"
+          },
+          {
+            "name": "Amount",
+            "dataType": "double",
+            "sourceColumn": "Amount"
+          }
+        ],
+        "measures": [
+          {
+            "name": "TotalSales",
+            "expression": "SUM(Sales[Amount])"
+          },
+          {
+            "name": "PageFilterMetric",
+            "expression": "COUNT(Sales[ID])"
+          },
+          {
+            "name": "ReportFilterMetric",
+            "expression": "AVERAGE(Sales[Amount])"
+          },
+          {
+            "name": "BookmarkMetric",
+            "expression": "MAX(Sales[Amount])"
+          },
+          {
+            "name": "ExtensionBaseMetric",
+            "expression": "MIN(Sales[Amount])"
+          },
+          {
+            "name": "GenuinelyUnusedMetric",
+            "expression": "DISTINCTCOUNT(Sales[ID])"
+          }
+        ]
+      }
+    ]
+  }
+}

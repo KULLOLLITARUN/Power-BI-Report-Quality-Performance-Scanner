@@ -1,0 +1,28 @@
+{
+  "name": "bm1",
+  "displayName": "High value",
+  "explorationState": {
+    "sections": {
+      "Page1": {
+        "filters": {
+          "byExpr": [
+            {
+              "name": "bf1",
+              "expression": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Sales"
+                    }
+                  },
+                  "Property": "BookmarkMetric"
+                }
+              },
+              "type": "Advanced"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

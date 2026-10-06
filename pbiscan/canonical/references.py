@@ -19,6 +19,8 @@ ReferenceSourceType = Literal[
     "field_parameter",         # Measure in calculated table NAMEOF('Table'[Measure])
     "field_parameter_grouped", # Measure in 4-tuple grouped calculated table
     "rls_table_permission",    # Measure in roles/Role.tmdl or model.bim tablePermission DAX
+    "report_filter",           # Measure in report-level filters, report config or bookmarks
+    "report_extension_measure",  # Model measure referenced by a report-level (thin report) measure's DAX
 ]
 
 ReferenceTargetType = Literal[

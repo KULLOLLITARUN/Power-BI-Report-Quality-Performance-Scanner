@@ -10,6 +10,8 @@ The builder:
 """
 from __future__ import annotations
 
+import re
+
 from pbiscan.canonical.model import (
     CanonicalReport,
     Column,
@@ -120,6 +122,49 @@ class CanonicalBuilder:
                             target_type="measure",
                             source_type="visual_projection",
                             source_object=f"{page.label}.{visual.visual_type}",
+                            activates_root=True,
+                        )
+                    )
+
+        # 1b. Page-level filter pane references
+        for raw_page, page in zip(raw.pages, pages):
+            for ref in raw_page.filter_measure_refs:
+                index.add(
+                    SemanticReference(
+                        target_name=ref,
+                        target_type="measure",
+                        source_type="visual_filter",
+                        source_object=f"{page.label}.filters",
+                        activates_root=True,
+                    )
+                )
+
+        # 1c. Report-level filters, report config and bookmarks
+        for ref in raw.report_measure_refs:
+            index.add(
+                SemanticReference(
+                    target_name=ref,
+                    target_type="measure",
+                    source_type="report_filter",
+                    source_object="report",
+                    activates_root=True,
+                )
+            )
+
+        # 1d. Report-level ("thin report") measures depending on model measures
+        model_measure_lookup = {m.name.lower(): m.name for m in measures}
+        for ext in raw.report_extension_measures:
+            expression = ext.get("expression", "")
+            for raw_ref in re.findall(r"\[([^\]]+)\]", expression):
+                target = model_measure_lookup.get(raw_ref.strip().lower())
+                if target:
+                    index.add(
+                        SemanticReference(
+                            target_name=target,
+                            target_type="measure",
+                            source_type="report_extension_measure",
+                            source_object=f"{ext.get('table', '')}[{ext['name']}]",
+                            source_expression=expression,
                             activates_root=True,
                         )
                     )

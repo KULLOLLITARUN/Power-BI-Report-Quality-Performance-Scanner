@@ -1,0 +1,21 @@
+{
+  "themeCollection": {},
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "rf1",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Sales"
+              }
+            },
+            "Property": "ReportFilterMetric"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
+  }
+}

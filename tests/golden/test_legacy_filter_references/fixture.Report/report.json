@@ -1,0 +1,22 @@
+{
+  "config": "{\"version\": \"5.43\", \"modelExtensions\": [{\"name\": \"extension\", \"entities\": [{\"name\": \"Sales\", \"measures\": [{\"name\": \"Report Ratio\", \"expression\": \"DIVIDE([ExtensionBaseMetric], 2)\"}]}]}]}",
+  "filters": "[{\"name\": \"rf1\", \"expression\": {\"Measure\": {\"Expression\": {\"SourceRef\": {\"Entity\": \"Sales\"}}, \"Property\": \"ReportFilterMetric\"}}, \"type\": \"Advanced\"}]",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Overview",
+      "visibility": 0,
+      "filters": "[{\"name\": \"pf1\", \"expression\": {\"Measure\": {\"Expression\": {\"SourceRef\": {\"Entity\": \"Sales\"}}, \"Property\": \"PageFilterMetric\"}}, \"type\": \"Advanced\"}]",
+      "visualContainers": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 300,
+          "height": 200,
+          "config": "{\"name\": \"v1\", \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"Sales.TotalSales\"}]}, \"prototypeQuery\": {\"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Entity\": \"Sales\"}}, \"Property\": \"TotalSales\"}, \"Name\": \"Sales.TotalSales\"}]}}}",
+          "filters": "[{\"name\": \"vf1\", \"expression\": {\"Measure\": {\"Expression\": {\"SourceRef\": {\"Entity\": \"Sales\"}}, \"Property\": \"VisualFilterMetric\"}}, \"type\": \"Advanced\"}]"
+        }
+      ]
+    }
+  ]
+}
