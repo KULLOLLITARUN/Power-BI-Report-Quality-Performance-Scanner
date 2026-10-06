@@ -1,0 +1,27 @@
+{
+  "name": "v1",
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Bob's Sales"
+                    }
+                  },
+                  "Property": "Revenue = Net"
+                }
+              },
+              "queryRef": "Bob's Sales.Revenue = Net"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

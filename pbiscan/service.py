@@ -365,6 +365,12 @@ class ScanService:
         # Step 5: Load and Apply Suppressions
         supp_dir = Path(suppressions_path) if suppressions_path else proj_path
         scan_warnings: list[str] = list(raw.warnings)
+        if raw.unread_files:
+            scan_warnings.append(
+                f"DAX_UNUSED_MEASURE was not checked: {len(raw.unread_files)} project file(s) "
+                "could not be read, and any of them could use a measure that would "
+                "otherwise look unused."
+            )
         suppressions = load_suppressions(supp_dir, warnings=scan_warnings)
         issues = apply_suppressions(issues, suppressions)
 

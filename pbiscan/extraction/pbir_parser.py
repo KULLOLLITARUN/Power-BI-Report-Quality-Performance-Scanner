@@ -13,6 +13,7 @@ from pbiscan.extraction.raw import (
     RawPage,
     RawVisual,
     collect_extension_measures,
+    expect_structure,
     extract_measure_names,
     load_json,
 )
@@ -21,7 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 def parse_pbir_pages(definition_dir: Path) -> list[RawPage]:
-    """Parse every page under definition/pages/."""
+    """Parse every page under definition/pages/.
+
+    Raises ParseError for a page or visual file that is not valid JSON and
+    SchemaError for one of the wrong shape: a visual that can't be read could
+    be the only user of a measure, so it is not silently dropped.
+    """
     pages: list[RawPage] = []
     pages_dir = definition_dir / "pages"
 
@@ -34,9 +40,10 @@ def parse_pbir_pages(definition_dir: Path) -> list[RawPage]:
             continue
 
         page_data = load_json(page_json_path)
-        name = page_data.get("name", page_dir.name)
-        display_name = page_data.get("displayName", name)
-        visibility = page_data.get("visibility", 0)
+        with expect_structure(page_json_path):
+            name = page_data.get("name", page_dir.name)
+            display_name = page_data.get("displayName", name)
+            visibility = page_data.get("visibility", 0)
 
         visuals: list[RawVisual] = []
         visuals_dir = page_dir / "visuals"
@@ -44,7 +51,9 @@ def parse_pbir_pages(definition_dir: Path) -> list[RawPage]:
             for visual_dir in sorted(visuals_dir.iterdir()):
                 visual_json = visual_dir / "visual.json"
                 if visual_json.exists():
-                    v = parse_pbir_visual(load_json(visual_json))
+                    visual_data = load_json(visual_json)
+                    with expect_structure(visual_json):
+                        v = parse_pbir_visual(visual_data)
                     if v:
                         visuals.append(v)
 
@@ -60,13 +69,19 @@ def parse_pbir_pages(definition_dir: Path) -> list[RawPage]:
     return pages
 
 
-def parse_pbir_report_level(definition_dir: Path) -> tuple[set[str], list[dict[str, Any]]]:
-    """Measure refs in definition/report.json and bookmarks/, plus reportExtensions.json measures."""
+def parse_pbir_report_level(
+    definition_dir: Path, unread: list[str]
+) -> tuple[set[str], list[dict[str, Any]]]:
+    """Measure refs in definition/report.json and bookmarks/, plus reportExtensions.json measures.
+
+    Files that can't be read are skipped and their paths appended to `unread`.
+    """
     def load(path: Path) -> Any:
         try:
             return load_json(path)
         except ParseError as exc:
             logger.warning("Skipping unreadable report file %s: %s", path, exc)
+            unread.append(str(path))
             return None
 
     refs: set[str] = set()

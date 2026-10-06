@@ -54,6 +54,11 @@ if (process.argv[3] === '--verbose') {
       findings: result.findings.map((f) => [f.rule_id, f.category, f.severity, f.confidence]),
       overall: result.scores.overall,
       category_scores: result.scores.category_scores,
+      unused_measures: result.findings
+        .filter((f) => f.rule_id === 'DAX_UNUSED_MEASURE')
+        .map((f) => f.location)
+        .sort(),
+      warnings: result.warnings,
     })
   );
 }

@@ -14,6 +14,7 @@ from pbiscan.extraction.raw import (
     RawPage,
     RawVisual,
     collect_extension_measures,
+    expect_structure,
     extract_measure_names,
     load_json,
 )
@@ -22,10 +23,18 @@ logger = logging.getLogger(__name__)
 
 
 def parse_report_json(report_json: Path) -> list[RawPage]:
-    """Parse the pages of a legacy report.json."""
-    raw = load_json(report_json)
-    pages: list[RawPage] = []
+    """Parse the pages of a legacy report.json.
 
+    Raises ParseError if the file is not valid JSON and SchemaError if it is
+    JSON of the wrong shape.
+    """
+    raw = load_json(report_json)
+    with expect_structure(report_json):
+        return _parse_sections(raw)
+
+
+def _parse_sections(raw: dict[str, Any]) -> list[RawPage]:
+    pages: list[RawPage] = []
     for section in raw.get("sections", []):
         name = section.get("name", "")
         display_name = section.get("displayName", name)
@@ -48,13 +57,20 @@ def parse_report_json(report_json: Path) -> list[RawPage]:
     return pages
 
 
-def parse_report_json_level(report_json: Path) -> tuple[set[str], list[dict[str, Any]]]:
-    """Measure refs in report-level filters/config, plus config.modelExtensions measures."""
+def parse_report_json_level(report_json: Path, unread: list[str]) -> tuple[set[str], list[dict[str, Any]]]:
+    """Measure refs in report-level filters/config, plus config.modelExtensions measures.
+
+    If the file can't be read or isn't a JSON object, its path is appended to `unread`.
+    """
     try:
-        raw = load_json(report_json) or {}
+        raw = load_json(report_json)
     except ParseError as exc:
         logger.warning("Skipping unreadable report file %s: %s", report_json, exc)
-        raw = {}
+        unread.append(str(report_json))
+        return set(), []
+    if not isinstance(raw, dict):
+        unread.append(str(report_json))
+        return set(), []
     config = decode_json_field(raw.get("config"))
     refs = extract_measure_names([decode_json_field(raw.get("filters")), config])
     extensions: list[dict[str, Any]] = []

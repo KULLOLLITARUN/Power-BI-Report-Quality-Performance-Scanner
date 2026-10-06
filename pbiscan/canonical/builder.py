@@ -100,6 +100,7 @@ class CanonicalBuilder:
             semantic_references=semantic_references,
             source_path=raw.source_path,
             report_name=raw.report_name,
+            unread_files=list(raw.unread_files),
         )
 
     def _build_semantic_references(

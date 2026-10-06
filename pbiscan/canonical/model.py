@@ -266,4 +266,7 @@ class CanonicalReport:
     semantic_references: SemanticReferenceIndex = field(default_factory=SemanticReferenceIndex)
     source_path: str = ""
     report_name: str = ""
+    # Project files that could not be read. Any of them could define or use
+    # measures, so "unused" cannot be decided while this is non-empty.
+    unread_files: list[str] = field(default_factory=list)
 

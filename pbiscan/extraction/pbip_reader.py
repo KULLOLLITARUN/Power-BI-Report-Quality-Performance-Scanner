@@ -24,6 +24,7 @@ from pbiscan.extraction.raw import (
     ParseError,
     PBIScanError,
     RawExtraction,
+    RawModel,
     RawPage,
     RawRelationship,
     RawTable,
@@ -96,14 +97,14 @@ class PBIPReader:
         semantic_model_dir = _find_dir(root, ".SemanticModel")
         report_dir = _find_dir(root, ".Report")
 
-        tables: list[RawTable] = []
-        relationships: list[RawRelationship] = []
-        roles: list[dict[str, Any]] = []
-        tmdl_roles: list[dict[str, Any]] = []
         warnings: list[str] = []
+        unread_files: list[str] = []
         if semantic_model_dir:
-            tables, relationships, roles, tmdl_roles = self._parse_semantic_model(semantic_model_dir)
+            model = self._parse_semantic_model(semantic_model_dir)
+            warnings.extend(model.warnings)
+            unread_files.extend(model.unread_files)
         else:
+            model = RawModel()
             warnings.append("No SemanticModel directory found — model analysis skipped.")
 
         pages: list[RawPage] = []
@@ -112,42 +113,42 @@ class PBIPReader:
         if report_dir:
             pages, w = self._parse_report(report_dir)
             warnings.extend(w)
-            report_measure_refs, report_extension_measures = self._parse_report_level(report_dir)
+            report_unread: list[str] = []
+            report_measure_refs, report_extension_measures = self._parse_report_level(report_dir, report_unread)
+            warnings.extend(f"Skipped {path}: not readable as a JSON object" for path in report_unread)
+            unread_files.extend(report_unread)
         else:
             warnings.append("No Report directory found — report analysis skipped.")
 
         logger.info(
             "Extracted %d tables, %d relationships, %d pages",
-            len(tables), len(relationships), len(pages),
+            len(model.tables), len(model.relationships), len(pages),
         )
 
         return RawExtraction(
             report_name=report_name,
             source_path=str(root),
-            tables=tables,
-            relationships=relationships,
+            tables=model.tables,
+            relationships=model.relationships,
             pages=pages,
-            roles=roles,
-            tmdl_roles=tmdl_roles,
+            roles=model.roles,
+            tmdl_roles=model.tmdl_roles,
             report_measure_refs=report_measure_refs,
             report_extension_measures=report_extension_measures,
             warnings=warnings,
+            unread_files=unread_files,
         )
 
-    def _parse_semantic_model(
-        self, sm_dir: Path
-    ) -> tuple[list[RawTable], list[RawRelationship], list[dict[str, Any]], list[dict[str, Any]]]:
-        """Parse model.bim if present, otherwise TMDL. Returns (tables, relationships, bim_roles, tmdl_roles)."""
+    def _parse_semantic_model(self, sm_dir: Path) -> RawModel:
+        """Parse model.bim if present, otherwise TMDL."""
         model_bim = sm_dir / "model.bim"
         if model_bim.exists():
             logger.info("Parsing model.bim: %s", model_bim)
-            tables, relationships, roles = parse_bim_model(model_bim)
-            return tables, relationships, roles, []
+            return parse_bim_model(model_bim)
 
         if any(sm_dir.rglob("*.tmdl")):
             logger.info("Parsing TMDL semantic model in: %s", sm_dir)
-            tables, relationships, tmdl_roles = parse_tmdl_model(sm_dir)
-            return tables, relationships, [], tmdl_roles
+            return parse_tmdl_model(sm_dir)
 
         raise SchemaError(f"No model.bim or TMDL definitions found in {sm_dir}")
 
@@ -168,7 +169,9 @@ class PBIPReader:
             "Expected: report.json or definition/pages/ (PBIR)."
         ]
 
-    def _parse_report_level(self, report_dir: Path) -> tuple[list[str], list[dict[str, Any]]]:
+    def _parse_report_level(
+        self, report_dir: Path, unread: list[str]
+    ) -> tuple[list[str], list[dict[str, Any]]]:
         """Collect report-wide measure references and report-level measures.
 
         Covers report-level filters, report config and bookmarks (legacy
@@ -182,13 +185,13 @@ class PBIPReader:
 
         legacy_json = report_dir / "report.json"
         if legacy_json.exists():
-            legacy_refs, legacy_ext = parse_report_json_level(legacy_json)
+            legacy_refs, legacy_ext = parse_report_json_level(legacy_json, unread)
             refs |= legacy_refs
             extensions.extend(legacy_ext)
 
         definition_dir = report_dir / "definition"
         if definition_dir.is_dir():
-            pbir_refs, pbir_ext = parse_pbir_report_level(definition_dir)
+            pbir_refs, pbir_ext = parse_pbir_report_level(definition_dir, unread)
             refs |= pbir_refs
             extensions.extend(pbir_ext)
 

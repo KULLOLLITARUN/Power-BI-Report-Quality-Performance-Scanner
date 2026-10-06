@@ -109,6 +109,35 @@ def test_rule_ids_match_python_engine(fixture_dir: Path):
 
 
 @pytest.mark.parametrize("fixture_dir", _fixture_dirs(), ids=lambda p: p.name)
+def test_unused_measures_match_python_engine(fixture_dir: Path):
+    """Same rule IDs isn't enough for D004: both engines must flag the same measures,
+    since these are what `pbiscan fix` offers to delete."""
+    py_unused = sorted(
+        i.location for i in ScanService.execute_scan(fixture_dir).issues if i.rule_id == "DAX_UNUSED_MEASURE"
+    )
+    assert _run_ts_scanner(fixture_dir)["unused_measures"] == py_unused, fixture_dir.name
+
+
+def test_unreadable_file_disables_unused_measures_in_both_engines(tmp_path: Path):
+    """A bookmark that can't be parsed may be the only user of a measure, so neither
+    engine may report unused measures for that scan, and both must say why."""
+    project = tmp_path / "proj"
+    shutil.copytree(GOLDEN_DIR / "test_pbir_filter_references", project)
+    (project / "fixture.Report" / "definition" / "bookmarks" / "bm1.bookmark.json").write_text(
+        "{not json", encoding="utf-8"
+    )
+
+    py_result = ScanService.execute_scan(project)
+    ts_result = _run_ts_scanner(project)
+
+    assert not [i for i in py_result.issues if i.rule_id == "DAX_UNUSED_MEASURE"]
+    assert ts_result["unused_measures"] == []
+    for warnings in (py_result.warnings, ts_result["warnings"]):
+        assert any("DAX_UNUSED_MEASURE was not checked" in w for w in warnings)
+        assert any("bm1.bookmark.json" in w for w in warnings)
+
+
+@pytest.mark.parametrize("fixture_dir", _fixture_dirs(), ids=lambda p: p.name)
 def test_finding_metadata_matches_python_engine(fixture_dir: Path):
     """Category, severity and confidence are hard-coded in clientScanner.ts;
     they must match the Python rule catalog for every finding."""

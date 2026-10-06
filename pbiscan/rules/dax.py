@@ -212,9 +212,15 @@ def check_unused_measures(report: CanonicalReport) -> list[RuleFinding]:
     This prevents false positives for base measures that are building blocks
     for higher-level measures but not directly bound to visuals.
 
+    Returns nothing when any project file could not be read: a skipped file
+    may be the only place a measure is used, and `pbiscan fix` deletes what
+    this rule reports.
+
     Confidence: 95% (two-signal detection).
     """
     findings: list[RuleFinding] = []
+    if report.unread_files:
+        return findings
 
     # Collect all measure names referenced by report visuals and semantic reference index
     active_root_measures: set[str] = set()

@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from pbiscan.extraction.raw import RawRelationship, RawTable, load_json
+from pbiscan.extraction.raw import RawModel, RawRelationship, RawTable, expect_structure, load_json
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +19,20 @@ _DATE_TABLE_ANNOTATIONS = (
 )
 
 
-def parse_bim_model(
-    model_bim: Path,
-) -> tuple[list[RawTable], list[RawRelationship], list[dict[str, Any]]]:
-    """Parse model.bim into tables, relationships and roles."""
+def parse_bim_model(model_bim: Path) -> RawModel:
+    """Parse model.bim into tables, relationships and roles.
+
+    Raises ParseError if the file is not valid JSON and SchemaError if it is
+    JSON of the wrong shape.
+    """
     raw_model = load_json(model_bim)
-    model_node = raw_model.get("model", raw_model)
-    tables = parse_tables(model_node.get("tables", []))
-    relationships = parse_relationships(model_node.get("relationships", []))
-    roles = model_node.get("roles", [])
-    return tables, relationships, roles
+    with expect_structure(model_bim):
+        model_node = raw_model.get("model", raw_model)
+        return RawModel(
+            tables=parse_tables(model_node.get("tables", [])),
+            relationships=parse_relationships(model_node.get("relationships", [])),
+            roles=model_node.get("roles", []),
+        )
 
 
 def parse_tables(raw_tables: list[dict[str, Any]]) -> list[RawTable]:

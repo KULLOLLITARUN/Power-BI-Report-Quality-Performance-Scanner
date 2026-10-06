@@ -1,0 +1,12 @@
+table	Customer
+	lineageTag: 22222222-0000-0000-0000-000000000001
+
+	column CustKey
+		dataType: int64
+
+	column Name
+		dataType: string
+
+	partition Customer = m
+		mode: import
+		source = Sql.Database("server", "db")

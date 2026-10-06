@@ -1,0 +1,7 @@
+relationship aaaaaaaa-0000-0000-0000-000000000001
+	fromColumn: 'Bob''s Sales'.'Cust Key'
+	toColumn: Customer.CustKey
+
+relationship aaaaaaaa-0000-0000-0000-000000000002
+	fromColumn: 'Bob''s Sales'.Amount
+	toColumn: 'Date'.'Date'

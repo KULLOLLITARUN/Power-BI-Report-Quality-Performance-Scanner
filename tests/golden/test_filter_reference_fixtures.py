@@ -93,17 +93,40 @@ class TestLegacyReportJsonFilterReferences:
 
 
 def test_malformed_report_level_file_does_not_crash(tmp_path):
-    """A corrupt bookmark/reportExtensions file is skipped, not fatal."""
+    """A corrupt bookmark/reportExtensions file is skipped, not fatal, and turns off
+    unused-measure detection: BookmarkMetric is only used by the unreadable bookmark,
+    so flagging it (and letting `pbiscan fix` delete it) would be wrong."""
     import shutil
 
     project = tmp_path / "proj"
     shutil.copytree(GOLDEN_DIR / "test_pbir_filter_references", project)
     definition = project / "fixture.Report" / "definition"
-    (definition / "bookmarks" / "bm1.bookmark.json").write_text("{not json", encoding="utf-8")
-    (definition / "reportExtensions.json").write_text("{not json", encoding="utf-8")
+    bookmark = definition / "bookmarks" / "bm1.bookmark.json"
+    extensions = definition / "reportExtensions.json"
+    bookmark.write_text("{not json", encoding="utf-8")
+    extensions.write_text("{not json", encoding="utf-8")
 
     raw = PBIPReader().read(project)
+    assert sorted(raw.unread_files) == sorted([str(bookmark), str(extensions)])
+    assert any(str(bookmark) in w for w in raw.warnings)
+
     report = CanonicalBuilder().build(raw)
-    flagged = {f.location for f in check_unused_measures(report)}
+    assert check_unused_measures(report) == []
+
+
+def test_unused_measure_still_detected_when_every_file_reads(tmp_path):
+    """Control for the test above: the same fixture, intact, does flag BookmarkMetric
+    once its bookmark no longer references it."""
+    import shutil
+
+    project = tmp_path / "proj"
+    shutil.copytree(GOLDEN_DIR / "test_pbir_filter_references", project)
+    (project / "fixture.Report" / "definition" / "bookmarks" / "bm1.bookmark.json").write_text(
+        "{}", encoding="utf-8"
+    )
+
+    raw = PBIPReader().read(project)
+    assert raw.unread_files == []
+    flagged = {f.location for f in check_unused_measures(CanonicalBuilder().build(raw))}
     assert "Measure: BookmarkMetric" in flagged
     assert "Measure: PageFilterMetric" not in flagged

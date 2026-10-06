@@ -32,17 +32,25 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   const calcGroupEntries: CalcGroupEntry[] = [];
   const roleReferences: ReturnType<typeof extractRlsTmdlReferences> = [];
 
-  // Filter out backup folders, git, and metadata
+  // Filter out backup folders, git, and metadata. A leading byte-order mark is
+  // dropped: it would hide a TMDL file's first line and make JSON.parse fail.
   const validFiles = files.filter(f => {
     const p = f.path.toLowerCase().replace(/\\/g, '/');
     return !p.includes('/backup/') && !p.startsWith('backup/') && !p.includes('/.git/') && !p.includes('/.pbi/');
-  });
+  }).map((f) => (f.content.charCodeAt(0) === 0xfeff ? { ...f, content: f.content.slice(1) } : f));
+
+  // Files that exist but could not be parsed. Any of them could define or use a
+  // measure, so D004 (unused measures) is not reported while this is non-empty —
+  // mirrors RawExtraction.unread_files in the Python reader.
+  const unreadFiles: string[] = [];
 
   // Check for model.bim or database.json
   const bimFile = validFiles.find(f => f.name.toLowerCase() === 'model.bim' || f.name.toLowerCase() === 'database.json');
   let bimRoles: any[] = [];
   if (bimFile) {
-    bimRoles = parseModelBim(bimFile.content, tables, relationships, measures, calcCols, mSources, calcGroupEntries);
+    const roles = parseModelBim(bimFile.content, tables, relationships, measures, calcCols, mSources, calcGroupEntries);
+    if (roles === null) unreadFiles.push(bimFile.path);
+    else bimRoles = roles;
   }
 
   const reportJsonFiles: DroppedFile[] = [];
@@ -63,12 +71,14 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     }
 
     // Table TMDL
-    if (lowerPath.endsWith('.tmdl') && (lowerPath.includes('/tables/') || lowerPath.includes('table '))) {
-      parseTableTmdl(file.content, tables, measures, calcCols, mSources, calcGroupEntries);
+    if (lowerPath.endsWith('.tmdl') && lowerPath.includes('/tables/')) {
+      if (!parseTableTmdl(file.content, tables, measures, calcCols, mSources, calcGroupEntries)) {
+        unreadFiles.push(file.path);
+      }
     }
 
     // Relationships TMDL
-    if (lowerPath.endsWith('relationships.tmdl') || (lowerPath.endsWith('.tmdl') && file.content.includes('relationship '))) {
+    if (lowerPath.endsWith('relationships.tmdl')) {
       parseRelationshipsTmdl(file.content, relationships);
     }
 
@@ -131,11 +141,11 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   // from whichever report format is present — legacy report.json or modern PBIR
   // page.json + visual.json files.
   const visualMeasureRefs = new Set<string>();
-  processLegacyReportJson(reportJsonFiles, pages, visualMeasureRefs);
-  processModernPbirPages(pageJsonFiles, visualJsonFiles, pages, visualMeasureRefs);
+  processLegacyReportJson(reportJsonFiles, pages, visualMeasureRefs, unreadFiles);
+  processModernPbirPages(pageJsonFiles, visualJsonFiles, pages, visualMeasureRefs, unreadFiles);
   // Page/report-level filters, bookmarks and report-level ("thin report") measures
   // (mirrors PBIPReader._parse_report_level + CanonicalBuilder steps 1b-1d)
-  processReportLevelReferences(reportJsonFiles, reportLevelFiles, knownMeasureNames, visualMeasureRefs);
+  processReportLevelReferences(reportJsonFiles, reportLevelFiles, knownMeasureNames, visualMeasureRefs, unreadFiles);
 
   // Build the DAX dependency graph (measures + calculated columns) for
   // multi-hop, cycle-safe D004 reachability — mirrors
@@ -345,8 +355,16 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   // D004: Unused Measures (mirrors pbiscan.rules.dax.check_unused_measures — multi-hop,
   // cycle-safe DaxDependencyGraph.is_reachable_from_visual against the combined root set
   // of visual bindings + calc group / field parameter / RLS semantic references, instead
-  // of a shallow one-hop cross-measure regex scan.)
-  for (const m of measures) {
+  // of a shallow one-hop cross-measure regex scan.) Skipped entirely when any file could
+  // not be read: that file may be the only place a measure is used.
+  const warnings: string[] = unreadFiles.map((path) => `Skipped ${path}: could not be parsed`);
+  if (unreadFiles.length) {
+    warnings.push(
+      `DAX_UNUSED_MEASURE was not checked: ${unreadFiles.length} project file(s) could not be read, ` +
+      'and any of them could use a measure that would otherwise look unused.'
+    );
+  }
+  for (const m of unreadFiles.length ? [] : measures) {
     const isUsed = daxGraph.isReachableFromVisual(m.name, activeRootMeasures);
     if (!isUsed) {
       findings.push({
@@ -391,7 +409,6 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   }
 
   // Apply pbiscan.suppressions.json from the project root (the shallowest copy)
-  const warnings: string[] = [];
   const suppressionsFile = validFiles
     .filter((f) => f.name.toLowerCase() === SUPPRESSIONS_FILENAME)
     .sort((a, b) => a.path.split('/').length - b.path.split('/').length)[0];
@@ -433,7 +450,7 @@ function _detectIsUnique(col: any): boolean {
   return false;
 }
 
-/** Returns the model.bim `model.roles` array (raw TMSL) for RLS extraction. */
+/** Returns the model.bim `model.roles` array (raw TMSL) for RLS extraction, or null if the file can't be parsed. */
 function parseModelBim(
   content: string,
   tables: TableInfo[],
@@ -442,7 +459,7 @@ function parseModelBim(
   calcCols: CalculatedColumnInfo[],
   mSources: { table: string; source: string }[],
   calcGroupEntries: CalcGroupEntry[]
-): any[] {
+): any[] | null {
   try {
     const data = JSON.parse(content);
     const model = data.model || data;
@@ -542,7 +559,7 @@ function parseModelBim(
     return Array.isArray(model.roles) ? model.roles : [];
   } catch (e) {
     console.error("Failed to parse model.bim JSON:", e);
-    return [];
+    return null;
   }
 }
 
@@ -552,6 +569,75 @@ function _leadingTabDepth(rawLine: string): number {
   return n;
 }
 
+// TMDL name helpers — mirror pbiscan/extraction/tmdl_parser.py.
+
+const TMDL_FENCE = '```';
+
+/** Strip TMDL single quotes from a name, un-escaping doubled quotes ('' -> '). */
+export function tmdlUnquote(s: string): string {
+  s = s.trim();
+  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) return s.slice(1, -1).replace(/''/g, "'");
+  return s;
+}
+
+/** Split `Name = expression` at the first `=` outside a quoted name. */
+export function tmdlSplitDeclaration(sig: string): [string, string | null] {
+  let inQuote = false;
+  for (let i = 0; i < sig.length; i++) {
+    const ch = sig[i];
+    if (ch === "'") inQuote = !inQuote;
+    else if (ch === '=' && !inQuote) return [tmdlUnquote(sig.slice(0, i)), sig.slice(i + 1).trim()];
+  }
+  return [tmdlUnquote(sig), null];
+}
+
+/** Parse 'Table Name'.ColumnName or TableName.ColumnName. */
+export function tmdlParseColRef(ref: string): [string, string] {
+  const m = /^(?:'((?:[^']|'')*)'|([^.']+))\.(.*)$/s.exec(ref.trim());
+  if (!m) return ['', ''];
+  const table = m[1] !== undefined ? m[1].replace(/''/g, "'") : m[2];
+  return [table, tmdlUnquote(m[3])];
+}
+
+/** Remove the ``` delimiters TMDL puts around verbatim multi-line expressions. */
+function tmdlStripFence(expr: string): string {
+  if (expr.startsWith(TMDL_FENCE)) {
+    expr = expr.slice(TMDL_FENCE.length).trimEnd();
+    if (expr.endsWith(TMDL_FENCE)) expr = expr.slice(0, -TMDL_FENCE.length);
+  }
+  return expr.trim();
+}
+
+/** If `line` is `keyword` followed by a space or tab, return the rest; else null. */
+function tmdlKeyword(line: string, keyword: string): string | null {
+  const next = line.charAt(keyword.length);
+  return line.startsWith(keyword) && (next === ' ' || next === '\t') ? line.slice(keyword.length + 1).trim() : null;
+}
+
+/** Collect the body lines of a measure/calculationItem declared at `depth`:
+ * every following line indented deeper, stopping at a blank line or a sibling.
+ * A ``` fence is taken verbatim up to its closing ```, blank lines included. */
+function tmdlCollectBody(
+  lines: string[], start: number, depth: number, inlineExpr: string | null, skip: (l: string) => boolean
+): { body: string[]; next: number } {
+  const body: string[] = inlineExpr ? [inlineExpr] : [];
+  let j = start;
+  if (inlineExpr === TMDL_FENCE) {
+    while (j < lines.length) {
+      const l = lines[j++].trim();
+      body.push(l);
+      if (l.endsWith(TMDL_FENCE)) break;
+    }
+  }
+  while (j < lines.length && lines[j].trim() !== '' && _leadingTabDepth(lines[j]) > depth) {
+    const l = lines[j].trim();
+    if (!skip(l)) body.push(l);
+    j++;
+  }
+  return { body, next: j };
+}
+
+/** Returns false (and records nothing) when the file has no `table` declaration. */
 function parseTableTmdl(
   content: string,
   tables: TableInfo[],
@@ -559,12 +645,12 @@ function parseTableTmdl(
   calcCols: CalculatedColumnInfo[],
   mSources: { table: string; source: string }[],
   calcGroupEntries: CalcGroupEntry[]
-) {
-  const lines = content.split('\n');
-  let currentTable = "UnknownTable";
+): boolean {
+  const lines = content.split(/\r\n|\r|\n/);
+  let currentTable = '';
   let columns: any[] = [];
-  let tableMeasures = 0;
-  let tableCalcCols = 0;
+  const fileMeasures: Omit<MeasureInfo, 'table'>[] = [];
+  const fileCalcCols: Omit<CalculatedColumnInfo, 'table'>[] = [];
   let inPartition = false;
   let partitionSource = "";
   let calcItems: CalcItem[] = [];
@@ -572,8 +658,10 @@ function parseTableTmdl(
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
     const line = rawLine.trim();
-    if (line.startsWith('table ') || line.startsWith('table\t')) {
-      currentTable = line.substring(6).replace(/['"]/g, '').trim();
+    const tableSig = tmdlKeyword(line, 'table');
+    // `table` is a top-level declaration; an indented one only counts as the first.
+    if (tableSig !== null && (!/^[ \t]/.test(rawLine) || !currentTable)) {
+      currentTable = tmdlUnquote(tableSig);
     } else if (line.startsWith('partition ') || line.startsWith('partition\t')) {
       inPartition = true;
     } else if (inPartition) {
@@ -584,61 +672,34 @@ function parseTableTmdl(
       // _detect_is_unique) — so is_unique intentionally stays false here for strict
       // parity with the Python engine, even though this under-detects MODEL_HIGH_CARDINALITY
       // for TMDL-sourced projects. Fixing that is a Python-side gap, not a TS one.
-      const colName = line.substring(7).split('=')[0].trim();
-      if (line.includes('=')) {
-        tableCalcCols++;
-        const expr = line.split('=').slice(1).join('=').trim();
-        calcCols.push({ name: colName, table: currentTable, expression: expr, data_type: 'string' });
+      const [colName, expr] = tmdlSplitDeclaration(line.substring(7));
+      if (expr !== null) {
+        fileCalcCols.push({ name: colName, expression: tmdlStripFence(expr), data_type: 'string' });
       } else {
         columns.push({ name: colName, data_type: 'string', is_unique: false, in_relationship: false, hidden: false });
       }
     } else if (line.startsWith('measure ') || line.startsWith('measure\t')) {
-      const measureDepth = _leadingTabDepth(rawLine);
-      tableMeasures++;
-      const measureHeader = line.substring(8).trim();
-      let measureName = measureHeader;
-      let expr = "";
-      if (measureHeader.includes('=')) {
-        measureName = measureHeader.split('=')[0].trim();
-        expr = measureHeader.split('=').slice(1).join('=').trim();
-      }
+      const [measureName, inlineExpr] = tmdlSplitDeclaration(line.substring(8));
       // Only lines MORE indented than the `measure` declaration itself belong to this
       // measure's body/metadata; a sibling `measure`/`column`/`partition` line at the
       // same depth ends it. (A prior version used a bare tab-prefix check, which never
       // stopped at sibling declarations and silently concatenated every subsequent
       // measure's DAX into the current one's expression.)
-      let j = i + 1;
-      while (j < lines.length && lines[j].trim() !== '' && _leadingTabDepth(lines[j]) > measureDepth) {
-        const propLine = lines[j].trim();
-        if (!propLine.startsWith('lineageTag') && !propLine.startsWith('formatString') && !propLine.startsWith('//')) {
-          expr += (expr ? '\n' : '') + propLine;
-        }
-        j++;
-      }
-      measures.push({
-        name: measureName.replace(/['"[\]]/g, ''),
-        table: currentTable,
-        expression: expr || "BLANK()",
+      const { body } = tmdlCollectBody(
+        lines, i + 1, _leadingTabDepth(rawLine), inlineExpr,
+        (l) => l.startsWith('lineageTag') || l.startsWith('formatString') || l.startsWith('//'),
+      );
+      fileMeasures.push({
+        name: measureName,
+        expression: tmdlStripFence(body.join('\n')) || "BLANK()",
         hidden: false,
       });
     } else if (line.startsWith('calculationItem ') || line.startsWith('calculationItem\t')) {
-      const itemDepth = _leadingTabDepth(rawLine);
-      const itemHeader = line.substring(16).trim();
-      let itemName = itemHeader;
-      const bodyLines: string[] = [];
-      if (itemHeader.includes('=')) {
-        itemName = itemHeader.split('=')[0].trim();
-        const inlineExpr = itemHeader.split('=').slice(1).join('=').trim();
-        if (inlineExpr) bodyLines.push(inlineExpr);
-      }
-      let j = i + 1;
-      while (j < lines.length && lines[j].trim() !== '' && _leadingTabDepth(lines[j]) > itemDepth) {
-        const propLine = lines[j].trim();
-        if (!propLine.startsWith('lineageTag') && !propLine.startsWith('//')) {
-          bodyLines.push(propLine);
-        }
-        j++;
-      }
+      const [itemName, inlineExpr] = tmdlSplitDeclaration(line.substring(16));
+      const { body: bodyLines } = tmdlCollectBody(
+        lines, i + 1, _leadingTabDepth(rawLine), inlineExpr,
+        (l) => l.startsWith('lineageTag') || l.startsWith('//'),
+      );
       // A `formatStringDefinition = ...` (or possibly multi-line) property sits
       // inline within the captured body — split there into expression vs format string.
       const fmtIdx = bodyLines.findIndex((l) => /^formatStringDefinition\s*[:=]/.test(l));
@@ -654,13 +715,18 @@ function parseTableTmdl(
         formatString = fmtLines.join('\n');
       }
       calcItems.push({
-        name: itemName.replace(/['"[\]]/g, ''),
-        expression,
+        name: itemName,
+        expression: tmdlStripFence(expression),
         format_string: formatString,
       });
     }
   }
 
+  // No `table` declaration: the file is skipped and reported, like the Python reader.
+  if (!currentTable) return false;
+
+  measures.push(...fileMeasures.map((m) => ({ ...m, table: currentTable })));
+  calcCols.push(...fileCalcCols.map((c) => ({ ...c, table: currentTable })));
   if (partitionSource) {
     mSources.push({ table: currentTable, source: partitionSource });
   }
@@ -674,35 +740,35 @@ function parseTableTmdl(
     is_date_table: currentTable.toLowerCase().includes('date') || currentTable.toLowerCase().includes('calendar'),
     column_count: columns.length,
     columns,
-    measures_count: tableMeasures,
-    calc_cols_count: tableCalcCols,
+    measures_count: fileMeasures.length,
+    calc_cols_count: fileCalcCols.length,
   });
+  return true;
 }
 
+/** Each `relationship <id>` line starts a block; its `key: value` lines follow. */
 function parseRelationshipsTmdl(content: string, relationships: RelationshipInfo[]) {
-  const relBlocks = content.split(/relationship\s+/i);
-  for (const block of relBlocks) {
-    if (!block.trim()) continue;
-    const lines = block.split('\n');
+  const blocks: string[][] = [];
+  for (const l of content.split(/\r\n|\r|\n/)) {
+    const line = l.trim();
+    if (tmdlKeyword(line, 'relationship') !== null) blocks.push([]);
+    else if (blocks.length) blocks[blocks.length - 1].push(line);
+  }
+  for (const lines of blocks) {
     let fromTable = "", fromCol = "", toTable = "", toCol = "";
     let bidi = false;
 
-    for (const l of lines) {
-      const line = l.trim();
+    for (const line of lines) {
       if (line.startsWith('fromColumn:')) {
-        const parts = line.substring(11).trim().split('.');
-        fromTable = parts[0]?.replace(/['"]/g, '') || "";
-        fromCol = parts[1]?.replace(/[\[\]']/g, '') || "";
+        [fromTable, fromCol] = tmdlParseColRef(line.substring(11));
       } else if (line.startsWith('toColumn:')) {
-        const parts = line.substring(9).trim().split('.');
-        toTable = parts[0]?.replace(/['"]/g, '') || "";
-        toCol = parts[1]?.replace(/[\[\]']/g, '') || "";
+        [toTable, toCol] = tmdlParseColRef(line.substring(9));
       } else if (line.includes('crossFilteringBehavior: bothDirections')) {
         bidi = true;
       }
     }
 
-    if (fromTable && toTable) {
+    if (fromTable && fromCol && toTable && toCol) {
       relationships.push({
         from_table: fromTable,
         from_column: fromCol,
@@ -725,7 +791,9 @@ function parseRelationshipsTmdl(content: string, relationships: RelationshipInfo
  * prototypeQuery.Select[], projections{}, AND a full recursive AST walk of the
  * parsed visual config (objects.title/subTitle/referenceLabel/conditional
  * formatting/filters — not just a crude bracket-text scan). */
-function processLegacyReportJson(files: DroppedFile[], pages: PageInfo[], visualMeasureRefs: Set<string>) {
+function processLegacyReportJson(
+  files: DroppedFile[], pages: PageInfo[], visualMeasureRefs: Set<string>, unreadFiles: string[]
+) {
   for (const file of files) {
     try {
       const data = JSON.parse(file.content);
@@ -796,7 +864,8 @@ function processLegacyReportJson(files: DroppedFile[], pages: PageInfo[], visual
         });
       }
     } catch {
-      // Non-JSON or malformed report.json — skip.
+      // Non-JSON or malformed report.json — skip, and report it.
+      unreadFiles.push(file.path);
     }
   }
 }
@@ -833,7 +902,8 @@ function processReportLevelReferences(
   reportFiles: DroppedFile[],
   reportLevelFiles: DroppedFile[],
   knownMeasureNames: Set<string>,
-  visualMeasureRefs: Set<string>
+  visualMeasureRefs: Set<string>,
+  unreadFiles: string[]
 ) {
   const extensionExpressions: string[] = [];
 
@@ -850,7 +920,8 @@ function processReportLevelReferences(
         for (const m of extractMeasureNamesFromExprTree(data)) visualMeasureRefs.add(m);
       }
     } catch {
-      // Malformed report.json — skip.
+      // Malformed report.json — report it once even if the page pass already did.
+      if (!unreadFiles.includes(file.path)) unreadFiles.push(file.path);
     }
   }
 
@@ -863,7 +934,8 @@ function processReportLevelReferences(
         for (const m of extractMeasureNamesFromExprTree(data)) visualMeasureRefs.add(m);
       }
     } catch {
-      // Malformed bookmark / reportExtensions.json — skip.
+      // Malformed bookmark / reportExtensions.json — skip, and report it.
+      unreadFiles.push(file.path);
     }
   }
 
@@ -883,7 +955,8 @@ function processModernPbirPages(
   pageFiles: DroppedFile[],
   visualFiles: DroppedFile[],
   pages: PageInfo[],
-  visualMeasureRefs: Set<string>
+  visualMeasureRefs: Set<string>,
+  unreadFiles: string[]
 ) {
   if (!pageFiles.length && !visualFiles.length) return;
 
@@ -917,6 +990,7 @@ function processModernPbirPages(
         slicerCount: 0,
       });
     } catch {
+      unreadFiles.push(file.path);
       pageMap.set(pageId, { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0 });
     }
   }
@@ -952,7 +1026,8 @@ function processModernPbirPages(
       // formatting/filters, etc.) — mirrors PBIPReader._extract_measure_names_from_expr_tree.
       for (const m of extractMeasureNamesFromExprTree(raw)) visualMeasureRefs.add(m);
     } catch {
-      // Malformed visual.json — counted above, just skip measure-ref extraction.
+      // Malformed visual.json — counted above; its measure refs are unknown.
+      unreadFiles.push(file.path);
     }
   }
 

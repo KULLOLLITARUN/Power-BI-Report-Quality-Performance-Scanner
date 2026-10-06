@@ -9,74 +9,115 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
-from pbiscan.extraction.raw import RawRelationship, RawTable
+from pbiscan.extraction.raw import ParseError, RawModel, RawRelationship, RawTable, read_text
 
 logger = logging.getLogger(__name__)
 
-_COL_REF_RE = re.compile(r"^('([^']+)'|([^.]+))\.(.*)$")
+# A table reference: 'Quoted Name' (with '' as an escaped quote) or a bare name.
+_COL_REF_RE = re.compile(r"^(?:'((?:[^']|'')*)'|([^.']+))\.(.*)$")
+_FENCE = "```"
 
 
-def parse_tmdl_model(
-    sm_dir: Path,
-) -> tuple[list[RawTable], list[RawRelationship], list[dict[str, Any]]]:
-    """Parse a TMDL semantic model directory into tables, relationships and raw role files."""
+def parse_tmdl_model(sm_dir: Path) -> RawModel:
+    """Parse a TMDL semantic model directory into tables, relationships and raw role files.
+
+    A file that cannot be read, or a table file with no `table` declaration, is
+    skipped with a warning and listed in `unread_files` instead of failing the
+    whole scan.
+    """
     definition_dir = sm_dir / "definition" if (sm_dir / "definition").exists() else sm_dir
-    tables: list[RawTable] = []
-    relationships: list[RawRelationship] = []
-    tmdl_roles: list[dict[str, Any]] = []
+    model = RawModel()
 
     tables_dir = definition_dir / "tables"
     if tables_dir.exists():
         for tmdl_file in sorted(tables_dir.glob("*.tmdl")):
-            t = parse_tmdl_table(tmdl_file)
-            if t:
-                tables.append(t)
+            try:
+                t = parse_tmdl_table(tmdl_file)
+            except ParseError as exc:
+                logger.warning("%s", exc)
+                model.skip(tmdl_file, str(exc))
+                continue
+            if t is None:
+                model.skip(tmdl_file, "no `table` declaration found")
+            else:
+                model.tables.append(t)
 
     roles_dir = definition_dir / "roles"
     if roles_dir.exists():
         for role_file in sorted(roles_dir.glob("*.tmdl")):
             try:
-                r_content = role_file.read_text(encoding="utf-8")
-                tmdl_roles.append({
-                    "name": role_file.stem,
-                    "content": r_content,
-                    "path": str(role_file),
-                })
-            except (OSError, UnicodeDecodeError):
-                pass
+                content = read_text(role_file)
+            except ParseError as exc:
+                logger.warning("%s", exc)
+                model.skip(role_file, str(exc))
+                continue
+            model.tmdl_roles.append({
+                "name": role_file.stem,
+                "content": content,
+                "path": str(role_file),
+            })
 
     rel_file = definition_dir / "relationships.tmdl"
     if rel_file.exists():
-        relationships = parse_tmdl_relationships(rel_file)
+        try:
+            model.relationships = parse_tmdl_relationships(rel_file)
+        except ParseError as exc:
+            logger.warning("%s", exc)
+            model.skip(rel_file, str(exc))
 
-    return tables, relationships, tmdl_roles
+    return model
 
 
 def unquote(s: str) -> str:
+    """Strip TMDL single quotes from a name, un-escaping doubled quotes ('' -> ')."""
     s = s.strip()
     if s.startswith("'") and s.endswith("'") and len(s) >= 2:
-        return s[1:-1]
+        return s[1:-1].replace("''", "'")
     return s
+
+
+def split_declaration(sig: str) -> tuple[str, Optional[str]]:
+    """Split `Name = expression` at the first `=` outside a quoted name.
+
+    Returns (unquoted name, expression), with expression None when there is no `=`.
+    """
+    in_quote = False
+    for i, ch in enumerate(sig):
+        if ch == "'":
+            in_quote = not in_quote
+        elif ch == "=" and not in_quote:
+            return unquote(sig[:i]), sig[i + 1:].strip()
+    return unquote(sig), None
 
 
 def parse_col_ref(ref_str: str) -> tuple[str, str]:
     """Parse 'Table Name'.ColumnName or TableName.ColumnName."""
     m = _COL_REF_RE.match(ref_str.strip())
     if m:
-        tbl = m.group(2) or m.group(3)
-        col = unquote(m.group(4))
-        return tbl, col
+        tbl = m.group(1).replace("''", "'") if m.group(1) is not None else m.group(2)
+        return tbl, unquote(m.group(3))
     return "", ""
 
 
+def _keyword(stripped: str, keyword: str) -> Optional[str]:
+    """If `stripped` is `keyword` followed by a space or tab, return the rest of the line."""
+    if stripped.startswith(keyword) and stripped[len(keyword):len(keyword) + 1] in (" ", "\t"):
+        return stripped[len(keyword) + 1:].strip()
+    return None
+
+
+def _strip_fence(expr: str) -> str:
+    """Remove the ``` delimiters TMDL puts around verbatim multi-line expressions."""
+    if expr.startswith(_FENCE):
+        expr = expr[len(_FENCE):].rstrip()
+        if expr.endswith(_FENCE):
+            expr = expr[:-len(_FENCE)]
+    return expr.strip()
+
+
 def parse_tmdl_table(file_path: Path) -> Optional[RawTable]:
-    """Parse a single TMDL table file."""
-    try:
-        content = file_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        logger.warning("Could not read TMDL file %s: %s", file_path, exc)
-        return None
-    return parse_tmdl_table_text(content, str(file_path))
+    """Parse a single TMDL table file. Raises ParseError if it cannot be read or decoded."""
+    return parse_tmdl_table_text(read_text(file_path), str(file_path))
 
 
 def parse_tmdl_table_text(content: str, source_file: str = "") -> Optional[RawTable]:
@@ -92,6 +133,7 @@ def parse_tmdl_table_text(content: str, source_file: str = "") -> Optional[RawTa
     calculation_items: list[dict[str, Any]] = []
     partition_source_lines: list[str] = []
     in_partition_source = False
+    in_fence = False
 
     current_item_type: Optional[str] = None
     current_item_data: dict[str, Any] = {}
@@ -101,12 +143,13 @@ def parse_tmdl_table_text(content: str, source_file: str = "") -> Optional[RawTa
         nonlocal current_item_type, current_item_data, current_expr_lines
         if not current_item_type:
             return
+        expression = _strip_fence("\n".join(current_expr_lines).strip())
         if current_item_type == "measure":
-            current_item_data["expression"] = "\n".join(current_expr_lines).strip()
+            current_item_data["expression"] = expression
             current_item_data["_table"] = table_name
             measures.append(current_item_data)
         elif current_item_type == "calc_col":
-            current_item_data["expression"] = "\n".join(current_expr_lines).strip()
+            current_item_data["expression"] = expression
             current_item_data["type"] = "calculated"
             current_item_data["_table"] = table_name
             calc_cols.append(current_item_data)
@@ -114,15 +157,28 @@ def parse_tmdl_table_text(content: str, source_file: str = "") -> Optional[RawTa
             current_item_data["_table"] = table_name
             columns.append(current_item_data)
         elif current_item_type == "calc_item":
-            current_item_data["expression"] = "\n".join(current_expr_lines).strip()
+            current_item_data["expression"] = expression
             current_item_data["_table"] = table_name
             calculation_items.append(current_item_data)
         current_item_type = None
         current_item_data = {}
         current_expr_lines = []
 
+    def start_expression(inline_expr: Optional[str]) -> None:
+        nonlocal current_expr_lines, in_fence
+        current_expr_lines = [inline_expr] if inline_expr else []
+        in_fence = inline_expr == _FENCE
+
     for line in lines:
         stripped = line.strip()
+        if in_fence:
+            # Inside ``` ... ``` every line is expression text, even one that
+            # looks like a property or a declaration.
+            current_expr_lines.append(stripped)
+            if stripped.endswith(_FENCE):
+                in_fence = False
+            continue
+
         if not stripped:
             if current_item_type in ("measure", "calc_col", "calc_item"):
                 current_expr_lines.append("")
@@ -130,67 +186,48 @@ def parse_tmdl_table_text(content: str, source_file: str = "") -> Optional[RawTa
                 partition_source_lines.append("")
             continue
 
-        if line.startswith("///") or stripped.startswith("///"):
+        if stripped.startswith("///"):
             flush_current()
             continue
-        elif line.startswith("table "):
+        elif (table_sig := _keyword(stripped, "table")) is not None and (
+            line[0] not in " \t" or not table_name
+        ):
+            # `table` is a top-level declaration. An indented one is accepted only
+            # as the first declaration, so expression text can't rename the table.
             flush_current()
-            table_name = unquote(line[6:].strip())
+            table_name = unquote(table_sig)
             if "DateTable" in table_name or "LocalDateTable" in table_name:
                 is_date_table = True
         elif current_item_type is None and stripped in ("isHidden", "isHidden: true"):
             hidden = True
-        elif stripped.startswith("calculationItem "):
+        elif (item_sig := _keyword(stripped, "calculationItem")) is not None:
             flush_current()
             in_partition_source = False
             current_item_type = "calc_item"
-            item_sig = stripped[16:].strip()
-            if "=" in item_sig:
-                parts = item_sig.split("=", 1)
-                item_name = unquote(parts[0].strip())
-                inline_expr = parts[1].strip()
-                current_item_data = {"name": item_name, "format_string": ""}
-                current_expr_lines = [inline_expr] if inline_expr else []
-            else:
-                item_name = unquote(item_sig)
-                current_item_data = {"name": item_name, "format_string": ""}
-                current_expr_lines = []
-        elif stripped.startswith("measure "):
+            item_name, inline_expr = split_declaration(item_sig)
+            current_item_data = {"name": item_name, "format_string": ""}
+            start_expression(inline_expr)
+        elif (measure_sig := _keyword(stripped, "measure")) is not None:
             flush_current()
             in_partition_source = False
             current_item_type = "measure"
-            measure_sig = stripped[8:].strip()
-            if "=" in measure_sig:
-                parts = measure_sig.split("=", 1)
-                m_name = unquote(parts[0].strip())
-                inline_expr = parts[1].strip()
-                current_item_data = {"name": m_name, "annotations": []}
-                current_expr_lines = [inline_expr] if inline_expr else []
+            m_name, inline_expr = split_declaration(measure_sig)
+            current_item_data = {"name": m_name, "annotations": []}
+            start_expression(inline_expr)
+        elif (col_sig := _keyword(stripped, "column")) is not None:
+            flush_current()
+            in_partition_source = False
+            col_name, inline_expr = split_declaration(col_sig)
+            current_item_data = {"name": col_name, "dataType": "string", "annotations": []}
+            if inline_expr is None:
+                current_item_type = "column"
             else:
-                m_name = unquote(measure_sig)
-                current_item_data = {"name": m_name, "annotations": []}
-                current_expr_lines = []
-        elif stripped.startswith("column ") and "=" in stripped:
-            flush_current()
-            in_partition_source = False
-            current_item_type = "calc_col"
-            col_sig = stripped[7:].strip()
-            parts = col_sig.split("=", 1)
-            col_name = unquote(parts[0].strip())
-            inline_expr = parts[1].strip()
-            current_item_data = {"name": col_name, "dataType": "string", "annotations": []}
-            current_expr_lines = [inline_expr] if inline_expr else []
-        elif stripped.startswith("column "):
-            flush_current()
-            in_partition_source = False
-            current_item_type = "column"
-            col_name = unquote(stripped[7:].strip())
-            current_item_data = {"name": col_name, "dataType": "string", "annotations": []}
-        elif stripped.startswith("partition "):
+                current_item_type = "calc_col"
+                start_expression(inline_expr)
+        elif _keyword(stripped, "partition") is not None:
             flush_current()
             in_partition_source = True
-        elif stripped.startswith("annotation "):
-            ann_str = stripped[11:].strip()
+        elif (ann_str := _keyword(stripped, "annotation")) is not None:
             if "=" in ann_str:
                 k, v = ann_str.split("=", 1)
                 ann_dict = {"name": k.strip(), "value": v.strip().strip('"')}
@@ -245,27 +282,27 @@ def parse_tmdl_table_text(content: str, source_file: str = "") -> Optional[RawTa
 
 
 def parse_tmdl_relationships(rel_file: Path) -> list[RawRelationship]:
-    """Parse a TMDL relationships.tmdl file."""
-    try:
-        content = rel_file.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return []
-    return parse_tmdl_relationships_text(content)
+    """Parse a TMDL relationships.tmdl file. Raises ParseError if it cannot be read or decoded."""
+    return parse_tmdl_relationships_text(read_text(rel_file))
 
 
 def parse_tmdl_relationships_text(content: str) -> list[RawRelationship]:
-    """Parse the text of a relationships.tmdl file."""
-    result: list[RawRelationship] = []
-    for block in content.split("relationship "):
-        if not block.strip():
-            continue
-        props: dict[str, str] = {}
-        for line in block.splitlines():
-            line_s = line.strip()
-            if ":" in line_s:
-                k, v = line_s.split(":", 1)
-                props[k.strip()] = v.strip()
+    """Parse the text of a relationships.tmdl file.
 
+    Each `relationship <id>` line starts a block, and the `key: value`
+    property lines after it belong to that block.
+    """
+    blocks: list[dict[str, str]] = []
+    for line in content.splitlines():
+        line_s = line.strip()
+        if _keyword(line_s, "relationship") is not None:
+            blocks.append({})
+        elif blocks and ":" in line_s:
+            k, v = line_s.split(":", 1)
+            blocks[-1][k.strip()] = v.strip()
+
+    result: list[RawRelationship] = []
+    for props in blocks:
         f_t, f_c = parse_col_ref(props.get("fromColumn", ""))
         t_t, t_c = parse_col_ref(props.get("toColumn", ""))
 

@@ -1,0 +1,36 @@
+﻿table 'Bob''s Sales'
+	lineageTag: 11111111-0000-0000-0000-000000000001
+
+	/// Name contains '=': the declaration splits at the first '=' outside quotes.
+	measure 'Revenue = Net' = [Base Amount] * 2
+		formatString: 0.00
+		lineageTag: 11111111-0000-0000-0000-000000000002
+
+	measure 'Base Amount' = SUM('Bob''s Sales'[Amount])
+		lineageTag: 11111111-0000-0000-0000-000000000003
+
+	/// Fenced expression: the lineageTag-looking line inside the fence is DAX text.
+	measure Fenced = ```
+			VAR x = [Fence Helper]
+			RETURN x
+			```
+		formatString: 0
+
+	measure 'Fence Helper' = 1
+		lineageTag: 11111111-0000-0000-0000-000000000004
+
+	/// True-positive control: referenced by nothing.
+	measure 'Orphan''s Metric' = 42
+		lineageTag: 11111111-0000-0000-0000-000000000005
+
+	column Amount
+		dataType: double
+		summarizeBy: sum
+
+	column 'Cust Key'
+		dataType: int64
+		summarizeBy: none
+
+	partition 'Bob''s Sales' = m
+		mode: import
+		source = Sql.Database("server", "db")

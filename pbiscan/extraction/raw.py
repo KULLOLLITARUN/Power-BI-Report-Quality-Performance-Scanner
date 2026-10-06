@@ -15,7 +15,10 @@ Error taxonomy:
 """
 from __future__ import annotations
 
+import codecs
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -115,23 +118,76 @@ class RawExtraction:
     # Report-level ("thin report") measures: {"name", "table", "expression"}
     report_extension_measures: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # Files that exist but could not be read or understood. Any of them could
+    # define or reference measures, so unused-measure detection is unsafe
+    # while this is non-empty.
+    unread_files: list[str] = field(default_factory=list)
+
+
+@dataclass
+class RawModel:
+    """What a semantic model parser (TMDL or model.bim) returns."""
+    tables: list[RawTable] = field(default_factory=list)
+    relationships: list[RawRelationship] = field(default_factory=list)
+    roles: list[dict[str, Any]] = field(default_factory=list)
+    tmdl_roles: list[dict[str, Any]] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    unread_files: list[str] = field(default_factory=list)
+
+    def skip(self, path: Path, reason: str) -> None:
+        """Record a file that was left out of the model, and why."""
+        self.warnings.append(f"Skipped {path}: {reason}")
+        self.unread_files.append(str(path))
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def load_json(path: Path) -> Any:
-    """Load and parse a JSON file, raising ParseError on failure."""
+def decode_text(data: bytes, path: Path | str = "<bytes>") -> str:
+    """Decode file bytes as UTF-8, honoring a UTF-8 or UTF-16 byte-order mark.
+
+    Editors on Windows often save with a BOM; without this, a BOM makes the
+    first TMDL line unrecognizable and makes json.loads reject the file.
+    """
     try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except json.JSONDecodeError as exc:
-        raise ParseError(f"JSON parse error in {path}: {exc}") from exc
+        if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+            return data.decode("utf-16")
+        return data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         raise ParseError(f"Cannot decode {path} as UTF-8: {exc}") from exc
+
+
+def read_text(path: Path) -> str:
+    """Read a text artifact, raising ParseError if it cannot be read or decoded."""
+    try:
+        data = path.read_bytes()
     except OSError as exc:
         raise ParseError(f"Cannot read {path}: {exc}") from exc
+    return decode_text(data, path)
+
+
+def load_json(path: Path) -> Any:
+    """Load and parse a JSON file, raising ParseError on failure."""
+    text = read_text(path)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ParseError(f"JSON parse error in {path}: {exc}") from exc
+
+
+@contextmanager
+def expect_structure(path: Path | str) -> Iterator[None]:
+    """Turn a wrong-shaped document (a list where an object belongs, etc.) into SchemaError.
+
+    The parsers index into JSON with .get() chains; on a valid file of the wrong
+    shape those raise AttributeError/TypeError deep inside. This names the file
+    instead of surfacing a traceback.
+    """
+    try:
+        yield
+    except (AttributeError, TypeError, KeyError) as exc:
+        raise SchemaError(f"Unexpected structure in {path}: {exc}") from exc
 
 
 def extract_measure_names(obj: Any) -> set[str]:
@@ -141,7 +197,7 @@ def extract_measure_names(obj: Any) -> set[str]:
         # Direct Measure expression object, e.g. {"Measure": {"Property": "TotalSales"}}
         if "Measure" in obj and isinstance(obj["Measure"], dict):
             prop = obj["Measure"].get("Property", "")
-            if prop:
+            if prop and isinstance(prop, str):
                 refs.add(prop)
         for v in obj.values():
             refs.update(extract_measure_names(v))

@@ -1,0 +1,9 @@
+table Date
+	lineageTag: 33333333-0000-0000-0000-000000000001
+	dataCategory: Time
+
+	column Date
+		dataType: dateTime
+		isKey
+
+	annotation PBI_IsDateTable = true

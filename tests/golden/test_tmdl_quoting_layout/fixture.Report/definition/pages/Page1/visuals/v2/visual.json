@@ -1,0 +1,27 @@
+{
+  "name": "v2",
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Bob's Sales"
+                    }
+                  },
+                  "Property": "Fenced"
+                }
+              },
+              "queryRef": "Bob's Sales.Fenced"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
