@@ -26,7 +26,7 @@ jobs:
 
       - name: Run ruff
         run: |
-          ruff check pbiscan/ tests/
+          ruff check pbiscan/ tests/ tools/
 
       - name: Run mypy
         run: |

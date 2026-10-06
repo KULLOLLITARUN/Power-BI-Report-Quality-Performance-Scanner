@@ -43,7 +43,7 @@ def audit_all_projects():
                 "active_roots": len(active_roots),
                 "col_refs": len(col_refs),
                 "by_source": by_source,
-                "total_findings": len(findings),
+                "total_findings": len(issues),
                 "unused_findings": len(unused_findings),
                 "unused_locations": [f.location for f in unused_findings],
                 "status": "PASS",

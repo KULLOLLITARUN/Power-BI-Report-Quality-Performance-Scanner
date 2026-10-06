@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import time
 import tracemalloc
-from typing import Any, Optional
+from typing import Any
 
 from pbiscan.service import ScanService, DEFAULT_CONFIG
 
@@ -210,7 +210,6 @@ def _generate_markdown_classification_sheet(summary: dict[str, Any], results: li
 
 
 if __name__ == "__main__":
-    import sys
     workspace_dir = Path(__file__).parent.parent
     
     # Collect corpus projects

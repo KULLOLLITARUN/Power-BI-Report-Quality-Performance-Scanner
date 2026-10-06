@@ -23,7 +23,7 @@ def audit_top_models():
         sem_refs = report.semantic_references
 
         finding_details = []
-        for f in findings:
+        for f in issues:
             meas_name = f.location.replace("Measure: ", "").strip()
             meas_obj = measure_map.get(meas_name)
             dax_expr = meas_obj.expression if meas_obj else "N/A"
@@ -47,7 +47,7 @@ def audit_top_models():
             "model_name": model_path.stem,
             "total_measures": len(report.dax.measures),
             "active_roots": len(sem_refs.active_root_measure_names()),
-            "total_findings": len(findings),
+            "total_findings": len(issues),
             "findings": finding_details,
         })
 
