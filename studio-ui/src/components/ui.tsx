@@ -101,7 +101,9 @@ export const useMobile = () => useMedia('(max-width: 860px)');
 /** On phones, children slide up as a bottom sheet; on wider screens they render in place. */
 export const Sheet: React.FC<{
   open: boolean; onClose: () => void; label: string; className?: string; children: React.ReactNode;
-}> = ({ open, onClose, label, className = '', children }) => {
+  /** Off for phone-only content (the More menu): on desktop the sheet then renders nothing. */
+  inlineOnDesktop?: boolean;
+}> = ({ open, onClose, label, className = '', children, inlineOnDesktop = true }) => {
   const mobile = useMobile();
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef<number | null>(null);
@@ -117,7 +119,7 @@ export const Sheet: React.FC<{
     return () => { document.body.style.overflow = prev; document.removeEventListener('keydown', onKey); };
   }, [mobile, open, onClose]);
 
-  if (!mobile) return <div className={className}>{children}</div>;
+  if (!mobile) return inlineOnDesktop ? <div className={className}>{children}</div> : null;
   const onDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;
     drag.current = e.clientY;

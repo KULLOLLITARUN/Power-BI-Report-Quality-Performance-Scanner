@@ -119,7 +119,7 @@ export const TabBar: React.FC<{ tab: TabId; onTab: (t: TabId) => void; findings:
           <MoreHorizontal aria-hidden="true" />More
         </button>
       </nav>
-      <Sheet open={more} onClose={() => setMore(false)} label="More sections" className="panel">
+      <Sheet open={more} onClose={() => setMore(false)} label="More sections" className="panel" inlineOnDesktop={false}>
         <div className="more-list">
           {moreTabs.map((t) => (
             <button key={t.id} onClick={() => { setMore(false); onTab(t.id); }}><t.icon aria-hidden="true" />{t.label}</button>
