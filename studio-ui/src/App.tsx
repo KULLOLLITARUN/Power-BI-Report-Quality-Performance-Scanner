@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CircleX } from 'lucide-react';
+import { ArrowLeft, CircleX, FolderDown } from 'lucide-react';
 import type { AuditFinding, ScanResult } from './types';
 import { apiFetch } from './utils/api';
 import { useTheme } from './hooks/useTheme';
@@ -316,6 +316,13 @@ const Studio: React.FC = () => {
       </div>
       {scan && <TabBar tab={tab} onTab={setTab} findings={openFindings.length} onOpen={openProject} />}
       <FileBrowserModal open={browserOpen} onClose={() => setBrowserOpen(false)} onSelect={(p) => scanPath(p)} />
+      {/* The landing page's drop box shows its own state; elsewhere the whole window is the target. */}
+      {dragging && scan && (
+        <div className="drop-overlay" role="status">
+          <div><FolderDown aria-hidden="true" /><strong>Drop the project folder to scan it</strong>
+            <span>It replaces the project open now. Files are read in this tab and never uploaded.</span></div>
+        </div>
+      )}
     </div>
   );
 };

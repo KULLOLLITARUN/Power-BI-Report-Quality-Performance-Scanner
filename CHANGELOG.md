@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HTML export (`pbiscan scan --format html`) matches Studio**: same palette in light and dark, the same type stacks and severity shapes, a score ledger with per-area bars, findings ordered most severe first, suppressed findings listed separately, and scan warnings shown. It is now a static document with no JavaScript, so every finding is visible as rendered and when printed.
 - **Studio ships WOFF2 fonts only** (364 KB smaller bundle and wheel); the system font fallbacks are unchanged.
 - **Studio is type-checked in TypeScript strict mode**, and its UI code no longer uses `any`.
+- **Drag and drop works visibly on every screen**: with a project open, dragging a folder over Studio now shows a full-window drop target (dropping already worked, but only the landing page showed it). The landing page says the folder can be dropped anywhere on the page.
 
 ### Fixed
 - Studio's phone-only "More" menu no longer appears as unstyled buttons at the bottom of desktop pages.

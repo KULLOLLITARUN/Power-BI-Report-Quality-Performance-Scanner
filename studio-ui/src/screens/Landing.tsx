@@ -42,8 +42,8 @@ export const Landing: React.FC<Props> = ({ hasBackend, dragging, onOpen, onBrows
         <h3>{dragging ? 'Drop to scan this project' : 'Open a .pbip project'}</h3>
         <p>
           {hasBackend
-            ? 'Pick the project folder or its .pbip file. You can also drag the folder onto this page.'
-            : 'Drag the project folder onto this page, or pick it below. It is read in this tab and never uploaded.'}
+            ? 'Drag the project folder anywhere onto this page, or click Open project to pick it. Browse folders lets you find it in a file browser.'
+            : 'Drag the project folder anywhere onto this page, or click Open project to pick it. It is read in this tab and never uploaded.'}
         </p>
         <div className="actions">
           <button className="btn btn-primary" onClick={onOpen}><FolderOpen aria-hidden="true" />Open project</button>
