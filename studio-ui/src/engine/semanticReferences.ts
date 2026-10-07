@@ -9,15 +9,9 @@
 // tablePermission filter expressions. Regex patterns are copied verbatim from
 // the Python source so behavior matches exactly.
 
-export type ReferenceSourceType =
-  | 'visual_projection'
-  | 'visual_filter'
-  | 'visual_property'
-  | 'calc_item_dax'
-  | 'calc_item_predicate'
-  | 'field_parameter'
-  | 'field_parameter_grouped'
-  | 'rls_table_permission';
+import type { ReferenceSourceType } from '../types';
+
+export type { ReferenceSourceType };
 
 export type ReferenceTargetType = 'measure' | 'column' | 'table' | 'unresolved';
 

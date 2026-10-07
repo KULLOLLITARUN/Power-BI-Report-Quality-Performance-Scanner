@@ -5,6 +5,7 @@ import { DaxCode } from '../lib/dax';
 import { findingTargets, measureUsage } from '../lib/model';
 import { sortFindings, worstSeverity } from '../lib/severity';
 import { SevMarker, SevTag, copyText, useToast } from '../components/ui';
+import { UsageEvidence } from '../components/UsageEvidence';
 
 type Item = { kind: 'measure' | 'column'; name: string; table: string; expression: string; hidden?: boolean; data_type?: string };
 
@@ -139,9 +140,12 @@ export const MeasuresScreen: React.FC<{
                         <dt>uses</dt><dd className="mono" style={{ fontSize: 12 }}>{node.references.length ? node.references.join(', ') : 'no other measures'}</dd>
                         <dt>used by</dt><dd className="mono" style={{ fontSize: 12 }}>{node.referenced_by.length ? node.referenced_by.join(', ') : 'no other measures'}</dd>
                       </dl>
-                    ) : <p className="muted" style={{ fontSize: 13 }}>Dependency data comes from the local engine.</p>}
+                    ) : <p className="muted" style={{ fontSize: 13 }}>This scan has no dependency data. Rescan with this version of pbiscan to see it.</p>}
                   </div>
                 </div>
+              )}
+              {current.kind === 'measure' && (
+                <UsageEvidence name={current.name} scan={scan} title={curFindings.some((f) => f.rule_id === 'DAX_UNUSED_MEASURE') ? 'Why it is flagged as unused' : 'Where pbiscan found it used'} />
               )}
               {curFindings.some((f) => f.rule_id === 'DAX_UNUSED_MEASURE') && (
                 <div className="notice warn"><TriangleAlert aria-hidden="true" /><span className="grow">Thin reports and Excel files outside this project are not scanned. Check them before deleting this measure.</span></div>

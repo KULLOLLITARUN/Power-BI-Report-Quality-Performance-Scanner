@@ -180,6 +180,60 @@ def test_page_layout_matches_python_engine(fixture_dir: Path):
     assert _run_ts_scanner(fixture_dir)["page_layout"] == _py_page_layout(fixture_dir), fixture_dir.name
 
 
+# The usage groups Studio shows (studio-ui/src/lib/usage.ts). The engines may label a
+# reference differently within a group: Python's TMDL parser folds a multi-line
+# formatStringDefinition into the calculation item's expression (calc_item_predicate),
+# clientScanner.ts keeps it as the format string (calc_item_dax).
+_USAGE_GROUP = {
+    "visual_projection": "visuals",
+    "visual_property": "visuals",
+    "visual_filter": "filters",
+    "report_filter": "filters",
+    "report_extension_measure": "report_measures",
+    "calc_item_dax": "calc_groups",
+    "calc_item_predicate": "calc_groups",
+    "field_parameter": "field_parameters",
+    "field_parameter_grouped": "field_parameters",
+    "rls_table_permission": "rls",
+}
+
+
+def _usage_groups(rows: list[str]) -> list[str]:
+    """'name|source_type|activates_root' rows, with source_type mapped to its Studio group."""
+    out = set()
+    for row in rows:
+        name, source_type, activates = row.split("|")
+        out.add(f"{name}|{_USAGE_GROUP[source_type]}|{activates}")
+    return sorted(out)
+
+
+def _py_reference_summary(fixture_dir: Path) -> dict:
+    data = ScanService.execute_scan(fixture_dir).to_dict()
+    measures = {m["name"].lower() for m in data["measures"]}
+    sem = data["semantic_references"]
+    refs = [
+        f"{r['target_name'].lower()}|{r['source_type']}|{str(r['activates_root']).lower()}"
+        for r in sem["references"]
+        if r["target_type"] == "measure" and r["target_name"].lower() in measures
+    ]
+    return {
+        "measure_references": _usage_groups(refs),
+        "active_roots": sorted({n.lower() for n in sem["active_roots"]}),
+        "dax_edges": sorted(f"{e['source']}->{e['target']}" for e in data["dax_graph"]["edges"]),
+        "has_cycles": data["dax_graph"]["has_cycles"],
+    }
+
+
+@pytest.mark.parametrize("fixture_dir", _fixture_dirs(), ids=lambda p: p.name)
+def test_measure_references_match_python_engine(fixture_dir: Path):
+    """Studio shows where each measure is used (the evidence behind DAX_UNUSED_MEASURE)
+    from semantic_references and dax_graph, so both engines must emit the same ones."""
+    ts = _run_ts_scanner(fixture_dir)
+    ts_summary = {k: ts[k] for k in ("active_roots", "dax_edges", "has_cycles")}
+    ts_summary["measure_references"] = _usage_groups(ts["measure_references"])
+    assert ts_summary == _py_reference_summary(fixture_dir), fixture_dir.name
+
+
 def test_scoring_constants_match_python_defaults():
     """Every severity's deduction, scored weight and rule's catalog metadata must
     agree, including severities no current rule emits (fixtures alone would

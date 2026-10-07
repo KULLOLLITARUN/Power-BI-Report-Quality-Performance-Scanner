@@ -90,6 +90,39 @@ export interface ScoreData {
   };
 }
 
+export type ReferenceSourceType =
+  | 'visual_projection'
+  | 'visual_filter'
+  | 'visual_property'
+  | 'calc_item_dax'
+  | 'calc_item_predicate'
+  | 'field_parameter'
+  | 'field_parameter_grouped'
+  | 'rls_table_permission'
+  | 'report_filter'
+  | 'report_extension_measure';
+
+/** One semantic reference, as pbiscan.service.semantic_reference_to_dict writes it. */
+export interface SemanticReferenceInfo {
+  target_name: string;
+  target_table: string | null;
+  target_type: 'measure' | 'column' | 'table' | 'unresolved';
+  source_type: ReferenceSourceType;
+  source_object: string;
+  source_file: string;
+  source_expression: string | null;
+  activates_root: boolean;
+}
+
+export interface DaxGraphNode {
+  name: string;
+  table: string;
+  kind: string;
+  expression: string;
+  references: string[];
+  referenced_by: string[];
+}
+
 export interface ScanResult {
   report_name: string;
   source_path: string;
@@ -102,11 +135,20 @@ export interface ScanResult {
   pages: PageInfo[];
   warnings: string[];
   scanner_version?: string;
-  /** Measure dependency graph (local engine only). */
+  /** Every place a measure (or column) is used outside DAX: visuals, filters, bookmarks,
+   * calculation groups, field parameters, RLS. Absent in older scan JSON. */
+  semantic_references?: {
+    total_count: number;
+    /** Measures DAX_UNUSED_MEASURE treats as used directly; anything they reference is used too. */
+    active_roots: string[];
+    references: SemanticReferenceInfo[];
+  };
+  /** Measure and calculated-column dependency graph. Absent in older scan JSON. */
   dax_graph?: {
-    nodes: { name: string; table: string; kind: string; expression: string; references: string[]; referenced_by: string[] }[];
+    nodes: DaxGraphNode[];
     edges: { source: string; target: string }[];
     has_cycles: boolean;
+    cycles?: string[][];
   };
   summary: {
     total_findings: number;

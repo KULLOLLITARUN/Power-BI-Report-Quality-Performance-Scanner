@@ -4,7 +4,7 @@
 // same fixture. See tests/unit/test_client_scanner_parity.py.
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
-import type { PageInfo } from '../src/types';
+import type { PageInfo, ScanResult } from '../src/types';
 import { parseDroppedPbip, DroppedFile, SEVERITY_DEDUCTIONS, CATEGORY_WEIGHTS, RULE_CATALOG, overallScore } from '../src/engine/clientScanner';
 
 function collectFiles(root: string): DroppedFile[] {
@@ -49,6 +49,22 @@ function pageLayout(pages: PageInfo[]) {
     .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 }
 
+// Measure usage Studio shows as unused-measure evidence, in a canonical order (see test_measure_references_match_python_engine)
+function referenceSummary(result: ScanResult) {
+  const measures = new Set(result.measures.map((m) => m.name.toLowerCase()));
+  const refs = new Set(
+    (result.semantic_references?.references ?? [])
+      .filter((r) => r.target_type === 'measure' && measures.has(r.target_name.toLowerCase()))
+      .map((r) => `${r.target_name.toLowerCase()}|${r.source_type}|${r.activates_root}`)
+  );
+  return {
+    measure_references: [...refs].sort(),
+    active_roots: [...new Set((result.semantic_references?.active_roots ?? []).map((n) => n.toLowerCase()))].sort(),
+    dax_edges: (result.dax_graph?.edges ?? []).map((e) => `${e.source}->${e.target}`).sort(),
+    has_cycles: result.dax_graph?.has_cycles ?? null,
+  };
+}
+
 const fixtureDir = process.argv[2];
 if (!fixtureDir) {
   console.error('Usage: parityHarness.cjs <fixture-dir> [--verbose] | --scoring-constants | --overall-scores');
@@ -73,6 +89,7 @@ if (process.argv[3] === '--verbose') {
         .sort(),
       warnings: result.warnings,
       page_layout: pageLayout(result.pages),
+      ...referenceSummary(result),
     })
   );
 }

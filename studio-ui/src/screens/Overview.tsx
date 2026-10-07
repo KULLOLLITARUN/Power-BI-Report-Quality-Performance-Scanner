@@ -9,6 +9,7 @@ import { Ledger } from '../components/Ledger';
 import { FindingDetail, FindingsList, findingKey } from '../components/Findings';
 import { ModelMap, type MapFocus } from '../components/ModelMap';
 import { Sheet, useMobile } from '../components/ui';
+import { UsageEvidence } from '../components/UsageEvidence';
 
 interface Props {
   scan: ScanResult;
@@ -102,6 +103,7 @@ export const Overview: React.FC<Props> = ({ scan, history, canSuppress, onSuppre
               onOpenFixes={onOpenFixes}
               onOpenMeasure={targets?.measure ? () => onOpenMeasure(targets.measure!.name) : null}
               onOpenPage={targets?.page ? () => onOpenPage(targets.page!) : null}
+              evidence={selected?.rule_id === 'DAX_UNUSED_MEASURE' && targets?.measure ? <UsageEvidence name={targets.measure.name} scan={scan} /> : null}
             />
           </Sheet>
         </aside>

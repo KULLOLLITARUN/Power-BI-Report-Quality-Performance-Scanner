@@ -1,6 +1,8 @@
 import { ScanResult, AuditFinding, TableInfo, RelationshipInfo, MeasureInfo, CalculatedColumnInfo, PageInfo, ScoreData, VisualInfo } from '../types';
 import {
   SemanticReferenceIndex,
+  SemanticReference,
+  ReferenceSourceType,
   CalcItem,
   extractCalcGroupReferences,
   extractFieldParamReferences,
@@ -8,7 +10,7 @@ import {
   extractRlsBimReferences,
   extractMeasureNamesFromExprTree,
 } from './semanticReferences';
-import { buildDaxGraph } from './daxGraph';
+import { buildDaxGraph, serializeDaxGraph } from './daxGraph';
 import { SUPPRESSIONS_FILENAME, applySuppressions, loadSuppressions } from './suppressions';
 
 export interface DroppedFile {
@@ -16,6 +18,9 @@ export interface DroppedFile {
   path: string;
   content: string;
 }
+
+/** Records a report-side measure reference (page filter, report filter, bookmark, report-level measure). */
+type ReportRefSink = (target: string, sourceType: ReferenceSourceType, sourceObject: string) => void;
 
 interface CalcGroupEntry {
   table: string;
@@ -142,11 +147,28 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   // from whichever report format is present — legacy report.json or modern PBIR
   // page.json + visual.json files.
   const visualMeasureRefs = new Set<string>();
-  processLegacyReportJson(reportJsonFiles, pages, visualMeasureRefs, unreadFiles);
-  processModernPbirPages(pageJsonFiles, visualJsonFiles, pages, visualMeasureRefs, unreadFiles);
+  // Report-side references are also recorded for the scan output, where Studio
+  // shows them as unused-measure evidence. D004 below reads visualMeasureRefs.
+  const reportRefs: SemanticReference[] = [];
+  const reportRef: ReportRefSink = (target, sourceType, sourceObject) => {
+    reportRefs.push({
+      target_name: target, target_type: 'measure', source_type: sourceType,
+      source_object: sourceObject, source_file: '', activates_root: true, confidence: 100,
+    });
+  };
+  processLegacyReportJson(reportJsonFiles, pages, visualMeasureRefs, unreadFiles, reportRef);
+  processModernPbirPages(pageJsonFiles, visualJsonFiles, pages, visualMeasureRefs, unreadFiles, reportRef);
   // Page/report-level filters, bookmarks and report-level ("thin report") measures
   // (mirrors PBIPReader._parse_report_level + CanonicalBuilder steps 1b-1d)
-  processReportLevelReferences(reportJsonFiles, reportLevelFiles, knownMeasureNames, visualMeasureRefs, unreadFiles);
+  processReportLevelReferences(reportJsonFiles, reportLevelFiles, knownMeasureNames, visualMeasureRefs, unreadFiles, reportRef);
+  // Visual bindings and report-side references go first, in CanonicalBuilder._build_semantic_references order.
+  const visualRefs: SemanticReference[] = pages.flatMap((p) => (p.visuals || []).flatMap((v) =>
+    v.measure_refs.map((target): SemanticReference => ({
+      target_name: target, target_type: 'measure', source_type: 'visual_projection',
+      source_object: `${p.display_name || p.name}.${v.visual_type}`, source_file: '', activates_root: true, confidence: 100,
+    }))
+  ));
+  semanticRefs.references.unshift(...visualRefs, ...reportRefs);
 
   // Build the DAX dependency graph (measures + calculated columns) for
   // multi-hop, cycle-safe D004 reachability — mirrors
@@ -431,6 +453,21 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     calculated_columns: calcCols,
     pages,
     warnings,
+    semantic_references: {
+      total_count: semanticRefs.references.length,
+      active_roots: [...activeRootMeasures],
+      references: semanticRefs.references.map((r) => ({
+        target_name: r.target_name,
+        target_table: r.target_table ?? null,
+        target_type: r.target_type,
+        source_type: r.source_type,
+        source_object: r.source_object,
+        source_file: r.source_file,
+        source_expression: r.source_expression ?? null,
+        activates_root: r.activates_root,
+      })),
+    },
+    dax_graph: serializeDaxGraph(daxGraph, measures),
     summary: {
       total_findings: findings.length,
       table_count: tables.length,
@@ -793,7 +830,7 @@ function parseRelationshipsTmdl(content: string, relationships: RelationshipInfo
  * parsed visual config (objects.title/subTitle/referenceLabel/conditional
  * formatting/filters — not just a crude bracket-text scan). */
 function processLegacyReportJson(
-  files: DroppedFile[], pages: PageInfo[], visualMeasureRefs: Set<string>, unreadFiles: string[]
+  files: DroppedFile[], pages: PageInfo[], visualMeasureRefs: Set<string>, unreadFiles: string[], reportRef: ReportRefSink
 ) {
   for (const file of files) {
     // PBIR's definition/report.json is report-level config, not the legacy page list:
@@ -880,6 +917,7 @@ function processLegacyReportJson(
         // Page-level filters and config are stringified JSON in report.json
         for (const m of extractMeasureNamesFromExprTree([decodeJsonField(s.filters), decodeJsonField(s.config)])) {
           visualMeasureRefs.add(m);
+          reportRef(m, 'visual_filter', `${s.displayName || s.name}.filters`);
         }
 
         if (!listsPages) continue;
@@ -936,14 +974,26 @@ function decodeJsonField(value: any): any {
   return value;
 }
 
-/** Flatten `[{entities: [{measures: [{name, expression}]}]}]` into DAX expressions. */
-function collectExtensionExpressions(modelExtensions: any): string[] {
-  const out: string[] = [];
+interface ExtensionMeasure {
+  table: string;
+  name: string;
+  expression: string;
+}
+
+/** Flatten `[{entities: [{name, measures: [{name, expression}]}]}]` into report-level measures. */
+function collectExtensionMeasures(modelExtensions: any): ExtensionMeasure[] {
+  const out: ExtensionMeasure[] = [];
   if (!Array.isArray(modelExtensions)) return out;
   for (const ext of modelExtensions) {
     for (const entity of (ext && Array.isArray(ext.entities)) ? ext.entities : []) {
       for (const m of (entity && Array.isArray(entity.measures)) ? entity.measures : []) {
-        if (m && m.name) out.push(Array.isArray(m.expression) ? m.expression.join('\n') : String(m.expression || ''));
+        if (m && m.name) {
+          out.push({
+            table: String(entity.name || ''),
+            name: String(m.name),
+            expression: Array.isArray(m.expression) ? m.expression.join('\n') : String(m.expression || ''),
+          });
+        }
       }
     }
   }
@@ -957,9 +1007,11 @@ function processReportLevelReferences(
   reportLevelFiles: DroppedFile[],
   knownMeasureNames: Set<string>,
   visualMeasureRefs: Set<string>,
-  unreadFiles: string[]
+  unreadFiles: string[],
+  reportRef: ReportRefSink
 ) {
-  const extensionExpressions: string[] = [];
+  const extensionMeasures: ExtensionMeasure[] = [];
+  const reportLevel = (m: string) => { visualMeasureRefs.add(m); reportRef(m, 'report_filter', 'report'); };
 
   for (const file of reportFiles) {
     try {
@@ -967,11 +1019,11 @@ function processReportLevelReferences(
       if (Array.isArray(data.sections)) {
         // Legacy report.json: stringified report-level filters + config (with modelExtensions)
         const config = decodeJsonField(data.config);
-        for (const m of extractMeasureNamesFromExprTree([decodeJsonField(data.filters), config])) visualMeasureRefs.add(m);
-        if (config && typeof config === 'object') extensionExpressions.push(...collectExtensionExpressions(config.modelExtensions));
+        for (const m of extractMeasureNamesFromExprTree([decodeJsonField(data.filters), config])) reportLevel(m);
+        if (config && typeof config === 'object') extensionMeasures.push(...collectExtensionMeasures(config.modelExtensions));
       } else {
         // PBIR definition/report.json
-        for (const m of extractMeasureNamesFromExprTree(data)) visualMeasureRefs.add(m);
+        for (const m of extractMeasureNamesFromExprTree(data)) reportLevel(m);
       }
     } catch {
       // Malformed report.json — report it once even if the page pass already did.
@@ -983,9 +1035,9 @@ function processReportLevelReferences(
     try {
       const data = JSON.parse(file.content);
       if (file.path.toLowerCase().endsWith('reportextensions.json')) {
-        extensionExpressions.push(...collectExtensionExpressions([data]));
+        extensionMeasures.push(...collectExtensionMeasures([data]));
       } else {
-        for (const m of extractMeasureNamesFromExprTree(data)) visualMeasureRefs.add(m);
+        for (const m of extractMeasureNamesFromExprTree(data)) reportLevel(m);
       }
     } catch {
       // Malformed bookmark / reportExtensions.json — skip, and report it.
@@ -994,10 +1046,13 @@ function processReportLevelReferences(
   }
 
   const measureLookup = new Map([...knownMeasureNames].map((n) => [n.toLowerCase(), n]));
-  for (const expr of extensionExpressions) {
-    for (const match of expr.matchAll(/\[([^\]]+)\]/g)) {
+  for (const ext of extensionMeasures) {
+    for (const match of ext.expression.matchAll(/\[([^\]]+)\]/g)) {
       const target = measureLookup.get(match[1].trim().toLowerCase());
-      if (target) visualMeasureRefs.add(target);
+      if (target) {
+        visualMeasureRefs.add(target);
+        reportRef(target, 'report_extension_measure', `${ext.table}[${ext.name}]`);
+      }
     }
   }
 }
@@ -1010,7 +1065,8 @@ function processModernPbirPages(
   visualFiles: DroppedFile[],
   pages: PageInfo[],
   visualMeasureRefs: Set<string>,
-  unreadFiles: string[]
+  unreadFiles: string[],
+  reportRef: ReportRefSink
 ) {
   if (!pageFiles.length && !visualFiles.length) return;
 
@@ -1038,7 +1094,10 @@ function processModernPbirPages(
     try {
       const data = JSON.parse(file.content);
       // page.json filterConfig (page-level filter pane) and any other bindings
-      for (const m of extractMeasureNamesFromExprTree(data)) visualMeasureRefs.add(m);
+      for (const m of extractMeasureNamesFromExprTree(data)) {
+        visualMeasureRefs.add(m);
+        reportRef(m, 'visual_filter', `${data.displayName || pageId}.filters`);
+      }
       // PBIR visibility is "AlwaysVisible" / "HiddenInViewMode" (mirrors pbir_parser.page_visibility)
       const hidden = data.visibility === 'HiddenInViewMode'
         || (typeof data.visibility === 'number' && data.visibility !== 0);

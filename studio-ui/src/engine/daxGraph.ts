@@ -54,6 +54,44 @@ export class DaxDependencyGraph {
     }
     return false;
   }
+
+  /** Each cycle as an ordered list of node names, closed by repeating its first node.
+   * Mirrors DaxDependencyGraph.find_cycles. */
+  findCycles(): string[][] {
+    const cycles: string[][] = [];
+    const visited = new Set<string>();
+    const stack: string[] = [];
+    const onStack = new Set<string>();
+    const dfs = (node: string) => {
+      visited.add(node);
+      stack.push(node);
+      onStack.add(node);
+      for (const next of this.edges.get(node) ?? []) {
+        if (onStack.has(next)) cycles.push([...stack.slice(stack.indexOf(next)), next]);
+        else if (!visited.has(next)) dfs(next);
+      }
+      stack.pop();
+      onStack.delete(node);
+    };
+    for (const node of this.nodes.keys()) if (!visited.has(node)) dfs(node);
+    return cycles;
+  }
+}
+
+/** The `dax_graph` block of a scan result, shaped like ScanResult.to_dict() in pbiscan/service.py. */
+export function serializeDaxGraph(graph: DaxDependencyGraph, measures: DaxObject[]) {
+  const expressions = new Map(measures.map((m) => [m.name.toLowerCase(), m.expression]));
+  const nodes = [...graph.nodes.values()].map((n) => ({
+    name: n.name,
+    table: n.table,
+    kind: n.kind,
+    expression: expressions.get(n.name.toLowerCase()) ?? '',
+    references: [...graph.references(n.name)],
+    referenced_by: [...graph.referencedBy(n.name)],
+  }));
+  const edges = nodes.flatMap((n) => n.references.map((target) => ({ source: n.name, target })));
+  const cycles = graph.findCycles();
+  return { nodes, edges, has_cycles: cycles.length > 0, cycles };
 }
 
 interface DaxObject {

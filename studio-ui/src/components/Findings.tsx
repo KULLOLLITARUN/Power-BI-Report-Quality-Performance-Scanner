@@ -104,9 +104,11 @@ interface DetailProps {
   onOpenFixes: () => void;
   onOpenMeasure?: (() => void) | null;
   onOpenPage?: (() => void) | null;
+  /** Extra rule-specific evidence, shown after the finding's own evidence. */
+  evidence?: React.ReactNode;
 }
 
-export const FindingDetail: React.FC<DetailProps> = ({ finding: f, canSuppress, onSuppress, onOpenFixes, onOpenMeasure, onOpenPage }) => {
+export const FindingDetail: React.FC<DetailProps> = ({ finding: f, canSuppress, onSuppress, onOpenFixes, onOpenMeasure, onOpenPage, evidence }) => {
   const toast = useToast();
   const ref = useRef<HTMLDivElement>(null);
   const [confirming, setConfirming] = useState(false);
@@ -143,6 +145,7 @@ export const FindingDetail: React.FC<DetailProps> = ({ finding: f, canSuppress, 
       <div className="detail-body">
         {f.issue && <div className="blk"><div className="label">What pbiscan found</div><p>{f.issue}</p></div>}
         {f.evidence && <div className="blk"><div className="label">Evidence</div><pre className="code wrap">{highlightAuto(f.evidence)}</pre></div>}
+        {evidence}
         {f.impact && <div className="blk"><div className="label">Why it matters</div><p>{f.impact}</p></div>}
         {f.recommendation && <div className="blk"><div className="label">What to do</div><p>{f.recommendation}</p></div>}
         {f.rule_id === 'DAX_UNUSED_MEASURE' && (
