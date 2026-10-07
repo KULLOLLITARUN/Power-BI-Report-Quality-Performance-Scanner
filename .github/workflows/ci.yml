@@ -94,6 +94,10 @@ jobs:
         working-directory: studio-ui
         run: npm ci
 
+      - name: Studio unit tests
+        working-directory: studio-ui
+        run: node node_modules/vitest/vitest.mjs run
+
       - name: Type-check and build
         working-directory: studio-ui
         run: |
