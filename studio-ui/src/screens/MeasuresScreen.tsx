@@ -49,7 +49,7 @@ export const MeasuresScreen: React.FC<{
 
   const current = items.find((i) => i.name === selected && i.kind === kind) ?? list[0] ?? null;
   const curFindings = current ? sortFindings(findingsFor.get(keyOf(current)) ?? []) : [];
-  const usage = current && current.kind === 'measure' ? measureUsage(current as any, scan.pages || []) : [];
+  const usage = current && current.kind === 'measure' ? measureUsage(current, scan.pages || []) : [];
   const node = current ? scan.dax_graph?.nodes?.find((n) => n.name.toLowerCase() === current.name.toLowerCase()) : undefined;
   const hasVisualData = (scan.pages || []).some((p) => p.visuals);
 

@@ -146,7 +146,7 @@ export function visualTables(v: VisualInfo, scan: ScanResult): string[] {
 }
 
 /** Pages and visual counts that use a measure (directly, via measure_refs). */
-export function measureUsage(measure: MeasureInfo, pages: PageInfo[]) {
+export function measureUsage(measure: Pick<MeasureInfo, 'name'>, pages: PageInfo[]) {
   const name = norm(measure.name);
   const usage: { page: PageInfo; visuals: number }[] = [];
   for (const p of pages) {

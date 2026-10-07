@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Folder, FileBox, X } from 'lucide-react';
 import type { BrowseResult } from '../types';
 import { apiFetch } from '../utils/api';
+import { errorMessage } from '../lib/errors';
 
 interface Props {
   open: boolean;
@@ -24,8 +25,8 @@ export const FileBrowserModal: React.FC<Props> = ({ open, onClose, onSelect }) =
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.detail || `Could not open that folder (${res.status}).`);
       setData(body); setPath(body.current_path);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }

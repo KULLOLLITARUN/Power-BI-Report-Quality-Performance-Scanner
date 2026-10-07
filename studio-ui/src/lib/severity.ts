@@ -35,7 +35,8 @@ export function worstSeverity(sevs: string[]): Severity | null {
   return [...sevs].sort((a, b) => sevRank(a) - sevRank(b))[0].toUpperCase() as Severity;
 }
 
-export function sortFindings(list: AuditFinding[]): AuditFinding[] {
+/** Most severe first, then most confident. Works for findings and diff transitions alike. */
+export function sortFindings<T extends { severity: string; confidence?: number }>(list: T[]): T[] {
   return [...list].sort((a, b) => sevRank(a.severity) - sevRank(b.severity) || (b.confidence ?? 0) - (a.confidence ?? 0));
 }
 

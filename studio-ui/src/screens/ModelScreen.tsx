@@ -63,7 +63,7 @@ export const ModelScreen: React.FC<{
                   <div key={t.name} className="item" role="option" tabIndex={0} aria-selected={selected === t.name}
                        onClick={() => setSelected(selected === t.name ? null : t.name)}
                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(t.name); } }}>
-                    <span className="swatch" style={{ ['--sw' as any]: `var(--t-${ROLE_VAR[role]})`, ['--sw-edge' as any]: `var(--t-${ROLE_VAR[role]}-edge)` }} />
+                    <span className="swatch" style={{ '--sw': `var(--t-${ROLE_VAR[role]})`, '--sw-edge': `var(--t-${ROLE_VAR[role]}-edge)` }} />
                     <span className="nm">{t.name}</span>
                     <span className="flags">{t.hidden && <EyeOff size={13} aria-label="hidden" />}{worst && <SevMarker sev={worst} size={11} />}</span>
                     <span className="sub">{ROLE_LABEL[role]} · {t.column_count} cols · {t.measures_count} measures{t.calc_cols_count ? ` · ${t.calc_cols_count} calculated` : ''}</span>

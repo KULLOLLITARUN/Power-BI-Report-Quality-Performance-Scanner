@@ -4,6 +4,7 @@ import type { AuditFinding } from '../types';
 import { apiFetch } from '../utils/api';
 import { FIXABLE_RULES } from '../components/Findings';
 import { copyText, useToast } from '../components/ui';
+import { errorMessage } from '../lib/errors';
 
 interface PatchChunk { start_line: number; end_line: number; original_text: string; replacement_text: string }
 interface Patch {
@@ -66,8 +67,8 @@ export const FixesScreen: React.FC<{
       const ids = new Set<string>((data.plan?.patches || []).map((p: Patch) => p.patch_id));
       setSelected(ids);
       setOpen(new Set([...ids].slice(0, 3)));
-    } catch (e: any) {
-      setError(e.message || 'Could not build a fix plan.');
+    } catch (e) {
+      setError(errorMessage(e) || 'Could not build a fix plan.');
     } finally {
       setLoading(false);
     }
@@ -97,8 +98,8 @@ export const FixesScreen: React.FC<{
       setConfirming(false);
       await Promise.all([loadPlan(), loadHistory()]);
       onApplied();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(errorMessage(e));
     } finally {
       setApplying(false);
     }

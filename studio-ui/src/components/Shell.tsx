@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Boxes, Download, FileStack, FolderOpen, GitCompareArrows, LayoutGrid, Moon, MoreHorizontal, Plug, RefreshCw, Sigma, Sun, Wrench,
+  type LucideIcon, Boxes, Download, FileStack, FolderOpen, GitCompareArrows, LayoutGrid, Moon, MoreHorizontal, Plug, RefreshCw, Sigma, Sun, Wrench,
 } from 'lucide-react';
 import type { ScanResult } from '../types';
 import { Cube, Sheet } from './ui';
 
 export type TabId = 'overview' | 'model' | 'measures' | 'pages' | 'fixes' | 'compare' | 'agent';
 
-export const TABS: { id: TabId; label: string; icon: React.FC<any>; mobile?: boolean }[] = [
+export const TABS: { id: TabId; label: string; icon: LucideIcon; mobile?: boolean }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutGrid, mobile: true },
   { id: 'model', label: 'Model', icon: Boxes, mobile: true },
   { id: 'measures', label: 'Measures', icon: Sigma, mobile: true },

@@ -25,7 +25,7 @@ export const SevTag: React.FC<{ sev: string }> = ({ sev }) => (
 export const Confidence: React.FC<{ value: number; label?: boolean }> = ({ value, label }) => (
   <span className="conf" title="Confidence">
     {label ? `confidence ${Math.round(value)}%` : `${Math.round(value)}%`}
-    <i style={{ ['--w' as any]: `${Math.max(0, Math.min(100, value))}%` }} />
+    <i style={{ '--w': `${Math.max(0, Math.min(100, value))}%` }} />
   </span>
 );
 
@@ -44,10 +44,10 @@ export const Blocks: React.FC<{ value: number; target?: number; label: string }>
     {Array.from({ length: 20 }, (_, k) => {
       const fill = Math.max(0, Math.min(1, (value - k * 5) / 5));
       return fill >= 1 ? <i key={k} className="on" />
-        : fill > 0 ? <i key={k} className="part" style={{ ['--p' as any]: `${Math.round(fill * 100)}%` }} />
+        : fill > 0 ? <i key={k} className="part" style={{ '--p': `${Math.round(fill * 100)}%` }} />
         : <i key={k} />;
     })}
-    {target !== undefined && <span className="target" style={{ ['--t' as any]: `${target}%` }} />}
+    {target !== undefined && <span className="target" style={{ '--t': `${target}%` }} />}
   </div>
 );
 

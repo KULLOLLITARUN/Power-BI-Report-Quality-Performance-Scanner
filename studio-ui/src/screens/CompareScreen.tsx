@@ -4,6 +4,7 @@ import type { DiffResult, FindingTransition } from '../types';
 import { apiFetch } from '../utils/api';
 import { sortFindings } from '../lib/severity';
 import { SevMarker, copyText, useToast } from '../components/ui';
+import { errorMessage } from '../lib/errors';
 
 export const CompareScreen: React.FC<{ hasBackend: boolean; initialBaseline?: string }> = ({ hasBackend, initialBaseline = '' }) => {
   const toast = useToast();
@@ -37,8 +38,8 @@ export const CompareScreen: React.FC<{ hasBackend: boolean; initialBaseline?: st
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `Comparison failed (${res.status})`);
       setResult(data);
-    } catch (e: any) {
-      setError(e.message || 'Comparison failed.');
+    } catch (e) {
+      setError(errorMessage(e) || 'Comparison failed.');
     } finally {
       setLoading(false);
     }
@@ -69,7 +70,7 @@ export const CompareScreen: React.FC<{ hasBackend: boolean; initialBaseline?: st
     );
   }
 
-  const by = (state: FindingTransition['state']) => sortFindings((result?.transitions || []).filter((t) => t.state === state) as any) as unknown as FindingTransition[];
+  const by = (state: FindingTransition['state']) => sortFindings((result?.transitions || []).filter((t) => t.state === state));
 
   return (
     <>

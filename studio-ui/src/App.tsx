@@ -11,6 +11,7 @@ import { Rail, TabBar, TopBar, TABS, type TabId } from './components/Shell';
 import { FileBrowserModal } from './components/FileBrowserModal';
 import { ToastProvider, useToast } from './components/ui';
 import { Landing } from './screens/Landing';
+import { errorMessage } from './lib/errors';
 import { Overview } from './screens/Overview';
 import { ModelScreen } from './screens/ModelScreen';
 import { MeasuresScreen } from './screens/MeasuresScreen';
@@ -104,8 +105,8 @@ const Studio: React.FC = () => {
       if (!res.ok) throw new Error(data?.detail || `The scan failed (${res.status}).`);
       if (!data) throw new Error('The local engine did not return a scan result.');
       finishScan(data, p, 'local', keepTab);
-    } catch (e: any) {
-      setError(e.message || 'The scan failed.');
+    } catch (e) {
+      setError(errorMessage(e) || 'The scan failed.');
     } finally {
       setLoading(false);
     }
@@ -119,8 +120,8 @@ const Studio: React.FC = () => {
     try {
       const result = parseDroppedPbip(read.files, read.projectName);
       finishScan(result, read.projectName, 'browser', false);
-    } catch (e: any) {
-      setError(`Could not read this project: ${e.message}`);
+    } catch (e) {
+      setError(`Could not read this project: ${errorMessage(e)}`);
     }
   }, [finishScan]);
 
@@ -168,8 +169,8 @@ const Studio: React.FC = () => {
     setLoading(true);
     try {
       scanFiles(await readFileList(list));
-    } catch (err: any) {
-      setError(`Could not read the folder: ${err.message}`);
+    } catch (err) {
+      setError(`Could not read the folder: ${errorMessage(err)}`);
     } finally {
       setLoading(false);
       e.target.value = '';
@@ -190,8 +191,8 @@ const Studio: React.FC = () => {
       setLoading(true);
       try {
         scanFiles(await readDataTransfer(e.dataTransfer.items));
-      } catch (err: any) {
-        setError(`Could not read the dropped folder: ${err.message}`);
+      } catch (err) {
+        setError(`Could not read the dropped folder: ${errorMessage(err)}`);
       } finally {
         setLoading(false);
       }
@@ -219,8 +220,8 @@ const Studio: React.FC = () => {
       if (!res.ok) throw new Error(data.detail || `Suppressing failed (${res.status}).`);
       toast(`Suppressed ${f.rule_id}. ${data.message ?? ''}`.trim());
       await scanPath(path, true);
-    } catch (e: any) {
-      toast(e.message, 'error');
+    } catch (e) {
+      toast(errorMessage(e), 'error');
     }
   };
 
@@ -234,8 +235,8 @@ const Studio: React.FC = () => {
       a.href = url; a.download = data.filename || `pbiscan.${format}`; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast(`Saved ${a.download}.`);
-    } catch (e: any) {
-      toast(e.message, 'error');
+    } catch (e) {
+      toast(errorMessage(e), 'error');
     }
   };
 
@@ -292,7 +293,7 @@ const Studio: React.FC = () => {
   return (
     <div className={`shell${scan ? '' : ' no-rail'}`}>
       <input ref={folderInput} type="file" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={onFolderPicked}
-             {...({ webkitdirectory: '', directory: '' } as any)} multiple />
+             webkitdirectory="" directory="" multiple />
       {scan && <Rail tab={tab} onTab={setTab} counts={counts} hasBackend={hasBackend} onHome={goHome} ruleCount={ruleCount} />}
       <div className="main-col">
         {mode === 'demo' && (

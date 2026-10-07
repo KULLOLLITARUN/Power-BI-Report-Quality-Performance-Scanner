@@ -3,6 +3,7 @@ import { ChevronRight, CircleCheck, CircleAlert, ShieldAlert, ShieldCheck, Spark
 import { apiFetch } from '../utils/api';
 import { DaxCode } from '../lib/dax';
 import { copyText, useToast } from '../components/ui';
+import { errorMessage } from '../lib/errors';
 
 interface McpStatus { mcp_installed: boolean; mcp_version: string | null; python_executable: string; server_command: string; server_args: string[]; groq_configured?: boolean; groq_model?: string }
 interface McpTool { name: string; description: string; read_only: boolean; destructive: boolean }
@@ -31,8 +32,8 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
         setStatus(s); setTools(t);
         const list: RuleEntry[] = Object.values(r.rules || {});
         setRules(list); onRuleCount?.(list.length);
-      } catch (e: any) {
-        setError(e.message || 'Could not load the MCP details.');
+      } catch (e) {
+        setError(errorMessage(e) || 'Could not load the MCP details.');
       }
     })();
   }, [hasBackend, onRuleCount]);
@@ -45,8 +46,8 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
         body: JSON.stringify({ rule_id: 'DAX_SUSPICIOUS_PATTERN', dax_expression: dax, evidence: '' }),
       });
       setRewrite(await res.json());
-    } catch (e: any) {
-      setRewrite({ ai_generated: false, error: e.message || 'The rewrite request failed.' });
+    } catch (e) {
+      setRewrite({ ai_generated: false, error: errorMessage(e) || 'The rewrite request failed.' });
     } finally {
       setAsking(false);
     }

@@ -20,17 +20,20 @@ export async function readFileList(list: FileList): Promise<ReadFolderResult> {
   const files: DroppedFile[] = [];
   for (const file of Array.from(list)) {
     if (!WANTED.test(file.name)) continue;
-    files.push({ name: file.name, path: (file as any).webkitRelativePath || file.name, content: await file.text() });
+    files.push({ name: file.name, path: file.webkitRelativePath || file.name, content: await file.text() });
   }
   return { files, projectName: projectNameFrom(files.map((f) => f.path), 'selected_project.pbip') };
 }
 
+const isFileEntry = (e: FileSystemEntry): e is FileSystemFileEntry => e.isFile;
+const isDirectoryEntry = (e: FileSystemEntry): e is FileSystemDirectoryEntry => e.isDirectory;
+
 /** Read every entry of a directory. readEntries() returns at most ~100 entries per call, so keep calling until it returns none. */
-async function readAllEntries(dir: any): Promise<any[]> {
+async function readAllEntries(dir: FileSystemDirectoryEntry): Promise<FileSystemEntry[]> {
   const reader = dir.createReader();
-  const all: any[] = [];
+  const all: FileSystemEntry[] = [];
   for (;;) {
-    const batch: any[] = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+    const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
     if (!batch.length) return all;
     all.push(...batch);
   }
@@ -39,12 +42,12 @@ async function readAllEntries(dir: any): Promise<any[]> {
 /** Items from a drag-and-drop event (folders are walked recursively). */
 export async function readDataTransfer(items: DataTransferItemList): Promise<ReadFolderResult> {
   const files: DroppedFile[] = [];
-  const walk = async (entry: any, prefix: string): Promise<void> => {
-    if (entry.isFile) {
+  const walk = async (entry: FileSystemEntry, prefix: string): Promise<void> => {
+    if (isFileEntry(entry)) {
       if (!WANTED.test(entry.name)) return;
-      const file: File = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
       files.push({ name: file.name, path: `${prefix}${file.name}`, content: await file.text() });
-    } else if (entry.isDirectory) {
+    } else if (isDirectoryEntry(entry)) {
       for (const child of await readAllEntries(entry)) await walk(child, `${prefix}${entry.name}/`);
     }
   };
