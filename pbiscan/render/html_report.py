@@ -2,15 +2,44 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader
 
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
+# Most severe first, with the marker shape Studio draws for each
+# (studio-ui/src/lib/severity.ts). Shapes keep severities apart without colour.
+SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "WARNING", "LOW", "ADVISORY"]
+SEVERITY_SHAPES = {
+    "CRITICAL": "diamond",
+    "HIGH": "tri",
+    "MEDIUM": "square",
+    "WARNING": "circle",
+    "LOW": "dash",
+    "ADVISORY": "ring",
+}
+AREA_LABELS = {"model": "Model", "dax": "DAX", "report": "Report"}
+# The "target" tick on Studio's per-area score bars.
+SCORE_TARGET = 80
+
+
+def grade(score: float) -> str:
+    """Letter grade for a 0-100 score, as Studio shows it."""
+    for floor, letter in ((90, "A"), (80, "B"), (70, "C"), (60, "D")):
+        if score >= floor:
+            return letter
+    return "F"
+
+
+def _severity_rank(severity: str) -> int:
+    sev = (severity or "").upper()
+    return SEVERITY_ORDER.index(sev) if sev in SEVERITY_ORDER else len(SEVERITY_ORDER)
+
 
 class HtmlRenderer:
-    """Renders the audit report as a self-contained HTML file."""
+    """Renders the audit report as a self-contained, script-free HTML file."""
 
     def __init__(self) -> None:
         self._env = Environment(
@@ -23,63 +52,54 @@ class HtmlRenderer:
         issues: list,
         scores: dict,
         meta: dict,
+        warnings: Optional[list[str]] = None,
     ) -> str:
         """Render the HTML report.
 
         Args:
-            issues:  list of AuditIssue objects
-            scores:  output of calculate_scores()
-            meta:    dict with keys: report_name, scan_timestamp, scanner_version, source_path
+            issues:   list of AuditIssue objects
+            scores:   output of calculate_scores()
+            meta:     dict with keys: report_name, scan_timestamp, scanner_version, source_path
+            warnings: scan warnings (e.g. files that could not be read)
 
         Returns:
             Self-contained HTML string.
         """
         template = self._env.get_template("report.html.j2")
 
-        # Build severity summary
+        # Most severe first, then most confident (Studio's sortFindings order).
+        ordered = sorted(issues, key=lambda i: (_severity_rank(i.severity), -(i.confidence or 0)))
+        open_issues = [i for i in ordered if not getattr(i, "suppressed", False)]
+        suppressed_issues = [i for i in ordered if getattr(i, "suppressed", False)]
+
         severity_counts: dict[str, int] = {}
-        for issue in issues:
+        for issue in open_issues:
             severity_counts[issue.severity] = severity_counts.get(issue.severity, 0) + 1
 
-        # Build category summaries
-        category_counts: dict[str, int] = {}
-        for issue in issues:
-            category_counts[issue.category] = category_counts.get(issue.category, 0) + 1
-
-        # Colour map for severity badges
-        severity_colours = {
-            "CRITICAL": "#ef4444",
-            "HIGH":     "#f97316",
-            "MEDIUM":   "#f59e0b",
-            "WARNING":  "#eab308",
-            "ADVISORY": "#6366f1",
-            "LOW":      "#94a3b8",
-        }
-
-        # Score colour
-        def score_colour(score: float) -> str:
-            if score >= 80:
-                return "#22c55e"
-            if score >= 60:
-                return "#f59e0b"
-            return "#ef4444"
-
+        overall = float(scores.get("overall", 0))
         cat_scores = scores.get("category_scores", {})
+        if overall >= 80:
+            verdict = "Minor concerns only."
+        elif overall >= 60:
+            verdict = "Needs attention: review the findings below."
+        else:
+            verdict = "Action required: significant issues found."
 
         return template.render(
-            issues=issues,
-            overall_score=scores.get("overall", 0),
-            overall_colour=score_colour(scores.get("overall", 0)),
-            category_scores={
-                cat: {
-                    "score": cat_scores.get(cat, 100),
-                    "colour": score_colour(cat_scores.get(cat, 100)),
-                }
+            open_issues=open_issues,
+            suppressed_issues=suppressed_issues,
+            overall_score=overall,
+            grade=grade(overall),
+            verdict=verdict,
+            categories=[
+                {"label": AREA_LABELS[cat], "score": float(cat_scores.get(cat, 100))}
                 for cat in ("model", "dax", "report")
-            },
+            ],
+            target=SCORE_TARGET,
+            severity_order=SEVERITY_ORDER,
+            severity_shapes=SEVERITY_SHAPES,
             severity_counts=severity_counts,
-            category_counts=category_counts,
-            severity_colours=severity_colours,
-            total_findings=len(issues),
+            area_labels=AREA_LABELS,
+            warnings=warnings or [],
             meta=meta,
         )

@@ -305,7 +305,7 @@ class ScanResult:
         return JUnitRenderer().render(issues=self.issues, scores=self.scores, report_name=self.report_name)
 
     def to_html(self, timestamp: str = "") -> str:
-        """Render standalone interactive HTML report string."""
+        """Render the standalone HTML report (static, no scripts)."""
         return HtmlRenderer().render(
             issues=self.issues,
             scores=self.scores,
@@ -315,6 +315,7 @@ class ScanResult:
                 "source_path": self.source_path,
                 "scan_timestamp": timestamp,
             },
+            warnings=self.warnings,
         )
 
 

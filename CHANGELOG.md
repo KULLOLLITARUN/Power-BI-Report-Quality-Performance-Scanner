@@ -10,10 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Visual layout data for Studio**: every visual now carries its canvas position and size plus `table_refs` (the model tables its query reads), and every page its canvas width and height. `table_refs` is display-only; no rule reads it, and `measure_refs`/`fields_used` are unchanged. The browser scanner mirrors it, and the parity test compares page layouts across both engines.
+- **Unused-measure evidence in Studio**: for every measure, and in the detail of each `DAX_UNUSED_MEASURE` finding, Studio lists what was checked and what was found: report visuals, page and report filters and bookmarks, report-level measures, calculation groups, field parameters, RLS roles, and other measures' DAX (marking referrers that are themselves unused). It reads `semantic_references` and `dax_graph` from the scan; rule logic is unchanged. A contract test replays every `DAX_UNUSED_MEASURE` decision from that exported data.
+- **Browser-only scans now include `semantic_references` and `dax_graph`**, so the evidence above and measure dependencies also work without the local engine. A parity test compares both engines' references and graphs over every golden fixture.
+- **Studio unit tests** (Vitest) for the model helpers, measure evidence, DAX graph serialization and map layout, run in CI.
 
 ### Changed
 - **Studio redesign.** New look (navy ink, cobalt accent, IBM Plex and Archivo, both themes), a mobile layout with a bottom tab bar and bottom sheets, and a 3D model map built with three.js: tables are blocks sized by column count and coloured by role, relationships are arcs with dots showing filter direction, and tables with findings carry a severity marker. Report pages can float above the model with a thread from each visual to the tables it reads. Fonts are bundled instead of loaded from Google Fonts.
 - **Studio fixes**: `pbiscan studio <path>` scans the path on first load (it used to show a "needs the local engine" error); dropped folders with more than 100 entries are read completely; picking a folder with no project files shows an error instead of nothing; the Fixes tab no longer shows simulated patches in browser-only mode.
+- **Faster model map on large models**: a 300-table, 600-relationship model now lays out in about 100 ms (it took about 470 ms). Models of 800+ tables use a Barnes-Hut repulsion step. Layouts stay deterministic. Maps with more than 28 tables keep at most 16 labels visible at rest (the most connected fact tables, then date tables); the rest show on hover or focus.
+- **HTML export (`pbiscan scan --format html`) matches Studio**: same palette in light and dark, the same type stacks and severity shapes, a score ledger with per-area bars, findings ordered most severe first, suppressed findings listed separately, and scan warnings shown. It is now a static document with no JavaScript, so every finding is visible as rendered and when printed.
+- **Studio ships WOFF2 fonts only** (364 KB smaller bundle and wheel); the system font fallbacks are unchanged.
+- **Studio is type-checked in TypeScript strict mode**, and its UI code no longer uses `any`.
+
+### Fixed
+- Studio's phone-only "More" menu no longer appears as unstyled buttons at the bottom of desktop pages.
 
 ## [1.11.1] - 2026-08-22
 
