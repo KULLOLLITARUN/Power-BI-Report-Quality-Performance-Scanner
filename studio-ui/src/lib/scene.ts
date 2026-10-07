@@ -8,6 +8,7 @@ import type { PageInfo, RelationshipInfo, TableInfo } from '../types';
 import { cardinalityLabel, isBidirectional, isManySide, relKey, type TableRole } from './model';
 import { SEV, type Severity } from './severity';
 import { anime, prefersReducedMotion } from './motion';
+import { boxSize, layoutTables, persistentLabels } from './layout';
 
 export interface ReportLayer {
   page: PageInfo;
@@ -60,97 +61,6 @@ interface Tile {
 }
 
 const GRID_Y = 0.003;
-
-/** Deterministic force layout on the floor plane: facts pulled to the centre, dimensions around them. */
-export function layoutTables(tables: TableInfo[], rels: RelationshipInfo[], roles: Map<string, TableRole>) {
-  const names = tables.map((t) => t.name);
-  const n = names.length;
-  const idx = new Map(names.map((nm, i) => [nm, i]));
-  const facts = names.filter((nm) => roles.get(nm) === 'fact');
-  const px = new Float64Array(n), pz = new Float64Array(n);
-  const ring = 5 + Math.sqrt(n) * 1.1;
-  names.forEach((nm, i) => {
-    const fi = facts.indexOf(nm);
-    if (fi >= 0) {
-      const a = (fi / Math.max(1, facts.length)) * Math.PI * 2;
-      const r = facts.length > 1 ? 1.4 * Math.sqrt(facts.length) : 0;
-      px[i] = Math.cos(a) * r; pz[i] = Math.sin(a) * r;
-    } else {
-      const a = i * 2.399963; // golden angle
-      const r = ring * (0.7 + 0.3 * ((i * 7919) % 13) / 13);
-      px[i] = Math.cos(a) * r; pz[i] = Math.sin(a) * r;
-    }
-  });
-  const edges: [number, number][] = [];
-  const seen = new Set<string>();
-  for (const r of rels) {
-    const a = idx.get(r.from_table), b = idx.get(r.to_table);
-    if (a === undefined || b === undefined || a === b) continue;
-    const k = a < b ? `${a}:${b}` : `${b}:${a}`;
-    if (!seen.has(k)) { seen.add(k); edges.push([a, b]); }
-  }
-  const degree = new Float64Array(n);
-  edges.forEach(([a, b]) => { degree[a]++; degree[b]++; });
-  const iters = n > 150 ? 160 : 360;
-  const fx = new Float64Array(n), fz = new Float64Array(n);
-  for (let it = 0; it < iters; it++) {
-    const temp = 1 - it / iters;
-    fx.fill(0); fz.fill(0);
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        let dx = px[i] - px[j], dz = pz[i] - pz[j];
-        let d2 = dx * dx + dz * dz;
-        if (d2 < 1e-4) { dx = 0.01 * (i - j); dz = 0.01; d2 = 1e-4; }
-        const f = 7 / d2;
-        const d = Math.sqrt(d2);
-        fx[i] += (dx / d) * f; fz[i] += (dz / d) * f;
-        fx[j] -= (dx / d) * f; fz[j] -= (dz / d) * f;
-      }
-    }
-    for (const [a, b] of edges) {
-      const dx = px[b] - px[a], dz = pz[b] - pz[a];
-      const d = Math.max(0.01, Math.hypot(dx, dz));
-      const f = (d - 4.4) * 0.09;
-      fx[a] += (dx / d) * f; fz[a] += (dz / d) * f;
-      fx[b] -= (dx / d) * f; fz[b] -= (dz / d) * f;
-    }
-    for (let i = 0; i < n; i++) {
-      const role = roles.get(names[i]);
-      const k = role === 'fact' ? 0.07 : degree[i] === 0 ? 0.008 : 0.016;
-      fx[i] -= px[i] * k; fz[i] -= pz[i] * k;
-      const step = 0.08 + 0.6 * temp;
-      const m = Math.hypot(fx[i], fz[i]);
-      const s = m > step ? step / m : 1;
-      px[i] += fx[i] * s; pz[i] += fz[i] * s;
-    }
-  }
-  // Resolve overlaps between footprints
-  const size = tables.map((t) => boxSize(t, roles.get(t.name) ?? 'dim'));
-  for (let pass = 0; pass < 6; pass++) {
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        const minD = (Math.max(size[i].w, size[i].d) + Math.max(size[j].w, size[j].d)) / 2 + 0.9;
-        const dx = px[j] - px[i], dz = pz[j] - pz[i];
-        const d = Math.hypot(dx, dz) || 0.01;
-        if (d < minD) {
-          const push = (minD - d) / 2;
-          px[i] -= (dx / d) * push; pz[i] -= (dz / d) * push;
-          px[j] += (dx / d) * push; pz[j] += (dz / d) * push;
-        }
-      }
-    }
-  }
-  let cx = 0, cz = 0;
-  for (let i = 0; i < n; i++) { cx += px[i]; cz += pz[i]; }
-  cx /= Math.max(1, n); cz /= Math.max(1, n);
-  return new Map(names.map((nm, i) => [nm, { x: px[i] - cx, z: pz[i] - cz }]));
-}
-
-export function boxSize(t: TableInfo, role: TableRole) {
-  const c = Math.min(Math.max(t.column_count || 0, 1), 60);
-  const w = role === 'fact' ? 1.5 + c * 0.032 : 0.9 + c * 0.022;
-  return { w, d: w * (role === 'fact' ? 0.62 : 0.72), h: 0.35 + Math.log2(1 + c) * 0.24 };
-}
 
 export class ModelScene {
   private renderer: THREE.WebGLRenderer;
@@ -257,8 +167,8 @@ export class ModelScene {
       this.byId.set(t.name, node);
     });
 
-    const dense = this.nodes.length > 28;
-    if (dense) this.nodes.forEach((n) => { if (n.role !== 'fact' && n.role !== 'date') n.label.dataset.quiet = '1'; });
+    const labelled = persistentLabels(data.tables, data.relationships, data.roles);
+    this.nodes.forEach((n) => { if (!labelled.has(n.t.name)) n.label.dataset.quiet = '1'; });
 
     const groundSize = Math.max(40, extent * 4);
     this.ground = new THREE.Mesh(new THREE.PlaneGeometry(groundSize, groundSize), new THREE.ShadowMaterial({ opacity: 0.14 }));
