@@ -7,7 +7,7 @@ import { SevMarker, copyText, useToast } from '../components/ui';
 import { errorMessage } from '../lib/errors';
 import { parseAuditJson } from '../lib/auditJson';
 
-interface JsonDropzoneProps {
+export interface JsonDropzoneProps {
   id: string;
   label: string;
   sublabel: string;
@@ -22,7 +22,7 @@ interface JsonDropzoneProps {
   children?: React.ReactNode;
 }
 
-const JsonDropzone: React.FC<JsonDropzoneProps> = ({
+export const JsonDropzone: React.FC<JsonDropzoneProps> = ({
   id,
   label,
   sublabel,
