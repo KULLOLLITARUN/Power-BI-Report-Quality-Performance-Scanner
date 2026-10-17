@@ -88,3 +88,16 @@ def test_spa_index_fallback():
     # Non-API subpaths should also resolve gracefully
     response = client.get("/model-architecture")
     assert response.status_code == 200
+
+
+def test_wildcard_allowed_host(monkeypatch):
+    """Test that PBISCAN_STUDIO_ALLOWED_HOSTS='*' permits external hosts and origins."""
+    monkeypatch.setenv("PBISCAN_STUDIO_ALLOWED_HOSTS", "*")
+    from pbiscan.server import _is_host_allowed
+
+    assert _is_host_allowed("power-bi-report-quality-performance.onrender.com")
+    assert _is_host_allowed("34.188.49.152")
+
+    ext_client = TestClient(app, base_url="https://power-bi-report-quality-performance.onrender.com")
+    resp = ext_client.get("/api/health")
+    assert resp.status_code == 200

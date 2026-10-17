@@ -70,16 +70,23 @@ def _strip_port(host: str) -> str:
     return host.rsplit(":", 1)[0] if host.count(":") == 1 else host
 
 
+def _is_host_allowed(host: str) -> bool:
+    allowed = _allowed_hosts()
+    if "*" in allowed:
+        return True
+    return _strip_port(host) in allowed
+
+
 @app.middleware("http")
 async def local_origin_guard(request: Request, call_next):
     """Reject DNS-rebinding (foreign Host header) and cross-site requests
     (foreign Origin header) before they reach any endpoint."""
     host_header = request.headers.get("host", "")
-    if _strip_port(host_header) not in _allowed_hosts():
+    if not _is_host_allowed(host_header):
         return JSONResponse(status_code=403, content={"detail": "Host not allowed"})
 
     origin = request.headers.get("origin")
-    if origin is not None:
+    if origin is not None and "*" not in _allowed_hosts():
         allowed_origins = {f"http://{host_header.lower()}", f"https://{host_header.lower()}", *DEV_ORIGINS}
         if origin.lower() not in allowed_origins:
             return JSONResponse(status_code=403, content={"detail": "Origin not allowed"})
