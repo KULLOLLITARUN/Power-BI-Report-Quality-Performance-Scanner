@@ -180,13 +180,30 @@ const Studio: React.FC = () => {
   // ---- drag and drop anywhere on the page
   useEffect(() => {
     const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types || []).includes('Files');
-    const enter = (e: DragEvent) => { if (tab === 'compare' || !hasFiles(e)) return; e.preventDefault(); dragDepth.current++; setDragging(true); };
-    const over = (e: DragEvent) => { if (tab === 'compare') return; if (hasFiles(e)) e.preventDefault(); };
-    const leave = () => { if (tab === 'compare') return; dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); };
-    const drop = async (e: DragEvent) => {
-      if (tab === 'compare' || !hasFiles(e)) return;
+    const enter = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
       e.preventDefault();
-      dragDepth.current = 0; setDragging(false);
+      if (tab === 'compare') return;
+      dragDepth.current++;
+      setDragging(true);
+    };
+    const over = (e: DragEvent) => {
+      if (hasFiles(e)) e.preventDefault();
+    };
+    const leave = () => {
+      if (tab === 'compare') return;
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (!dragDepth.current) setDragging(false);
+    };
+    const drop = async (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDragging(false);
+      if (tab === 'compare') {
+        toast('Drop onto Baseline or Current to compare.', 'info');
+        return;
+      }
       if (!e.dataTransfer?.items) return;
       setLoading(true);
       try {
@@ -207,7 +224,14 @@ const Studio: React.FC = () => {
       window.removeEventListener('dragleave', leave);
       window.removeEventListener('drop', drop);
     };
-  }, [scanFiles, tab]);
+  }, [scanFiles, tab, toast]);
+
+  useEffect(() => {
+    if (tab === 'compare') {
+      dragDepth.current = 0;
+      setDragging(false);
+    }
+  }, [tab]);
 
   // ---- actions on a loaded scan
   const suppress = async (f: AuditFinding) => {

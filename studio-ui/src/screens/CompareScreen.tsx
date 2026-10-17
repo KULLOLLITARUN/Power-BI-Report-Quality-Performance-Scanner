@@ -5,6 +5,175 @@ import { apiFetch } from '../utils/api';
 import { sortFindings } from '../lib/severity';
 import { SevMarker, copyText, useToast } from '../components/ui';
 import { errorMessage } from '../lib/errors';
+import { parseAuditJson } from '../lib/auditJson';
+
+interface JsonDropzoneProps {
+  id: string;
+  label: string;
+  sublabel: string;
+  placeholder: string;
+  value: string;
+  data: Record<string, unknown> | null;
+  loadedLabel?: string;
+  onClear: () => void;
+  onFileLoaded: (data: Record<string, unknown>, filename: string) => void;
+  onChangeText: (text: string) => void;
+  onBrowse: () => void;
+  children?: React.ReactNode;
+}
+
+const JsonDropzone: React.FC<JsonDropzoneProps> = ({
+  id,
+  label,
+  sublabel,
+  placeholder,
+  value,
+  data,
+  loadedLabel,
+  onClear,
+  onFileLoaded,
+  onChangeText,
+  onBrowse,
+  children,
+}) => {
+  const toast = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
+  const loadSeq = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleFile = async (file: File, extraCount = 0) => {
+    const seq = ++loadSeq.current;
+    const note = extraCount > 0 ? ` (Note: ${extraCount} other file(s) ignored)` : '';
+    try {
+      const text = await file.text();
+      if (seq !== loadSeq.current) return;
+      const res = parseAuditJson(text, file.name);
+      if (!res.ok) {
+        toast(`${res.error}${note}`, 'error');
+        return;
+      }
+      onFileLoaded(res.value.data, file.name);
+      toast(`Loaded ${file.name} (${res.value.report_name})${note}`, 'info');
+    } catch (err) {
+      if (seq !== loadSeq.current) return;
+      toast(`Could not read "${file.name}": ${errorMessage(err)}${note}`, 'error');
+    }
+  };
+
+  const handleClear = () => {
+    loadSeq.current++;
+    onClear();
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  return (
+    <div
+      className={`blk cmp-dropzone${isDragging ? ' dragging' : ''}`}
+      onDragEnter={(e) => {
+        if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragDepth.current++;
+        setIsDragging(true);
+      }}
+      onDragOver={(e) => {
+        if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onDragLeave={(e) => {
+        if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) {
+          setIsDragging(false);
+        }
+      }}
+      onDrop={async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragDepth.current = 0;
+        setIsDragging(false);
+        const files = Array.from(e.dataTransfer?.files || []);
+        if (!files.length) return;
+        const f = files[0];
+        if (!f.name.toLowerCase().endsWith('.json')) {
+          loadSeq.current++;
+          const note = files.length > 1 ? ` (Note: ${files.length - 1} other file(s) ignored)` : '';
+          toast(`Only .json audit files can be dropped here. For .pbip folders, enter the folder path or use Browse.${note}`, 'error');
+          return;
+        }
+        await handleFile(f, files.length - 1);
+      }}
+    >
+      <label className="label" htmlFor={id}>
+        {label} <span style={{ textTransform: 'none', letterSpacing: 0 }}>· {sublabel}</span>
+      </label>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.target.value = '';
+        }}
+      />
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          id={id}
+          className="input mono"
+          style={{ flex: 1 }}
+          value={value}
+          onChange={(e) => {
+            loadSeq.current++;
+            onChangeText(e.target.value);
+          }}
+          placeholder={placeholder}
+        />
+        <button
+          className="btn icon-btn"
+          onClick={() => fileInputRef.current?.click()}
+          title="Upload scan.json artifact"
+          aria-label={`Upload ${label} JSON`}
+        >
+          <FileUp aria-hidden="true" />
+        </button>
+        <button
+          className="btn icon-btn"
+          onClick={onBrowse}
+          title="Browse local folder"
+          aria-label={`Browse for ${label} folder`}
+        >
+          <FolderOpen aria-hidden="true" />
+        </button>
+      </div>
+      {(children || data) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+          {children}
+          {data && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span className="chip" style={{ color: 'var(--good)' }}>
+                ✓ {loadedLabel || 'JSON loaded'}: {(typeof data.report_name === 'string' && data.report_name) || 'audit'}
+              </span>
+              <button
+                className="btn btn-ghost icon-btn"
+                style={{ padding: '0 4px', height: 20 }}
+                onClick={handleClear}
+                title="Clear JSON"
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const CompareScreen: React.FC<{
   hasBackend: boolean;
@@ -16,45 +185,12 @@ export const CompareScreen: React.FC<{
   const [current, setCurrent] = useState('');
   const [baselineData, setBaselineData] = useState<Record<string, unknown> | null>(null);
   const [currentData, setCurrentData] = useState<Record<string, unknown> | null>(null);
-  const [baselineDragging, setBaselineDragging] = useState(false);
-  const [currentDragging, setCurrentDragging] = useState(false);
   const [failOnRegression, setFailOnRegression] = useState(false);
   const [failOnNew, setFailOnNew] = useState('NONE');
   const [maxDrop, setMaxDrop] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DiffResult | null>(null);
-
-  const baselineFileInput = useRef<HTMLInputElement>(null);
-  const currentFileInput = useRef<HTMLInputElement>(null);
-
-  const handleJsonFile = async (file: File, target: 'baseline' | 'current') => {
-    try {
-      const text = await file.text();
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        toast(`Failed to parse "${file.name}": invalid JSON syntax.`, 'error');
-        return;
-      }
-      if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as Record<string, unknown>).findings)) {
-        toast(`"${file.name}" is not a valid pbiscan audit file (missing "findings" array).`, 'error');
-        return;
-      }
-      const record = parsed as Record<string, unknown>;
-      if (target === 'baseline') {
-        setBaselineData(record);
-        setBaseline(file.name);
-      } else {
-        setCurrentData(record);
-        setCurrent(file.name);
-      }
-      toast(`Loaded ${file.name} (${(record.report_name as string) || 'audit'})`, 'info');
-    } catch (err) {
-      toast(`Could not read "${file.name}": ${errorMessage(err)}`, 'error');
-    }
-  };
 
   const useActiveScanAsCurrent = () => {
     if (!activeScan) return;
@@ -162,185 +298,61 @@ export const CompareScreen: React.FC<{
       <section className="panel">
         <div className="panel-body">
           <div className="grid-2">
-            {/* Baseline Column */}
-            <div
-              className={`blk cmp-dropzone${baselineDragging ? ' dragging' : ''}`}
-              onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setBaselineDragging(true); }}
-              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setBaselineDragging(true); }}
-              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setBaselineDragging(false); }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setBaselineDragging(false);
-                const f = e.dataTransfer.files[0];
-                if (!f) return;
-                if (f.name.endsWith('.json')) {
-                  handleJsonFile(f, 'baseline');
-                } else {
-                  toast('Only .json audit files can be dropped here. For .pbip folders, enter the folder path or use Browse.', 'error');
-                }
+            <JsonDropzone
+              id="cmp-baseline"
+              label="Baseline"
+              sublabel="Main branch, previous scan, or scan.json"
+              placeholder="Drop scan.json or path (e.g. C:\Reports\Sales.pbip)"
+              value={baseline}
+              data={baselineData}
+              onClear={() => {
+                setBaselineData(null);
+                setBaseline('');
               }}
-            >
-              <label className="label" htmlFor="cmp-baseline">
-                Baseline <span style={{ textTransform: 'none', letterSpacing: 0 }}>· Main branch, previous scan, or scan.json</span>
-              </label>
-              <input
-                ref={baselineFileInput}
-                type="file"
-                accept=".json"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleJsonFile(f, 'baseline');
-                  e.target.value = '';
-                }}
-              />
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  id="cmp-baseline"
-                  className="input mono"
-                  style={{ flex: 1 }}
-                  value={baseline}
-                  onChange={(e) => {
-                    setBaselineData(null);
-                    setBaseline(e.target.value);
-                    if (baselineFileInput.current) baselineFileInput.current.value = '';
-                  }}
-                  placeholder="Drop scan.json or path (e.g. C:\Reports\Sales.pbip)"
-                />
-                <button
-                  className="btn icon-btn"
-                  onClick={() => baselineFileInput.current?.click()}
-                  title="Upload scan.json artifact"
-                  aria-label="Upload baseline JSON"
-                >
-                  <FileUp aria-hidden="true" />
-                </button>
-                <button
-                  className="btn icon-btn"
-                  onClick={() => browse('baseline')}
-                  title="Browse local folder"
-                  aria-label="Browse for baseline folder"
-                >
-                  <FolderOpen aria-hidden="true" />
-                </button>
-              </div>
-              {baselineData && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                  <span className="chip" style={{ color: 'var(--good)' }}>
-                    ✓ JSON loaded: {(baselineData.report_name as string) || 'audit'}
-                  </span>
-                  <button
-                    className="btn btn-ghost icon-btn"
-                    style={{ padding: '0 4px', height: 20 }}
-                    onClick={() => {
-                      setBaselineData(null);
-                      setBaseline('');
-                      if (baselineFileInput.current) baselineFileInput.current.value = '';
-                    }}
-                    title="Clear JSON"
-                  >
-                    <X size={12} aria-hidden="true" />
-                  </button>
-                </div>
-              )}
-            </div>
+              onFileLoaded={(data, name) => {
+                setBaselineData(data);
+                setBaseline(name);
+              }}
+              onChangeText={(text) => {
+                if (baselineData) setBaselineData(null);
+                setBaseline(text);
+              }}
+              onBrowse={() => browse('baseline')}
+            />
 
-            {/* Current Column */}
-            <div
-              className={`blk cmp-dropzone${currentDragging ? ' dragging' : ''}`}
-              onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setCurrentDragging(true); }}
-              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setCurrentDragging(true); }}
-              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setCurrentDragging(false); }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setCurrentDragging(false);
-                const f = e.dataTransfer.files[0];
-                if (!f) return;
-                if (f.name.endsWith('.json')) {
-                  handleJsonFile(f, 'current');
-                } else {
-                  toast('Only .json audit files can be dropped here. For .pbip folders, enter the folder path or use Browse.', 'error');
-                }
+            <JsonDropzone
+              id="cmp-current"
+              label="Current"
+              sublabel="Your branch or new version"
+              placeholder="Drop scan.json, path, or use active scan"
+              value={current}
+              data={currentData}
+              loadedLabel="Current loaded"
+              onClear={() => {
+                setCurrentData(null);
+                setCurrent('');
               }}
+              onFileLoaded={(data, name) => {
+                setCurrentData(data);
+                setCurrent(name);
+              }}
+              onChangeText={(text) => {
+                if (currentData) setCurrentData(null);
+                setCurrent(text);
+              }}
+              onBrowse={() => browse('current')}
             >
-              <label className="label" htmlFor="cmp-current">
-                Current <span style={{ textTransform: 'none', letterSpacing: 0 }}>· Your branch or new version</span>
-              </label>
-              <input
-                ref={currentFileInput}
-                type="file"
-                accept=".json"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleJsonFile(f, 'current');
-                  e.target.value = '';
-                }}
-              />
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  id="cmp-current"
-                  className="input mono"
-                  style={{ flex: 1 }}
-                  value={current}
-                  onChange={(e) => {
-                    setCurrentData(null);
-                    setCurrent(e.target.value);
-                    if (currentFileInput.current) currentFileInput.current.value = '';
-                  }}
-                  placeholder="Drop scan.json, path, or use active scan"
-                />
+              {activeScan && (
                 <button
-                  className="btn icon-btn"
-                  onClick={() => currentFileInput.current?.click()}
-                  title="Upload scan.json artifact"
-                  aria-label="Upload current JSON"
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ fontSize: 11, padding: '2px 8px', height: 22 }}
+                  onClick={useActiveScanAsCurrent}
                 >
-                  <FileUp aria-hidden="true" />
+                  <Check size={12} aria-hidden="true" /> Use active scan ({activeScan.report_name})
                 </button>
-                <button
-                  className="btn icon-btn"
-                  onClick={() => browse('current')}
-                  title="Browse local folder"
-                  aria-label="Browse for current folder"
-                >
-                  <FolderOpen aria-hidden="true" />
-                </button>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                {activeScan && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    style={{ fontSize: 11, padding: '2px 8px', height: 22 }}
-                    onClick={useActiveScanAsCurrent}
-                  >
-                    <Check size={12} aria-hidden="true" /> Use active scan ({activeScan.report_name})
-                  </button>
-                )}
-                {currentData && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span className="chip" style={{ color: 'var(--good)' }}>
-                      ✓ Current loaded: {(currentData.report_name as string) || 'audit'}
-                    </span>
-                    <button
-                      className="btn btn-ghost icon-btn"
-                      style={{ padding: '0 4px', height: 20 }}
-                      onClick={() => {
-                        setCurrentData(null);
-                        setCurrent('');
-                        if (currentFileInput.current) currentFileInput.current.value = '';
-                      }}
-                      title="Clear JSON"
-                    >
-                      <X size={12} aria-hidden="true" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
+              )}
+            </JsonDropzone>
           </div>
           <div style={{ display: 'flex', gap: '10px 20px', flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--rule)', paddingTop: 14 }}>
             <label className="check"><input type="checkbox" checked={failOnRegression} onChange={(e) => setFailOnRegression(e.target.checked)} />Fail if the score drops</label>
