@@ -180,11 +180,11 @@ const Studio: React.FC = () => {
   // ---- drag and drop anywhere on the page
   useEffect(() => {
     const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types || []).includes('Files');
-    const enter = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth.current++; setDragging(true); };
-    const over = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault(); };
-    const leave = () => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); };
+    const enter = (e: DragEvent) => { if (tab === 'compare' || !hasFiles(e)) return; e.preventDefault(); dragDepth.current++; setDragging(true); };
+    const over = (e: DragEvent) => { if (tab === 'compare') return; if (hasFiles(e)) e.preventDefault(); };
+    const leave = () => { if (tab === 'compare') return; dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); };
     const drop = async (e: DragEvent) => {
-      if (!hasFiles(e)) return;
+      if (tab === 'compare' || !hasFiles(e)) return;
       e.preventDefault();
       dragDepth.current = 0; setDragging(false);
       if (!e.dataTransfer?.items) return;
@@ -207,7 +207,7 @@ const Studio: React.FC = () => {
       window.removeEventListener('dragleave', leave);
       window.removeEventListener('drop', drop);
     };
-  }, [scanFiles]);
+  }, [scanFiles, tab]);
 
   // ---- actions on a loaded scan
   const suppress = async (f: AuditFinding) => {
@@ -317,7 +317,7 @@ const Studio: React.FC = () => {
       {scan && <TabBar tab={tab} onTab={setTab} findings={openFindings.length} onOpen={openProject} />}
       <FileBrowserModal open={browserOpen} onClose={() => setBrowserOpen(false)} onSelect={(p) => scanPath(p)} />
       {/* The landing page's drop box shows its own state; elsewhere the whole window is the target. */}
-      {dragging && scan && (
+      {dragging && scan && tab !== 'compare' && (
         <div className="drop-overlay" role="status">
           <div><FolderDown aria-hidden="true" /><strong>Drop the project folder to scan it</strong>
             <span>It replaces the project open now. Files are read in this tab and never uploaded.</span></div>

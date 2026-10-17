@@ -16,6 +16,8 @@ export const CompareScreen: React.FC<{
   const [current, setCurrent] = useState('');
   const [baselineData, setBaselineData] = useState<Record<string, unknown> | null>(null);
   const [currentData, setCurrentData] = useState<Record<string, unknown> | null>(null);
+  const [baselineDragging, setBaselineDragging] = useState(false);
+  const [currentDragging, setCurrentDragging] = useState(false);
   const [failOnRegression, setFailOnRegression] = useState(false);
   const [failOnNew, setFailOnNew] = useState('NONE');
   const [maxDrop, setMaxDrop] = useState('');
@@ -29,21 +31,28 @@ export const CompareScreen: React.FC<{
   const handleJsonFile = async (file: File, target: 'baseline' | 'current') => {
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.findings)) {
-        toast('The file must be a valid pbiscan audit JSON file with findings.', 'error');
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        toast(`Failed to parse "${file.name}": invalid JSON syntax.`, 'error');
         return;
       }
+      if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as Record<string, unknown>).findings)) {
+        toast(`"${file.name}" is not a valid pbiscan audit file (missing "findings" array).`, 'error');
+        return;
+      }
+      const record = parsed as Record<string, unknown>;
       if (target === 'baseline') {
-        setBaselineData(parsed);
+        setBaselineData(record);
         setBaseline(file.name);
       } else {
-        setCurrentData(parsed);
+        setCurrentData(record);
         setCurrent(file.name);
       }
-      toast(`Loaded ${file.name} (${parsed.report_name || 'audit'})`, 'info');
-    } catch {
-      toast('Failed to parse JSON file.', 'error');
+      toast(`Loaded ${file.name} (${(record.report_name as string) || 'audit'})`, 'info');
+    } catch (err) {
+      toast(`Could not read "${file.name}": ${errorMessage(err)}`, 'error');
     }
   };
 
@@ -155,12 +164,21 @@ export const CompareScreen: React.FC<{
           <div className="grid-2">
             {/* Baseline Column */}
             <div
-              className="blk"
-              onDragOver={(e) => e.preventDefault()}
+              className={`blk cmp-dropzone${baselineDragging ? ' dragging' : ''}`}
+              onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setBaselineDragging(true); }}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setBaselineDragging(true); }}
+              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setBaselineDragging(false); }}
               onDrop={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
+                setBaselineDragging(false);
                 const f = e.dataTransfer.files[0];
-                if (f && f.name.endsWith('.json')) handleJsonFile(f, 'baseline');
+                if (!f) return;
+                if (f.name.endsWith('.json')) {
+                  handleJsonFile(f, 'baseline');
+                } else {
+                  toast('Only .json audit files can be dropped here. For .pbip folders, enter the folder path or use Browse.', 'error');
+                }
               }}
             >
               <label className="label" htmlFor="cmp-baseline">
@@ -174,6 +192,7 @@ export const CompareScreen: React.FC<{
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) handleJsonFile(f, 'baseline');
+                  e.target.value = '';
                 }}
               />
               <div style={{ display: 'flex', gap: 6 }}>
@@ -185,6 +204,7 @@ export const CompareScreen: React.FC<{
                   onChange={(e) => {
                     setBaselineData(null);
                     setBaseline(e.target.value);
+                    if (baselineFileInput.current) baselineFileInput.current.value = '';
                   }}
                   placeholder="Drop scan.json or path (e.g. C:\Reports\Sales.pbip)"
                 />
@@ -216,6 +236,7 @@ export const CompareScreen: React.FC<{
                     onClick={() => {
                       setBaselineData(null);
                       setBaseline('');
+                      if (baselineFileInput.current) baselineFileInput.current.value = '';
                     }}
                     title="Clear JSON"
                   >
@@ -227,12 +248,21 @@ export const CompareScreen: React.FC<{
 
             {/* Current Column */}
             <div
-              className="blk"
-              onDragOver={(e) => e.preventDefault()}
+              className={`blk cmp-dropzone${currentDragging ? ' dragging' : ''}`}
+              onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setCurrentDragging(true); }}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setCurrentDragging(true); }}
+              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setCurrentDragging(false); }}
               onDrop={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
+                setCurrentDragging(false);
                 const f = e.dataTransfer.files[0];
-                if (f && f.name.endsWith('.json')) handleJsonFile(f, 'current');
+                if (!f) return;
+                if (f.name.endsWith('.json')) {
+                  handleJsonFile(f, 'current');
+                } else {
+                  toast('Only .json audit files can be dropped here. For .pbip folders, enter the folder path or use Browse.', 'error');
+                }
               }}
             >
               <label className="label" htmlFor="cmp-current">
@@ -246,6 +276,7 @@ export const CompareScreen: React.FC<{
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) handleJsonFile(f, 'current');
+                  e.target.value = '';
                 }}
               />
               <div style={{ display: 'flex', gap: 6 }}>
@@ -257,6 +288,7 @@ export const CompareScreen: React.FC<{
                   onChange={(e) => {
                     setCurrentData(null);
                     setCurrent(e.target.value);
+                    if (currentFileInput.current) currentFileInput.current.value = '';
                   }}
                   placeholder="Drop scan.json, path, or use active scan"
                 />
@@ -299,6 +331,7 @@ export const CompareScreen: React.FC<{
                       onClick={() => {
                         setCurrentData(null);
                         setCurrent('');
+                        if (currentFileInput.current) currentFileInput.current.value = '';
                       }}
                       title="Clear JSON"
                     >
