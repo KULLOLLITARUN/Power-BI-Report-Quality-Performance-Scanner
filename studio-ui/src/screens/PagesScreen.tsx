@@ -41,6 +41,33 @@ export const PagesScreen: React.FC<{
   }, [findings, scan]);
   const sel: VisualInfo | null = visual !== null ? visuals[visual] ?? null : null;
   const selTables = sel ? visualTables(sel, scan) : [];
+  const orderedVisuals = useMemo(() => readingOrder(visuals), [visuals]);
+  const selectedOrder = useMemo(() => {
+    if (!sel) return null;
+    const idx = orderedVisuals.indexOf(sel);
+    return idx !== -1 ? idx + 1 : null;
+  }, [sel, orderedVisuals]);
+
+  const bloatInfo = useMemo(() => {
+    if (!page) return null;
+    const hasVisualBloat = pageFindings.some((f) => f.rule_id === 'REPORT_VISUAL_BLOAT') || page.visual_count > VISUAL_LIMIT;
+    const hasSlicerBloat = pageFindings.some((f) => f.rule_id === 'REPORT_SLICER_BLOAT') || page.slicer_count > 6;
+    if (!hasVisualBloat && !hasSlicerBloat) return null;
+    return {
+      hasVisualBloat,
+      hasSlicerBloat,
+      title: hasVisualBloat && hasSlicerBloat
+        ? 'Visual & slicer bloat notice:'
+        : hasSlicerBloat
+        ? 'Slicer bloat notice:'
+        : 'Visual bloat notice:',
+      message: hasVisualBloat && hasSlicerBloat
+        ? `Page has ${page.visual_count} visuals (limit ${VISUAL_LIMIT}) and ${page.slicer_count} slicers (limit 6).`
+        : hasSlicerBloat
+        ? `Page has ${page.slicer_count} slicers (exceeds limit of 6).`
+        : `Page has ${page.visual_count} visuals (exceeds limit of ${VISUAL_LIMIT}).`,
+    };
+  }, [pageFindings, page]);
 
   if (!pages.length) {
     return (
@@ -93,6 +120,17 @@ export const PagesScreen: React.FC<{
                 : 'This page has no visuals to draw.'}
             </span></div>
           )}
+          {page && view === '3d' && bloatInfo && hasLayout && (
+            <div className="notice" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px' }}>
+              <span style={{ fontSize: 13 }}>
+                <strong>{bloatInfo.title}</strong> {bloatInfo.message}
+              </span>
+              <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setView('2d')}>
+                <Square size={12} aria-hidden="true" style={{ marginRight: 5 }} />
+                See 2D layout
+              </button>
+            </div>
+          )}
           {page && view === '3d' && (
             <ModelMap
               scan={scan} findings={findings} page={hasLayout ? page : null} title={page.display_name}
@@ -103,13 +141,23 @@ export const PagesScreen: React.FC<{
 
           <div className="grid-2">
             <section className="panel" aria-label="Selected visual">
-              <div className="panel-head"><h3>{sel ? sel.visual_type : 'Visual'}</h3>{sel?.is_slicer && <span className="chip">slicer</span>}{sel?.hidden && <span className="chip">hidden</span>}{visual !== null && over.has(visual) && <span className="chip warn">over limit</span>}</div>
+              <div className="panel-head">
+                <h3>{sel ? sel.visual_type : 'Visual'}</h3>
+                {selectedOrder !== null && <span className="chip" title="Layout position order (geometric top-to-bottom, left-to-right)">#{selectedOrder} in layout</span>}
+                {sel?.is_slicer && <span className="chip">slicer</span>}
+                {sel?.hidden && <span className="chip">hidden</span>}
+                {visual !== null && over.has(visual) && <span className="chip warn">over limit</span>}
+              </div>
               <div className="panel-body">
                 {sel ? (
                   <dl className="kv">
                     <dt>reads</dt><dd>{selTables.length ? selTables.join(', ') : 'no model tables'}</dd>
                     <dt>measures</dt><dd className="mono" style={{ fontSize: 12 }}>{sel.measure_refs.length ? sel.measure_refs.join(', ') : 'none'}</dd>
+                    {sel.fields_used && sel.fields_used.length > 0 && (
+                      <><dt>fields</dt><dd className="mono" style={{ fontSize: 12 }}>{sel.fields_used.join(', ')}</dd></>
+                    )}
                     <dt>position</dt><dd className="mono" style={{ fontSize: 12 }}>x {Math.round(sel.x)} · y {Math.round(sel.y)} · {Math.round(sel.width)} × {Math.round(sel.height)}</dd>
+                    <dt>layout pos</dt><dd style={{ fontSize: 12 }}>#{selectedOrder} (geometric order: top-to-bottom, left-to-right)</dd>
                   </dl>
                 ) : <p className="muted" style={{ margin: 0, fontSize: 13 }}>Click a visual to see which tables and measures it reads.</p>}
               </div>
@@ -131,22 +179,97 @@ export const PagesScreen: React.FC<{
   );
 };
 
+const SLICER_TYPES = new Set(['slicer', 'advancedslicer', 'hierarchyslicer', 'chicslicer']);
+const CARD_TYPES = new Set(['card', 'multirowcard', 'kpi', 'gauge', 'cardvisual', 'scorecard']);
+const TABLE_TYPES = new Set(['tableex', 'matrix', 'pivottable', 'table']);
+const CONTAINER_TYPES = new Set(['textbox', 'shape', 'basicshape', 'actionbutton', 'image', 'group', 'line']);
+const CHART_TYPES = new Set([
+  'barchart', 'clusteredbarchart', 'hundredpercentstackedbarchart', 'stackedbarchart',
+  'columnchart', 'clusteredcolumnchart', 'hundredpercentstackedcolumnchart', 'stackedcolumnchart',
+  'linechart', 'areachart', 'stackedareachart', 'linestackedcolumncombochart', 'lineclusteredcolumncombochart',
+  'piechart', 'donutchart', 'scatterchart', 'bubblechart',
+  'treemap', 'waterfallchart', 'funnel', 'ribbonchart',
+  'map', 'filledmap', 'shapemap', 'azuremap', 'esrimap',
+  'decompositiontreevisual', 'keydriversvisual',
+]);
+
+function visualCategory(type: string, isSlicer?: boolean): string {
+  if (isSlicer) return 'cat-slicer';
+  const t = (type || '').toLowerCase().trim();
+  if (SLICER_TYPES.has(t) || t.endsWith('slicer')) return 'cat-slicer';
+  if (CARD_TYPES.has(t) || t.endsWith('card') || t.endsWith('kpi') || t.endsWith('gauge')) return 'cat-card';
+  if (TABLE_TYPES.has(t) || t.endsWith('matrix') || t.endsWith('tableex')) return 'cat-table';
+  if (CONTAINER_TYPES.has(t) || t.endsWith('shape') || t.endsWith('textbox') || t.endsWith('button') || t.endsWith('image')) return 'cat-container';
+  if (CHART_TYPES.has(t) || t.endsWith('chart') || t.endsWith('map') || t.endsWith('treemap') || t.endsWith('waterfall') || t.endsWith('funnel')) return 'cat-chart';
+  return 'cat-other';
+}
+
 const PageCanvas: React.FC<{ page: PageInfo; over: Set<number>; selected: number | null; onSelect: (i: number | null) => void }> = ({ page, over, selected, onSelect }) => {
   const W = page.width || 1280, H = page.height || 720;
   const visuals = page.visuals || [];
+  const ordered = useMemo(() => readingOrder(visuals), [visuals]);
+  const orderMap = useMemo(() => {
+    const map = new Map<VisualInfo, number>();
+    ordered.forEach((v, idx) => map.set(v, idx + 1));
+    return map;
+  }, [ordered]);
+
   return (
     <div className="panel" style={{ padding: 12 }}>
+      <div className="canvas-meta">
+        <span>Canvas: <strong>{W} × {H} px</strong> · {visuals.length} visuals · {page.slicer_count} slicers</span>
+        <span className="meta-tags">
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--v-slicer)' }} /> Slicer
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--v-card)' }} /> Card / KPI
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--v-table)' }} /> Table
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--v-chart)' }} /> Chart
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, border: '1px dashed var(--v-container)' }} /> Container / Shape
+          </span>
+        </span>
+      </div>
       <svg className="canvas2d" viewBox={`-4 -4 ${W + 8} ${H + 8}`} role="img" aria-label={`Layout of ${page.display_name}: ${visuals.length} visuals`}>
         <rect className="frame" x="0" y="0" width={W} height={H} />
         {visuals.map((v, i) => {
-          const cls = ['vis', v.is_slicer && 'slicer', over.has(i) && 'over', v.hidden && 'hidden', selected === i && 'sel'].filter(Boolean).join(' ');
-          const fs = Math.max(11, Math.min(18, v.height / 6));
+          const category = visualCategory(v.visual_type, v.is_slicer);
+          const cls = ['vis', category, over.has(i) && 'over', v.hidden && 'hidden', selected === i && 'sel'].filter(Boolean).join(' ');
+          const pos = orderMap.get(v) ?? (i + 1);
+          const badgeW = pos > 99 ? 34 : (pos > 9 ? 28 : 22);
+          const badgeH = 16;
+          const showBadge = v.width >= 32 && v.height >= 22;
+          const fs = Math.max(10, Math.min(14, v.height / 5));
+          const showTitle = v.width > 70 && v.height > 26;
+
           return (
-            <g key={i} className={cls} tabIndex={0} role="button" aria-label={`${v.visual_type}${over.has(i) ? ', over the visual limit' : ''}`}
+            <g key={i} className={cls} tabIndex={0} role="button" aria-label={`Position #${pos}: ${v.visual_type}${over.has(i) ? ', over the visual limit' : ''}`}
                onClick={() => onSelect(selected === i ? null : i)}
                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(selected === i ? null : i); } }}>
-              <rect x={v.x + 3} y={v.y + 3} width={Math.max(4, v.width - 6)} height={Math.max(4, v.height - 6)} />
-              {v.width > 60 && v.height > 26 && <text x={v.x + 10} y={v.y + 8 + fs} fontSize={fs}>{v.visual_type}</text>}
+              <rect className="vis-box" x={v.x + 3} y={v.y + 3} width={Math.max(4, v.width - 6)} height={Math.max(4, v.height - 6)} />
+              {showBadge && (
+                <g className="badge-group">
+                  <title>{`Layout order #${pos}`}</title>
+                  <rect className="badge-bg" x={v.x + 6} y={v.y + 6} width={badgeW} height={badgeH} />
+                  <text className="badge-txt" x={v.x + 6 + badgeW / 2} y={v.y + 6 + badgeH / 2} fontSize={10}>#{pos}</text>
+                </g>
+              )}
+              {showTitle && (
+                <text
+                  className="vis-title"
+                  x={v.height >= 46 || !showBadge ? v.x + 8 : v.x + badgeW + 12}
+                  y={v.height >= 46 ? v.y + 12 + badgeH + fs : v.y + v.height / 2 + 4}
+                  fontSize={fs}
+                >
+                  {v.visual_type}
+                </text>
+              )}
             </g>
           );
         })}

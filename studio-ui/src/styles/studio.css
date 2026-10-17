@@ -31,6 +31,15 @@
   --t-visual: #FFFFFF;
   --t-slicer: #F2B84B;
 
+  /* Visual categories & wireframe tokens */
+  --v-slicer: #F2B84B;
+  --v-card: #E88C1A;
+  --v-table: #0891B2;
+  --v-chart: #7C3AED;
+  --v-container: var(--rule-strong);
+  --v-badge-over-bg: var(--sev-high);
+  --v-badge-over-txt: #FFFFFF;
+
   --sev-critical: #C42A20;
   --sev-high: #E8641A;
   --sev-medium: #CC9500;
@@ -68,6 +77,8 @@
     --good: #3FCF8E; --good-soft: #0F3326; --bad-soft: #3D1A1C;
     --t-fact: #5B74FF; --t-fact-edge: #C3CDFF; --t-dim: #3FB5A2; --t-dim-edge: #A6EEE2; --t-date: #A68BFF; --t-date-edge: #E2D8FF;
     --t-other: #4A5875; --t-other-edge: #A7B4CA; --t-visual: #22304C; --t-slicer: #F2B84B;
+    --v-slicer: #F2B84B; --v-card: #FB923C; --v-table: #22D3EE; --v-chart: #A78BFA; --v-container: var(--rule-strong);
+    --v-badge-over-bg: var(--sev-high); --v-badge-over-txt: #0A1120;
     --sev-critical: #FF5A4E; --sev-high: #FF8C42; --sev-medium: #F2BE2E; --sev-warning: #F06BA3; --sev-advisory: #8C9DB8; --sev-low: #6E7D97;
     --code-bg: #0C1526; --tok-fn: #8EA1FF; --tok-ref: #C59BFF; --tok-str: #F2A16B; --tok-num: #5FD9A0; --tok-kw: #FF8A80;
     --diff-add: #0F3326; --diff-del: #3D1A1C; --shadow: 0 1px 0 rgba(0,0,0,.35), 0 12px 32px -12px rgba(0,0,0,.7);
@@ -81,6 +92,8 @@
   --good: #3FCF8E; --good-soft: #0F3326; --bad-soft: #3D1A1C;
   --t-fact: #5B74FF; --t-fact-edge: #C3CDFF; --t-dim: #3FB5A2; --t-dim-edge: #A6EEE2; --t-date: #A68BFF; --t-date-edge: #E2D8FF;
   --t-other: #4A5875; --t-other-edge: #A7B4CA; --t-visual: #22304C; --t-slicer: #F2B84B;
+  --v-slicer: #F2B84B; --v-card: #FB923C; --v-table: #22D3EE; --v-chart: #A78BFA; --v-container: var(--rule-strong);
+  --v-badge-over-bg: var(--sev-high); --v-badge-over-txt: #0A1120;
   --sev-critical: #FF5A4E; --sev-high: #FF8C42; --sev-medium: #F2BE2E; --sev-warning: #F06BA3; --sev-advisory: #8C9DB8; --sev-low: #6E7D97;
   --code-bg: #0C1526; --tok-fn: #8EA1FF; --tok-ref: #C59BFF; --tok-str: #F2A16B; --tok-num: #5FD9A0; --tok-kw: #FF8A80;
   --diff-add: #0F3326; --diff-del: #3D1A1C; --shadow: 0 1px 0 rgba(0,0,0,.35), 0 12px 32px -12px rgba(0,0,0,.7);
@@ -392,15 +405,25 @@ code, pre, .mono { font-family: var(--f-mono); }
 .stat span { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .07em; }
 
 /* ---------- Pages: 2D canvas ---------- */
-.canvas2d { width: 100%; height: auto; display: block; background: var(--panel); }
+.canvas-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-3); }
+.canvas-meta .meta-tags { display: flex; gap: 8px; align-items: center; }
+.canvas2d { width: 100%; height: auto; display: block; background: var(--panel); border: 1px solid var(--rule); }
 .canvas2d .vis { cursor: pointer; }
-.canvas2d .vis rect { fill: var(--panel-2); stroke: var(--rule-strong); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.canvas2d .vis.slicer rect { fill: color-mix(in srgb, var(--t-slicer) 30%, var(--panel)); stroke: var(--t-slicer); }
-.canvas2d .vis.over rect { stroke: var(--sev-medium); stroke-width: 2.5; }
-.canvas2d .vis.hidden rect { fill: transparent; stroke-dasharray: 4 3; }
-.canvas2d .vis:hover rect, .canvas2d .vis.sel rect { stroke: var(--accent); stroke-width: 2.5; }
-.canvas2d .vis.sel rect { fill: var(--accent-soft); }
-.canvas2d text { fill: var(--ink-2); font-family: var(--f-mono); }
+.canvas2d .vis rect.vis-box { fill: var(--panel-2); stroke: var(--rule-strong); stroke-width: 1.5; vector-effect: non-scaling-stroke; rx: 3px; ry: 3px; transition: stroke .15s, fill .15s; }
+.canvas2d .vis.cat-slicer rect.vis-box { fill: color-mix(in srgb, var(--v-slicer) 22%, var(--panel)); stroke: var(--v-slicer); }
+.canvas2d .vis.cat-card rect.vis-box { fill: color-mix(in srgb, var(--v-card) 18%, var(--panel)); stroke: color-mix(in srgb, var(--v-card) 75%, var(--rule-strong)); }
+.canvas2d .vis.cat-table rect.vis-box { fill: color-mix(in srgb, var(--v-table) 18%, var(--panel)); stroke: color-mix(in srgb, var(--v-table) 75%, var(--rule-strong)); }
+.canvas2d .vis.cat-chart rect.vis-box { fill: color-mix(in srgb, var(--v-chart) 18%, var(--panel)); stroke: color-mix(in srgb, var(--v-chart) 75%, var(--rule-strong)); }
+.canvas2d .vis.cat-container rect.vis-box { fill: transparent; stroke: var(--v-container); stroke-dasharray: 3 3; }
+.canvas2d .vis.over rect.vis-box { stroke: var(--sev-medium); stroke-width: 2.5; }
+.canvas2d .vis.hidden rect.vis-box { fill: transparent; stroke-dasharray: 4 3; opacity: 0.6; }
+.canvas2d .vis:hover rect.vis-box, .canvas2d .vis.sel rect.vis-box { stroke: var(--accent); stroke-width: 2.5; }
+.canvas2d .vis.sel rect.vis-box { fill: var(--accent-soft); }
+.canvas2d text.vis-title { fill: var(--ink-2); font-family: var(--f-mono); user-select: none; pointer-events: none; }
+.canvas2d .badge-bg { fill: var(--panel-2); stroke: var(--rule-strong); stroke-width: 1; rx: 3px; ry: 3px; vector-effect: non-scaling-stroke; }
+.canvas2d .vis.over .badge-bg { fill: var(--v-badge-over-bg); stroke: var(--v-badge-over-bg); }
+.canvas2d .badge-txt { fill: var(--ink-2); font-family: var(--f-mono); font-weight: 600; text-anchor: middle; dominant-baseline: central; user-select: none; pointer-events: none; }
+.canvas2d .vis.over .badge-txt { fill: var(--v-badge-over-txt); }
 .canvas2d .frame { fill: none; stroke: var(--rule-strong); vector-effect: non-scaling-stroke; }
 
 /* ---------- Landing ---------- */
