@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from urllib.parse import unquote
+
 from pbiscan.engine.recommendations import RECOMMENDATIONS
 from pbiscan.rules.catalog import RULES_BY_ID
 
@@ -34,7 +36,9 @@ def get_rules_catalog_json() -> str:
 
 def get_rule_detail_json(rule_id: str) -> str:
     """Return structured specification and guidance for a single rule_id."""
-    normalized_id = rule_id.strip().upper()
+    # The id arrives as it appeared in the resource URI, still percent-encoded
+    # (a trailing space is "%20"), so decode it before normalizing.
+    normalized_id = unquote(rule_id).strip().upper()
     if normalized_id not in RULES_BY_ID:
         return json.dumps({
             "error": f"Rule '{rule_id}' not found in PBIP Sentinel rule catalog",

@@ -54,6 +54,11 @@ class TestMcpResources:
         assert "impact" in data and len(data["impact"]) > 0
         assert "recommendation" in data and len(data["recommendation"]) > 0
 
+    def test_rule_detail_decodes_percent_encoded_rule_id(self):
+        # MCP Inspector sends a stray trailing space in the URI as "%20".
+        data = json.loads(get_rule_detail_json("model_bidirectional%20"))
+        assert data["rule_id"] == "MODEL_BIDIRECTIONAL"
+
     def test_rule_detail_invalid_rule_returns_fallback_catalog(self):
         detail_raw = get_rule_detail_json("FAKE_RULE_XYZ")
         data = json.loads(detail_raw)
