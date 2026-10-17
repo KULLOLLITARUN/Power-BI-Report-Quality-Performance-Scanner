@@ -10,7 +10,7 @@ import secrets
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -175,14 +175,43 @@ class ExportRequest(BaseModel):
     config_path: Optional[str] = None
 
 
+class FindingPayload(BaseModel):
+    rule_id: str
+    category: Optional[str] = "model"
+    severity: Optional[str] = "WARNING"
+    title: Optional[str] = ""
+    issue: Optional[str] = ""
+    evidence: Optional[str] = ""
+    impact: Optional[str] = ""
+    recommendation: Optional[str] = ""
+    confidence: Optional[int] = 100
+    location: Optional[str] = None
+    suppressed: Optional[bool] = False
+    suppression_reason: Optional[str] = None
+
+
+class ScanArtifactPayload(BaseModel):
+    report_name: Optional[str] = "Report"
+    scores: Optional[dict[str, Any]] = None
+    findings: list[FindingPayload] = []
+    scanner_version: Optional[str] = None
+    warnings: Optional[list[str]] = None
+
+
 class DiffRequest(BaseModel):
-    baseline_path: str
-    current_path: str
+    baseline_path: Optional[str] = None
+    baseline_data: Optional[ScanArtifactPayload] = None
+    current_path: Optional[str] = None
+    current_data: Optional[ScanArtifactPayload] = None
     config_path: Optional[str] = None
     fail_on_regression: Optional[bool] = False
     max_score_drop: Optional[float] = None
     fail_on_new: Optional[str] = None
     fail_on_category_regression: Optional[str] = None
+
+
+ScanArtifactPayload.model_rebuild()
+DiffRequest.model_rebuild()
 
 
 # ---------------------------------------------------------------------------
@@ -322,8 +351,35 @@ async def export_audit(req: ExportRequest):
 @app.post("/api/diff")
 async def diff_audit(req: DiffRequest):
     """Compare two scans (PBIP directories or JSON artifacts) and return canonical DiffResult."""
-    base_path = _existing_path(req.baseline_path, "Baseline path")
-    curr_path = _existing_path(req.current_path, "Current path")
+    # Baseline source validation: exactly one source
+    if req.baseline_path is not None and req.baseline_data is not None:
+        raise HTTPException(status_code=422, detail="Specify either baseline_path or baseline_data, not both.")
+    if req.baseline_path is None and req.baseline_data is None:
+        raise HTTPException(status_code=422, detail="Either baseline_path or baseline_data is required.")
+
+    # Current source validation: exactly one source
+    if req.current_path is not None and req.current_data is not None:
+        raise HTTPException(status_code=422, detail="Specify either current_path or current_data, not both.")
+    if req.current_path is None and req.current_data is None:
+        raise HTTPException(status_code=422, detail="Either current_path or current_data is required.")
+
+    base_target: Union[Path, dict[str, Any]]
+    if req.baseline_path is not None:
+        base_target = _existing_path(req.baseline_path, "Baseline path")
+    else:
+        assert req.baseline_data is not None
+        if len(req.baseline_data.findings) > 5000:
+            raise HTTPException(status_code=422, detail="Baseline findings payload exceeds maximum size (5000).")
+        base_target = req.baseline_data.model_dump()
+
+    curr_target: Union[Path, dict[str, Any]]
+    if req.current_path is not None:
+        curr_target = _existing_path(req.current_path, "Current path")
+    else:
+        assert req.current_data is not None
+        if len(req.current_data.findings) > 5000:
+            raise HTTPException(status_code=422, detail="Current findings payload exceeds maximum size (5000).")
+        curr_target = req.current_data.model_dump()
 
     policy = QualityGatePolicy(
         fail_on_regression=req.fail_on_regression or False,
@@ -334,8 +390,8 @@ async def diff_audit(req: DiffRequest):
 
     with _error_responses("Diff failed"):
         diff_res = DiffService.compare(
-            baseline=base_path,
-            current=curr_path,
+            baseline=base_target,
+            current=curr_target,
             policy=policy,
             config_path=req.config_path,
         )

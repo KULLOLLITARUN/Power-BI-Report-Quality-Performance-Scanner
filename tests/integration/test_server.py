@@ -101,3 +101,108 @@ def test_wildcard_allowed_host(monkeypatch):
     ext_client = TestClient(app, base_url="https://power-bi-report-quality-performance.onrender.com")
     resp = ext_client.get("/api/health")
     assert resp.status_code == 200
+
+
+def test_diff_in_memory_contract():
+    """Contract test: /api/diff with baseline_data and current_data detecting NEW, RESOLVED, and PERSISTENT findings."""
+    base_data = {
+        "report_name": "Sales Baseline",
+        "scores": {"overall": 80.0, "category_scores": {"model": 80.0, "dax": 80.0, "report": 80.0}},
+        "findings": [
+            {
+                "rule_id": "MODEL_BIDIRECTIONAL",
+                "category": "model",
+                "severity": "WARNING",
+                "title": "Persistent Bidirectional",
+                "location": "Sales <-> Customer",
+            },
+            {
+                "rule_id": "DAX_UNUSED_MEASURE",
+                "category": "dax",
+                "severity": "ADVISORY",
+                "title": "Old Unused Measure",
+                "location": "Sales[OldMeasure]",
+            },
+        ],
+    }
+
+    curr_data = {
+        "report_name": "Sales Current",
+        "scores": {"overall": 85.0, "category_scores": {"model": 80.0, "dax": 90.0, "report": 85.0}},
+        "findings": [
+            {
+                "rule_id": "MODEL_BIDIRECTIONAL",
+                "category": "model",
+                "severity": "WARNING",
+                "title": "Persistent Bidirectional",
+                "location": "Sales <-> Customer",
+            },
+            {
+                "rule_id": "REPORT_VISUAL_BLOAT",
+                "category": "report",
+                "severity": "MEDIUM",
+                "title": "New Page Bloat",
+                "location": "Page 1",
+            },
+        ],
+    }
+
+    response = client.post("/api/diff", json={"baseline_data": base_data, "current_data": curr_data})
+    assert response.status_code == 200
+    res = response.json()
+
+    assert res["baseline_name"] == "Sales Baseline"
+    assert res["current_name"] == "Sales Current"
+    assert res["score_drift"]["overall_delta"] == 5.0
+    assert res["counts"]["persistent"] == 1
+    assert res["counts"]["resolved"] == 1
+    assert res["counts"]["new"] == 1
+
+    states = {t["rule_id"]: t["state"] for t in res["transitions"]}
+    assert states["MODEL_BIDIRECTIONAL"] == "PERSISTENT"
+    assert states["DAX_UNUSED_MEASURE"] == "RESOLVED"
+    assert states["REPORT_VISUAL_BLOAT"] == "NEW"
+
+
+def test_diff_validation_source_exclusivity():
+    """Verify 422 is returned when sources are ambiguous or missing."""
+    # Both baseline_path and baseline_data sent
+    res1 = client.post("/api/diff", json={
+        "baseline_path": "tests/golden/test_bidirectional",
+        "baseline_data": {"findings": []},
+        "current_path": "tests/golden/test_bidirectional",
+    })
+    assert res1.status_code == 422
+    assert "either baseline_path or baseline_data, not both" in res1.json()["detail"]
+
+    # Neither baseline_path nor baseline_data sent
+    res2 = client.post("/api/diff", json={
+        "current_path": "tests/golden/test_bidirectional",
+    })
+    assert res2.status_code == 422
+    assert "Either baseline_path or baseline_data is required" in res2.json()["detail"]
+
+    # Both current_path and current_data sent
+    res3 = client.post("/api/diff", json={
+        "baseline_path": "tests/golden/test_bidirectional",
+        "current_path": "tests/golden/test_bidirectional",
+        "current_data": {"findings": []},
+    })
+    assert res3.status_code == 422
+    assert "either current_path or current_data, not both" in res3.json()["detail"]
+
+    # Neither current_path nor current_data sent
+    res4 = client.post("/api/diff", json={
+        "baseline_path": "tests/golden/test_bidirectional",
+    })
+    assert res4.status_code == 422
+    assert "Either current_path or current_data is required" in res4.json()["detail"]
+
+
+def test_diff_rejects_malformed_data():
+    """Verify 422 is returned when findings payload is malformed."""
+    res = client.post("/api/diff", json={
+        "baseline_data": {"findings": [{"rule_id": 12345}]},  # rule_id must be string
+        "current_data": "not-a-dict",
+    })
+    assert res.status_code == 422

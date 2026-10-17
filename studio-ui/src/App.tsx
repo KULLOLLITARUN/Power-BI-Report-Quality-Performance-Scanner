@@ -271,7 +271,7 @@ const Studio: React.FC = () => {
     body = (
       <>
         <div><button className="btn btn-ghost" onClick={() => setTab('overview')}><ArrowLeft aria-hidden="true" />Back</button></div>
-        {tab === 'compare' ? <CompareScreen hasBackend={hasBackend} /> : <AgentScreen hasBackend={hasBackend} onRuleCount={setRuleCount} />}
+        {tab === 'compare' ? <CompareScreen hasBackend={hasBackend} activeScan={scan} /> : <AgentScreen hasBackend={hasBackend} onRuleCount={setRuleCount} />}
       </>
     );
   } else if (!scan) {
@@ -285,7 +285,7 @@ const Studio: React.FC = () => {
       measures: <MeasuresScreen scan={scan} findings={openFindings} initial={measureTarget} onOpenFinding={openFinding} onOpenPage={openPage} />,
       pages: <PagesScreen scan={scan} findings={openFindings} initial={pageTarget} onOpenFinding={openFinding} />,
       fixes: <FixesScreen projectPath={path} findings={openFindings} hasBackend={hasBackend} isLocal={isLocal} onApplied={() => scanPath(path, true)} />,
-      compare: <CompareScreen hasBackend={hasBackend} initialBaseline={isLocal ? path : ''} />,
+      compare: <CompareScreen hasBackend={hasBackend} initialBaseline={isLocal ? path : ''} activeScan={scan} />,
       agent: <AgentScreen hasBackend={hasBackend} onRuleCount={setRuleCount} />,
     }[tab];
   }
