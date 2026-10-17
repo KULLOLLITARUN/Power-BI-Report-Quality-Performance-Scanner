@@ -65,3 +65,14 @@ def test_empty_report():
 
 def test_grade_boundaries():
     assert [grade(s) for s in (100, 90, 89.9, 80, 70, 60, 59.9)] == ["A", "A", "B", "B", "C", "D", "F"]
+
+
+def test_print_stylesheet_and_executive_summary():
+    """Verify HTML export contains print stylesheet, A4 @page, and executive summary page breaks."""
+    html = _render([_issue("TEST_RULE", "HIGH")])
+    assert "@media print" in html
+    assert "@page" in html
+    assert "class=\"exec-summary\"" in html
+    assert "class=\"exec-highlights\"" in html
+    assert "break-after: page" in html or "page-break-after: always" in html
+    assert "break-inside: avoid" in html or "page-break-inside: avoid" in html

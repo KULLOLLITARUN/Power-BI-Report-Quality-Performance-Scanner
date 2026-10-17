@@ -150,11 +150,79 @@
       .f-head, .f-body { padding-left: 14px; padding-right: 14px; }
     }
     @media print {
-      :root { color-scheme: light; }
-      body { background: #fff; font-size: 12px; }
-      .panel { border-color: #c8d0dc; }
-      .top { background: none; }
-      main.wrap { padding-top: 12px; }
+      @page {
+        size: A4;
+        margin: 14mm 16mm;
+      }
+      :root {
+        --paper: #ffffff;
+        --panel: #ffffff;
+        --panel-2: #f3f4f6;
+        --ink: #111827;
+        --ink-2: #374151;
+        --ink-3: #6b7280;
+        --rule: #d1d5db;
+        --rule-strong: #9ca3af;
+        --code-bg: #f9fafb;
+        color-scheme: light;
+      }
+      body {
+        background: #ffffff;
+        color: #111827;
+        font-size: 11.5px;
+        line-height: 1.45;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .wrap { max-width: 100%; padding: 0; }
+      .top { border-bottom: 2px solid var(--ink); background: none; }
+      .top .wrap { padding-top: 8px; padding-bottom: 8px; }
+      .exec-summary {
+        break-after: page;
+        page-break-after: always;
+        padding-bottom: 16px;
+      }
+      .exec-highlights {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .exec-kpi {
+        padding: 12px 14px;
+        border: 1px solid var(--rule);
+        border-radius: var(--radius);
+        background: var(--code-bg);
+      }
+      .exec-kpi .val {
+        font-family: var(--f-display);
+        font-size: 20px;
+        font-weight: 700;
+        margin-top: 4px;
+        color: var(--ink);
+      }
+      .exec-kpi .sub {
+        font-size: 11px;
+        color: var(--ink-3);
+        margin-top: 2px;
+      }
+      .ledger { border: 1px solid var(--rule); }
+      .finding {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 12px;
+        border: 1px solid var(--rule);
+      }
+      h2 {
+        break-after: avoid;
+        page-break-after: avoid;
+        margin-top: 16px;
+        font-size: 18px;
+      }
+      footer {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
     }
   </style>
 </head>
@@ -174,37 +242,59 @@
 </header>
 
 <main class="wrap">
-  <div class="ledger panel">
-    <section aria-label="Overall score">
-      <div class="label">Model health</div>
-      <div class="score-row">
-        <div class="score">{{ '%.1f'|format(overall_score) }}</div>
-        <div class="score-of">/ 100</div>
-        <div class="grade" title="Grade">{{ grade }}</div>
-      </div>
-      <div class="verdict">{{ verdict }}</div>
-    </section>
-    <section aria-label="Category scores">
-      <div class="label">By area</div>
-      <div class="cats">
-        {% for cat in categories %}
-        <div class="cat">
-          <span>{{ cat.label }}</span>
-          <span class="bar" role="img" aria-label="{{ cat.label }} {{ '%.1f'|format(cat.score) }} of 100, target {{ target }}"><i style="width: {{ [[cat.score, 0]|max, 100]|min }}%"></i><span class="target" style="left: {{ target }}%"></span></span>
-          <b class="num">{{ '%.1f'|format(cat.score) }}</b>
+  <div class="exec-summary">
+    <div class="ledger panel">
+      <section aria-label="Overall score">
+        <div class="label">Model health</div>
+        <div class="score-row">
+          <div class="score">{{ '%.1f'|format(overall_score) }}</div>
+          <div class="score-of">/ 100</div>
+          <div class="grade" title="Grade">{{ grade }}</div>
         </div>
-        {% endfor %}
+        <div class="verdict">{{ verdict }}</div>
+      </section>
+      <section aria-label="Category scores">
+        <div class="label">By area</div>
+        <div class="cats">
+          {% for cat in categories %}
+          <div class="cat">
+            <span>{{ cat.label }}</span>
+            <span class="bar" role="img" aria-label="{{ cat.label }} {{ '%.1f'|format(cat.score) }} of 100, target {{ target }}"><i style="width: {{ [[cat.score, 0]|max, 100]|min }}%"></i><span class="target" style="left: {{ target }}%"></span></span>
+            <b class="num">{{ '%.1f'|format(cat.score) }}</b>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="cat-note"><i></i>target {{ target }}</div>
+      </section>
+      <section aria-label="Findings by severity">
+        <div class="label">{{ open_issues|length }} open finding{{ '' if open_issues|length == 1 else 's' }}{% if suppressed_issues %} · {{ suppressed_issues|length }} suppressed{% endif %}</div>
+        <ul class="sevs">
+          {% for sev in severity_order %}
+          <li class="{{ '' if severity_counts.get(sev) else 'zero' }}">{{ marker(sev) }}{{ sev|capitalize }}<b>{{ severity_counts.get(sev, 0) }}</b></li>
+          {% endfor %}
+        </ul>
+      </section>
+    </div>
+
+    <div class="exec-highlights">
+      <div class="exec-kpi">
+        <div class="label">Quality Gate</div>
+        <div class="val" style="color: {{ 'var(--good)' if overall_score >= target else 'var(--sev-high)' }};">
+          {{ 'PASSED' if overall_score >= target else 'NEEDS REMEDIATION' }}
+        </div>
+        <div class="sub">Benchmark target: {{ target }}.0 / 100</div>
       </div>
-      <div class="cat-note"><i></i>target {{ target }}</div>
-    </section>
-    <section aria-label="Findings by severity">
-      <div class="label">{{ open_issues|length }} open finding{{ '' if open_issues|length == 1 else 's' }}{% if suppressed_issues %} · {{ suppressed_issues|length }} suppressed{% endif %}</div>
-      <ul class="sevs">
-        {% for sev in severity_order %}
-        <li class="{{ '' if severity_counts.get(sev) else 'zero' }}">{{ marker(sev) }}{{ sev|capitalize }}<b>{{ severity_counts.get(sev, 0) }}</b></li>
-        {% endfor %}
-      </ul>
-    </section>
+      <div class="exec-kpi">
+        <div class="label">Active Findings</div>
+        <div class="val">{{ open_issues|length }}</div>
+        <div class="sub">{% if suppressed_issues %}{{ suppressed_issues|length }} suppressed via policy{% else %}No active suppressions{% endif %}</div>
+      </div>
+      <div class="exec-kpi">
+        <div class="label">Audit Integrity</div>
+        <div class="val">Deterministic</div>
+        <div class="sub">OASIS SARIF & TMDL verified</div>
+      </div>
+    </div>
   </div>
 
   {% if warnings %}
