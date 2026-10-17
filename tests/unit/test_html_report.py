@@ -76,3 +76,12 @@ def test_print_stylesheet_and_executive_summary():
     assert "class=\"exec-highlights\"" in html
     assert "break-after: page" in html or "page-break-after: always" in html
     assert "break-inside: avoid" in html or "page-break-inside: avoid" in html
+
+
+def test_audit_integrity_card_wording():
+    """Verify executive summary card uses honest rule-based wording with no unsupported claims."""
+    html = _render([_issue("TEST_RULE", "HIGH")])
+    assert "Rule-based" in html
+    assert "Findings come from fixed rules" in html
+    assert "OASIS SARIF" not in html
+    assert "TMDL verified" not in html

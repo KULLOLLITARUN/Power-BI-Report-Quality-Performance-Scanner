@@ -29,10 +29,10 @@
   --t-other: #B9C3D3;
   --t-other-edge: #5B6880;
   --t-visual: #FFFFFF;
-  --t-slicer: #F2B84B;
+  --t-slicer: #475569;
 
   /* Visual categories & wireframe tokens */
-  --v-slicer: #F2B84B;
+  --v-slicer: #475569;
   --v-card: #E88C1A;
   --v-table: #0891B2;
   --v-chart: #7C3AED;
@@ -76,8 +76,8 @@
     --rule: #1F2C45; --rule-strong: #31415F; --accent: #7D93FF; --accent-ink: #0A1120; --accent-soft: #1C2A5C;
     --good: #3FCF8E; --good-soft: #0F3326; --bad-soft: #3D1A1C;
     --t-fact: #5B74FF; --t-fact-edge: #C3CDFF; --t-dim: #3FB5A2; --t-dim-edge: #A6EEE2; --t-date: #A68BFF; --t-date-edge: #E2D8FF;
-    --t-other: #4A5875; --t-other-edge: #A7B4CA; --t-visual: #22304C; --t-slicer: #F2B84B;
-    --v-slicer: #F2B84B; --v-card: #FB923C; --v-table: #22D3EE; --v-chart: #A78BFA; --v-container: var(--rule-strong);
+    --t-other: #4A5875; --t-other-edge: #A7B4CA; --t-visual: #22304C; --t-slicer: #94A3B8;
+    --v-slicer: #94A3B8; --v-card: #FB923C; --v-table: #22D3EE; --v-chart: #A78BFA; --v-container: var(--rule-strong);
     --v-badge-over-bg: var(--sev-high); --v-badge-over-txt: #0A1120;
     --sev-critical: #FF5A4E; --sev-high: #FF8C42; --sev-medium: #F2BE2E; --sev-warning: #F06BA3; --sev-advisory: #8C9DB8; --sev-low: #6E7D97;
     --code-bg: #0C1526; --tok-fn: #8EA1FF; --tok-ref: #C59BFF; --tok-str: #F2A16B; --tok-num: #5FD9A0; --tok-kw: #FF8A80;
@@ -91,8 +91,8 @@
   --rule: #1F2C45; --rule-strong: #31415F; --accent: #7D93FF; --accent-ink: #0A1120; --accent-soft: #1C2A5C;
   --good: #3FCF8E; --good-soft: #0F3326; --bad-soft: #3D1A1C;
   --t-fact: #5B74FF; --t-fact-edge: #C3CDFF; --t-dim: #3FB5A2; --t-dim-edge: #A6EEE2; --t-date: #A68BFF; --t-date-edge: #E2D8FF;
-  --t-other: #4A5875; --t-other-edge: #A7B4CA; --t-visual: #22304C; --t-slicer: #F2B84B;
-  --v-slicer: #F2B84B; --v-card: #FB923C; --v-table: #22D3EE; --v-chart: #A78BFA; --v-container: var(--rule-strong);
+  --t-other: #4A5875; --t-other-edge: #A7B4CA; --t-visual: #22304C; --t-slicer: #94A3B8;
+  --v-slicer: #94A3B8; --v-card: #FB923C; --v-table: #22D3EE; --v-chart: #A78BFA; --v-container: var(--rule-strong);
   --v-badge-over-bg: var(--sev-high); --v-badge-over-txt: #0A1120;
   --sev-critical: #FF5A4E; --sev-high: #FF8C42; --sev-medium: #F2BE2E; --sev-warning: #F06BA3; --sev-advisory: #8C9DB8; --sev-low: #6E7D97;
   --code-bg: #0C1526; --tok-fn: #8EA1FF; --tok-ref: #C59BFF; --tok-str: #F2A16B; --tok-num: #5FD9A0; --tok-kw: #FF8A80;
