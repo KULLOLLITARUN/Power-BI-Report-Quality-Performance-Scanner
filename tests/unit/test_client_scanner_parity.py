@@ -25,6 +25,7 @@ from pathlib import Path
 import pytest
 
 from pbiscan.engine.scoring import _SCORED_CATEGORIES, score_overall
+from pbiscan.extraction.raw import extract_measure_names
 from pbiscan.rules.catalog import RULE_CATALOG
 from pbiscan.service import DEFAULT_CONFIG, ScanService
 
@@ -269,3 +270,58 @@ def test_overall_score_rounding_matches_python():
         if ts != (py := score_overall(dict(zip(_SCORED_CATEGORIES, t)), weights))
     ]
     assert not mismatches, mismatches[:10]
+
+def test_ast_measure_extraction_edge_payload_parity():
+    """Shared edge-payload contract: both Python extract_measure_names and TypeScript
+    extractMeasureNamesFromExprTree receive the exact same payload tree covering
+    valid measures, whitespace strings, empty strings, numbers, booleans, objects,
+    arrays, nulls, and non-measure string literals."""
+    payload = {
+        # Non-measure string literals (must be ignored by both engines)
+        "title": "IgnoredTitleMetric",
+        "displayName": "IgnoredDisplayMetric",
+        "description": "   ",
+        "textLiteral": {"Literal": {"Value": "'IgnoredLiteralMetric'"}},
+        # Edge cases for Measure.Property types
+        "validStandard": {"Measure": {"Property": "StandardMeasure"}},
+        "validWithWhitespace": {"Measure": {"Property": "   "}},
+        "validPreservedSpaces": {"Measure": {"Property": " Sales"}},
+        "emptyString": {"Measure": {"Property": ""}},
+        "missingProperty": {"Measure": {}},
+        "nullProperty": {"Measure": {"Property": None}},
+        "numericProperty": {"Measure": {"Property": 12345}},
+        "boolTrueProperty": {"Measure": {"Property": True}},
+        "boolFalseProperty": {"Measure": {"Property": False}},
+        "objectProperty": {"Measure": {"Property": {"nested": "obj"}}},
+        "arrayProperty": {"Measure": {"Property": ["arr1", "arr2"]}},
+        # Edge cases for Measure object itself
+        "nullMeasure": {"Measure": None},
+        "arrayMeasure": {"Measure": []},
+        "primitiveMeasure": {"Measure": "not_an_object"},
+        # Nested subtrees and arrays
+        "nestedContainers": [
+            {"objects": {"card": [{"Measure": {"Property": "NestedCardMeasure"}}]}},
+            {"subTitle": {"Measure": {"Property": 999}}},
+            {"emptyList": []},
+        ],
+    }
+
+    py_extracted = sorted(extract_measure_names(payload))
+
+    result = subprocess.run(
+        ["node", str(HARNESS_BUNDLE), "--extract-measure-names"],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
+    )
+    ts_extracted = json.loads(result.stdout)
+
+    assert ts_extracted == py_extracted, (
+        f"Measure extraction diverged on edge payload:\n"
+        f"  Python:     {py_extracted}\n"
+        f"  TypeScript: {ts_extracted}"
+    )
+    assert py_extracted == ["   ", " Sales", "NestedCardMeasure", "StandardMeasure"]
+

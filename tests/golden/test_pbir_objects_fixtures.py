@@ -62,3 +62,26 @@ class TestPbirObjectsMeasureExtraction:
             f"Expected exactly 1 unused measure finding, got {len(unused_findings)}: {[f.location for f in unused_findings]}"
         )
         assert unused_findings[0].location == "Measure: GenuinelyUnusedMetric"
+
+    def test_non_measure_string_literals_are_not_extracted(self):
+        """Plain string literals matching measure names (titles, displayNames) must NOT prevent unused detection."""
+        from pbiscan.extraction.raw import extract_measure_names
+
+        payload = {
+            "displayName": "GenuinelyUnusedMetric",
+            "title": "GenuinelyUnusedMetric",
+            "objects": {
+                "title": [{"properties": {"text": {"expr": {"Literal": {"Value": "'GenuinelyUnusedMetric'"}}}}}]
+            },
+            # True-positive control: valid Measure object sibling must be extracted
+            "validVisualMeasure": {
+                "Measure": {
+                    "Expression": {"SourceRef": {"Entity": "Sales"}},
+                    "Property": "ActiveCardMetric",
+                }
+            },
+        }
+        extracted = extract_measure_names(payload)
+        assert "GenuinelyUnusedMetric" not in extracted
+        assert extracted == {"ActiveCardMetric"}
+

@@ -352,9 +352,9 @@ export function extractRlsBimReferences(roles: any[], sourceFile: string = 'mode
 export function extractMeasureNamesFromExprTree(obj: any): Set<string> {
   const refs = new Set<string>();
   if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
-    if (obj.Measure && typeof obj.Measure === 'object') {
+    if (obj.Measure && typeof obj.Measure === 'object' && !Array.isArray(obj.Measure)) {
       const prop = obj.Measure.Property;
-      if (prop) refs.add(prop);
+      if (typeof prop === 'string' && prop.length > 0) refs.add(prop);
     }
     for (const v of Object.values(obj)) {
       for (const r of extractMeasureNamesFromExprTree(v)) refs.add(r);

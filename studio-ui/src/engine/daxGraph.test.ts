@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildDaxGraph, serializeDaxGraph } from './daxGraph';
+import { extractMeasureNamesFromExprTree } from './semanticReferences';
 
 describe('serializeDaxGraph', () => {
   it('emits nodes, edges and reverse references shaped like the Python scan output', () => {
@@ -27,5 +28,46 @@ describe('serializeDaxGraph', () => {
     const out = serializeDaxGraph(buildDaxGraph(measures, []), measures);
     expect(out.has_cycles).toBe(true);
     expect(out.cycles).toEqual([['A', 'B', 'A']]);
+  });
+});
+
+describe('extractMeasureNamesFromExprTree', () => {
+  it('extracts measure names from valid Measure.Property structures', () => {
+    const tree = {
+      objects: {
+        referenceLabel: [
+          {
+            properties: {
+              value: {
+                expr: {
+                  Measure: {
+                    Property: 'Total Profit',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    };
+    const refs = extractMeasureNamesFromExprTree(tree);
+    expect(Array.from(refs)).toEqual(['Total Profit']);
+  });
+
+  it('ignores non-string Property types, empty strings, and non-measure string literals', () => {
+    const tree = {
+      title: 'Total Profit', // Plain string literal, NOT a Measure object
+      displayName: 'Total Profit',
+      objects: {
+        badMeasure1: { Measure: { Property: 12345 } }, // Non-string number
+        badMeasure2: { Measure: { Property: { nested: 'obj' } } }, // Non-string object
+        badMeasure3: { Measure: { Property: '' } }, // Empty string
+        badMeasure4: { Measure: null },
+        badMeasure5: { Measure: [] }, // Array Measure
+        validWhitespace: { Measure: { Property: '   ' } }, // Preserved as-is (matches Python)
+      },
+    };
+    const refs = extractMeasureNamesFromExprTree(tree);
+    expect(Array.from(refs)).toEqual(['   ']);
   });
 });

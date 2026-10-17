@@ -6,6 +6,7 @@ import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
 import type { PageInfo, ScanResult } from '../src/types';
 import { parseDroppedPbip, DroppedFile, SEVERITY_DEDUCTIONS, CATEGORY_WEIGHTS, RULE_CATALOG, overallScore } from '../src/engine/clientScanner';
+import { extractMeasureNamesFromExprTree } from '../src/engine/semanticReferences';
 
 function collectFiles(root: string): DroppedFile[] {
   const out: DroppedFile[] = [];
@@ -23,6 +24,13 @@ function collectFiles(root: string): DroppedFile[] {
   };
   walk(root);
   return out;
+}
+
+if (process.argv[2] === '--extract-measure-names') {
+  const payload = JSON.parse(readFileSync(0, 'utf-8'));
+  const names = Array.from(extractMeasureNamesFromExprTree(payload)).sort();
+  process.stdout.write(JSON.stringify(names));
+  process.exit(0);
 }
 
 if (process.argv[2] === '--scoring-constants') {
