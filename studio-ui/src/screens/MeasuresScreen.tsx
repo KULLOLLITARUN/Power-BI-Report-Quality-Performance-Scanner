@@ -6,18 +6,22 @@ import { findingTargets, measureUsage } from '../lib/model';
 import { sortFindings, worstSeverity } from '../lib/severity';
 import { SevMarker, SevTag, copyText, useToast } from '../components/ui';
 import { UsageEvidence } from '../components/UsageEvidence';
+import { DepGraph3D } from '../components/DepGraph3D';
+import { DaxRewriteAdvisor } from '../components/DaxRewriteAdvisor';
+import { buildDepLayout } from '../lib/depLayout';
 
 type Item = { kind: 'measure' | 'column'; name: string; table: string; expression: string; hidden?: boolean; data_type?: string };
 
 export const MeasuresScreen: React.FC<{
-  scan: ScanResult; findings: AuditFinding[]; initial: string | null; onOpenFinding: (f: AuditFinding) => void; onOpenPage: (name: string) => void;
-}> = ({ scan, findings, initial, onOpenFinding, onOpenPage }) => {
+  scan: ScanResult; findings: AuditFinding[]; initial: string | null; hasBackend: boolean; onOpenFinding: (f: AuditFinding) => void; onOpenPage: (name: string) => void;
+}> = ({ scan, findings, initial, hasBackend, onOpenFinding, onOpenPage }) => {
   const toast = useToast();
   const [kind, setKind] = useState<'measure' | 'column'>('measure');
   const [query, setQuery] = useState('');
   const [table, setTable] = useState('all');
   const [flagged, setFlagged] = useState(false);
   const [selected, setSelected] = useState<string | null>(initial);
+  const [view, setView] = useState<'list' | 'graph'>('list');
 
   useEffect(() => { if (initial) { setSelected(initial); setKind('measure'); } }, [initial]);
 
@@ -49,8 +53,11 @@ export const MeasuresScreen: React.FC<{
 
   const current = items.find((i) => i.name === selected && i.kind === kind) ?? list[0] ?? null;
   const curFindings = current ? sortFindings(findingsFor.get(keyOf(current)) ?? []) : [];
+  // An unused measure has nothing to rewrite, so it does not steer the advisor.
+  const rewriteFinding = curFindings.find((f) => f.category === 'dax' && f.rule_id !== 'DAX_UNUSED_MEASURE');
   const usage = current && current.kind === 'measure' ? measureUsage(current, scan.pages || []) : [];
   const node = current ? scan.dax_graph?.nodes?.find((n) => n.name.toLowerCase() === current.name.toLowerCase()) : undefined;
+  const depLayout = useMemo(() => buildDepLayout(scan), [scan]);
   const hasVisualData = (scan.pages || []).some((p) => p.visuals);
 
   const copy = async () => {
@@ -66,7 +73,17 @@ export const MeasuresScreen: React.FC<{
           <h2>Measures</h2>
           <p>{(scan.measures || []).length} measures and {(scan.calculated_columns || []).length} calculated columns. Flagged items carry a severity mark.</p>
         </div>
+        {depLayout && (
+          <div className="seg" role="group" aria-label="View">
+            <button aria-pressed={view === 'list'} onClick={() => setView('list')}>List</button>
+            <button aria-pressed={view === 'graph'} onClick={() => setView('graph')}>3D graph</button>
+          </div>
+        )}
       </div>
+      {view === 'graph' && depLayout && (
+        <DepGraph3D layout={depLayout} selected={selected}
+                    onSelect={(name) => { if (name) { setKind('measure'); setTable('all'); setQuery(''); setSelected(name); } }} />
+      )}
       <div className="split">
         <section className="panel" aria-label="Measure list">
           <div className="filters" style={{ display: 'grid', gap: 8 }}>
@@ -143,6 +160,10 @@ export const MeasuresScreen: React.FC<{
                     ) : <p className="muted" style={{ fontSize: 13 }}>This scan has no dependency data. Rescan with this version of pbiscan to see it.</p>}
                   </div>
                 </div>
+              )}
+              {hasBackend && (
+                <DaxRewriteAdvisor key={keyOf(current)} dax={current.expression}
+                                   ruleId={rewriteFinding?.rule_id} evidence={rewriteFinding?.evidence} />
               )}
               {current.kind === 'measure' && (
                 <UsageEvidence name={current.name} scan={scan} title={curFindings.some((f) => f.rule_id === 'DAX_UNUSED_MEASURE') ? 'Why it is flagged as unused' : 'Where pbiscan found it used'} />

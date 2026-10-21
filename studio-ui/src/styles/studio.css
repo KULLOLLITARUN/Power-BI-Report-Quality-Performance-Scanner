@@ -336,6 +336,9 @@ code, pre, .mono { font-family: var(--f-mono); }
 .tip { position: absolute; z-index: 3; pointer-events: none; background: var(--ink); color: var(--paper); font-family: var(--f-mono); font-size: 11px; padding: 7px 9px; border-radius: var(--radius); line-height: 1.5; white-space: nowrap; max-width: 320px; }
 .tip b { font-weight: 600; }
 .nogl { display: grid; place-items: center; height: 100%; color: var(--ink-3); font-size: 13px; padding: 20px; text-align: center; }
+.dep-stage { height: 420px; }
+.dlabel { position: absolute; left: 0; top: 0; font-family: var(--f-mono); font-size: 10.5px; white-space: nowrap; padding: 1px 5px; border-radius: 2px; background: color-mix(in srgb, var(--panel) 85%, transparent); will-change: transform; }
+.dlabel.sel { color: var(--accent); font-weight: 600; }
 .map.expanded { position: fixed; inset: 16px; z-index: 60; box-shadow: var(--shadow); }
 .map.expanded .map-stage { height: auto; flex: 1; }
 .backdrop { position: fixed; inset: 0; z-index: 59; background: var(--scrim); }

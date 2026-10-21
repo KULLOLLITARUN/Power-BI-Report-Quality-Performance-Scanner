@@ -1,14 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronRight, CircleCheck, CircleAlert, ShieldAlert, ShieldCheck, Sparkles, Terminal } from 'lucide-react';
+import { ChevronRight, CircleCheck, CircleAlert, ShieldAlert, ShieldCheck, Terminal } from 'lucide-react';
 import { apiFetch } from '../utils/api';
-import { DaxCode } from '../lib/dax';
 import { copyText, useToast } from '../components/ui';
 import { errorMessage } from '../lib/errors';
 
 interface McpStatus { mcp_installed: boolean; mcp_version: string | null; python_executable: string; server_command: string; server_args: string[]; groq_configured?: boolean; groq_model?: string }
 interface McpTool { name: string; description: string; read_only: boolean; destructive: boolean }
 interface RuleEntry { rule_id: string; category: string; title: string; issue: string; impact: string; recommendation: string }
-interface Rewrite { ai_generated: boolean; ai_model?: string; suggested_rewrite?: string; rewrite_explanation?: string; recommendation?: string; advisory_note?: string; error?: string }
 
 export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: number) => void }> = ({ hasBackend, onRuleCount }) => {
   const toast = useToast();
@@ -16,9 +14,6 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
   const [tools, setTools] = useState<{ live: boolean; message?: string; tools: McpTool[] } | null>(null);
   const [rules, setRules] = useState<RuleEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [dax, setDax] = useState('CALCULATE ( SUM ( Sales[Amount] ), FILTER ( ALL ( Sales ), Sales[Amount] > 1000 ) )');
-  const [rewrite, setRewrite] = useState<Rewrite | null>(null);
-  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     if (!hasBackend) return;
@@ -38,21 +33,6 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
     })();
   }, [hasBackend, onRuleCount]);
 
-  const ask = async () => {
-    setAsking(true); setRewrite(null);
-    try {
-      const res = await apiFetch('/api/dax/rewrite', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rule_id: 'DAX_SUSPICIOUS_PATTERN', dax_expression: dax, evidence: '' }),
-      });
-      setRewrite(await res.json());
-    } catch (e) {
-      setRewrite({ ai_generated: false, error: errorMessage(e) || 'The rewrite request failed.' });
-    } finally {
-      setAsking(false);
-    }
-  };
-
   const config = status ? JSON.stringify({ mcpServers: { pbiscan: { command: status.server_command, args: status.server_args } } }, null, 2) : '';
 
   if (!hasBackend) {
@@ -67,7 +47,7 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
 
   return (
     <>
-      <div className="page-head"><div><h2>Agent &amp; MCP</h2><p>Every scan and rule is deterministic. The optional DAX rewrite advisor below is the only feature that calls a language model, and its output is text for you to review.</p></div></div>
+      <div className="page-head"><div><h2>Agent &amp; MCP</h2><p>Every scan and rule is deterministic. Agents get the same deterministic results through the tools below. The DAX rewrite advisor, the only part that can call a language model, is on the Measures screen.</p></div></div>
       {error && <div className="notice error"><CircleAlert aria-hidden="true" /><span className="grow">{error}</span></div>}
 
       <div className="grid-2">
@@ -101,25 +81,6 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
           ))}
         </section>
       </div>
-
-      <section className="panel">
-        <div className="panel-head"><Sparkles size={16} aria-hidden="true" /><h3>DAX rewrite advisor</h3><span className="spacer" />
-          {status?.groq_configured ? <span className="chip good">{status.groq_model}</span> : <span className="chip">GROQ_API_KEY not set · static guidance</span>}
-        </div>
-        <div className="panel-body">
-          <label className="label" htmlFor="dax-in">DAX to review</label>
-          <textarea id="dax-in" className="input mono" rows={3} value={dax} onChange={(e) => setDax(e.target.value)} style={{ resize: 'vertical' }} />
-          <div className="actions"><button className="btn btn-primary" onClick={ask} disabled={asking || !dax.trim()}>{asking ? 'Asking…' : 'Suggest a rewrite'}</button></div>
-          {rewrite && (rewrite.error ? <div className="notice error"><CircleAlert aria-hidden="true" /><span className="grow">{rewrite.error}</span></div>
-            : rewrite.ai_generated && rewrite.suggested_rewrite ? (
-              <>
-                <div className="label">Suggested rewrite · {rewrite.ai_model} · review before using</div>
-                <DaxCode code={rewrite.suggested_rewrite} />
-                {rewrite.rewrite_explanation && <p className="ink-2" style={{ margin: 0, fontSize: 13.5 }}>{rewrite.rewrite_explanation}</p>}
-              </>
-            ) : <div className="notice"><span className="grow"><strong>Static guidance:</strong> {rewrite.recommendation}</span></div>)}
-        </div>
-      </section>
 
       <section className="panel">
         <div className="panel-head"><h3>Rule catalog</h3><span className="spacer" /><span className="label">{rules.length} rules · pbiscan://rules</span></div>

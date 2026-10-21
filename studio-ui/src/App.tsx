@@ -306,7 +306,7 @@ const Studio: React.FC = () => {
       overview: <Overview scan={scan} history={history} canSuppress={hasBackend && isLocal} onSuppress={suppress}
                           onOpenFixes={() => setTab('fixes')} onOpenMeasure={openMeasure} onOpenPage={openPage} />,
       model: <ModelScreen scan={scan} findings={openFindings} onOpenFinding={openFinding} onOpenMeasure={openMeasure} />,
-      measures: <MeasuresScreen scan={scan} findings={openFindings} initial={measureTarget} onOpenFinding={openFinding} onOpenPage={openPage} />,
+      measures: <MeasuresScreen scan={scan} findings={openFindings} initial={measureTarget} hasBackend={hasBackend} onOpenFinding={openFinding} onOpenPage={openPage} />,
       pages: <PagesScreen scan={scan} findings={openFindings} initial={pageTarget} onOpenFinding={openFinding} />,
       fixes: <FixesScreen projectPath={path} findings={openFindings} hasBackend={hasBackend} isLocal={isLocal} onApplied={() => scanPath(path, true)} />,
       compare: <CompareScreen hasBackend={hasBackend} initialBaseline={isLocal ? path : ''} activeScan={scan} />,
