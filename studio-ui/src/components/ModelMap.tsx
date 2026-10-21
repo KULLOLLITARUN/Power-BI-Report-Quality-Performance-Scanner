@@ -23,12 +23,16 @@ interface Props {
   title?: string;
   tall?: boolean;
   showLegend?: boolean;
+  /** Bare stage for decoration (landing hero): no header, tools or legend. */
+  ambient?: boolean;
+  /** Called when WebGL is unavailable or the scene fails to start. */
+  onFail?: () => void;
 }
 
 /** React wrapper around the three.js ModelScene, with labels, tooltip, tools and legend. */
 export const ModelMap: React.FC<Props> = ({
   scan, findings, focus = null, marked = null, onTableClick, page = null, selectedVisual = null, onVisualClick,
-  title = 'Model', tall = false, showLegend = true,
+  title = 'Model', tall = false, showLegend = true, ambient = false, onFail,
 }) => {
   const stageRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
@@ -39,6 +43,9 @@ export const ModelMap: React.FC<Props> = ({
   const [flow, setFlow] = useState(() => !prefersReducedMotion());
   const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(() => !ModelScene.supported());
+  const failRef = useRef(onFail);
+  failRef.current = onFail;
+  useEffect(() => { if (failed) failRef.current?.(); }, [failed]);
 
   const tables = useMemo(() => (scan.tables || []).filter((t) => !isAutoDateTable(t.name)), [scan.tables]);
   const autoDateCount = (scan.tables || []).length - tables.length;
@@ -73,6 +80,7 @@ export const ModelMap: React.FC<Props> = ({
       scene = new ModelScene(stageRef.current, labelsRef.current, tipRef.current, sceneData, {
         onTableClick: (n) => cbRef.current.onTableClick?.(n),
         onVisualClick: (i) => cbRef.current.onVisualClick?.(i),
+        spinFromStart: ambient,
       });
     } catch (err) {
       console.error('3D map failed to start', err);
@@ -102,6 +110,17 @@ export const ModelMap: React.FC<Props> = ({
   }, [expanded]);
 
   const summary = `${tables.length} tables · ${relationships.length} relationships${flagged ? ` · ${flagged} flagged` : ''}${autoDateCount ? ` · ${autoDateCount} auto date tables hidden` : ''}`;
+
+  if (ambient) {
+    return (
+      <div className="map-ambient">
+        <div ref={stageRef} className="map-stage ambient">
+          <div ref={labelsRef} className="map-labels" />
+          <div ref={tipRef} className="tip" hidden role="tooltip" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

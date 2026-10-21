@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, FolderOpen, FolderSearch, GitCompareArrows, ShieldCheck } from 'lucide-react';
 import { animate } from '../lib/motion';
+import { ModelMap } from '../components/ModelMap';
+import { SAMPLE_ENTERPRISE_REPORT } from '../data/sampleReports';
 
 interface Props {
   hasBackend: boolean;
@@ -13,13 +15,15 @@ interface Props {
 
 export const Landing: React.FC<Props> = ({ hasBackend, dragging, onOpen, onBrowse, onCompare, onDemo }) => {
   const isoRef = useRef<SVGSVGElement>(null);
+  const [fallback, setFallback] = useState(false);
   useEffect(() => {
+    if (!fallback) return;
     animate({
       targets: isoRef.current?.querySelectorAll('.b'),
       translateY: [26, 0],
       delay: (_: unknown, i: number) => 100 + i * 70, duration: 900, easing: 'easeOutElastic(1, .8)',
     });
-  }, []);
+  }, [fallback]);
 
   return (
     <>
@@ -35,7 +39,11 @@ export const Landing: React.FC<Props> = ({ hasBackend, dragging, onOpen, onBrows
             <span className="chip">TMDL · model.bim · PBIR · report.json</span>
           </div>
         </div>
-        <IsoCity ref={isoRef} />
+        {fallback ? <IsoCity ref={isoRef} /> : (
+          <div className="hero-3d" role="img" aria-label="Illustration: a sample model drawn as 3D blocks, fact table in the centre, with arcs for relationships">
+            <ModelMap ambient scan={SAMPLE_ENTERPRISE_REPORT} findings={SAMPLE_ENTERPRISE_REPORT.findings} onFail={() => setFallback(true)} />
+          </div>
+        )}
       </div>
 
       <div className={`dropzone${dragging ? ' dragging' : ''}`}>

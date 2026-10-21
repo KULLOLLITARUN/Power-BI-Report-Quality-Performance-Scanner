@@ -444,6 +444,8 @@ code, pre, .mono { font-family: var(--f-mono); }
 .drop-overlay span { color: var(--ink-2); font-size: 13px; }
 .dropzone h3 { margin: 0; font-family: var(--f-display); font-stretch: 115%; font-weight: 680; font-size: 18px; }
 .dropzone p { margin: 0; color: var(--ink-2); font-size: 13px; }
+.hero-3d { width: 100%; max-width: 560px; justify-self: center; }
+.map-stage.ambient { height: 380px; background: none; touch-action: pan-y; }
 .iso { width: 100%; max-width: 520px; height: auto; display: block; justify-self: center; }
 .demos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .demo { all: unset; box-sizing: border-box; cursor: pointer; background: var(--panel); border: 1px solid var(--rule); padding: 14px 16px; display: grid; gap: 6px; }
@@ -517,6 +519,8 @@ details.disclosure[open] > summary svg { transform: rotate(90deg); }
   .side-list { max-height: 340px; }
   .landing { grid-template-columns: minmax(0, 1fr); }
   .iso { max-width: 420px; order: -1; }
+  .hero-3d { max-width: 460px; order: -1; }
+  .map-stage.ambient { height: 300px; }
 }
 @media (max-width: 860px) {
   .shell { grid-template-columns: minmax(0, 1fr); }

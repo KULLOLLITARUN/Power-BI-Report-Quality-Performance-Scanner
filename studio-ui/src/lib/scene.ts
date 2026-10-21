@@ -31,6 +31,8 @@ export interface SceneData {
 export interface SceneCallbacks {
   onTableClick?: (name: string | null) => void;
   onVisualClick?: (index: number | null) => void;
+  /** Start turning at once instead of waiting for the usual idle pause. */
+  spinFromStart?: boolean;
 }
 
 interface Node {
@@ -61,6 +63,7 @@ interface Tile {
 }
 
 const GRID_Y = 0.003;
+const IDLE_BEFORE_SPIN = 3;
 
 export class ModelScene {
   private renderer: THREE.WebGLRenderer;
@@ -235,6 +238,7 @@ export class ModelScene {
       ? { theta: 0.62, phi: 1.12, r: R + 6, tx: 0, ty: (this.plate?.y ?? 4) * 0.5, tz: 0 }
       : { theta: 0.62, phi: 0.98, r: R, tx: 0, ty: 0.4, tz: 0 };
     this.cam = { ...this.home };
+    if (cb.spinFromStart) this.idle = IDLE_BEFORE_SPIN;
 
     this.bindEvents();
     this.paint();
@@ -552,7 +556,7 @@ export class ModelScene {
     this.tPrev = now;
     if (!this.visible || document.hidden) return;
     this.idle += dt; this.clock += dt;
-    if (!this.reduce && !this.drag && this.idle > 3) this.cam.theta += dt * 0.045;
+    if (!this.reduce && !this.drag && this.idle > IDLE_BEFORE_SPIN) this.cam.theta += dt * 0.045;
 
     const c = this.cam;
     this.camera.position.set(
