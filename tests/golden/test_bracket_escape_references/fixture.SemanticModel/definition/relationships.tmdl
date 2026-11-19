@@ -1,0 +1,3 @@
+relationship Rel_Sales_Calendar
+	fromColumn: Sales.OrderDate
+	toColumn: Calendar.Date

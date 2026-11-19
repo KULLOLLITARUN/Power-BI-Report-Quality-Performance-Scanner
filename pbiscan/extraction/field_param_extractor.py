@@ -16,7 +16,7 @@ from pbiscan.canonical.references import SemanticReference
 
 # Regex pattern to match NAMEOF('Table'[Entity]) or NAMEOF(Table[Entity])
 _NAMEOF_PATTERN = re.compile(
-    r"\bNAMEOF\s*\(\s*(?:'([^']+)'\s*|([a-zA-Z_][a-zA-Z0-9_]*)\s*)?\[([^\]]+)\]\s*\)",
+    r"\bNAMEOF\s*\(\s*(?:'([^']+)'\s*|([a-zA-Z_][a-zA-Z0-9_]*)\s*)?\[((?:[^\]]|\]\])+)\]\s*\)",
     re.IGNORECASE,
 )
 
@@ -57,7 +57,7 @@ def extract_field_param_references(
     for match in _NAMEOF_PATTERN.finditer(partition_expression):
         tbl_quoted, tbl_unquoted, entity_name = match.groups()
         target_tbl = tbl_quoted or tbl_unquoted or ""
-        entity_clean = entity_name.strip()
+        entity_clean = entity_name.replace("]]", "]").strip()
         entity_lower = entity_clean.lower()
 
         # Strict Entity Discrimination: Measure vs Column

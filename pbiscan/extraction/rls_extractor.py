@@ -16,7 +16,7 @@ from pbiscan.canonical.references import SemanticReference
 
 # Regex pattern to match bracket references in DAX security filter expressions
 _BRACKET_REF_PATTERN = re.compile(
-    r"(?:'([^']+)'|\b([a-zA-Z_][a-zA-Z0-9_]*))?\[([^\]]+)\]",
+    r"(?:'([^']+)'|\b([a-zA-Z_][a-zA-Z0-9_]*))?\[((?:[^\]]|\]\])+)\]",
     re.IGNORECASE,
 )
 
@@ -60,7 +60,7 @@ def extract_rls_tmdl_references(
 
         for ref_match in _BRACKET_REF_PATTERN.finditer(dax_expr):
             tbl_quoted, tbl_unquoted, entity_name = ref_match.groups()
-            entity_clean = entity_name.strip()
+            entity_clean = entity_name.replace("]]", "]").strip()
             if entity_clean.lower() in _IGNORED_TOKENS:
                 continue
 
@@ -117,7 +117,7 @@ def extract_rls_bim_references(
 
             for ref_match in _BRACKET_REF_PATTERN.finditer(dax_expr):
                 tbl_quoted, tbl_unquoted, entity_name = ref_match.groups()
-                entity_clean = entity_name.strip()
+                entity_clean = entity_name.replace("]]", "]").strip()
                 if entity_clean.lower() in _IGNORED_TOKENS:
                     continue
 

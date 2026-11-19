@@ -16,11 +16,11 @@ from pbiscan.canonical.references import SemanticReference
 
 # Regex patterns for calculation item DAX parsing
 _BRACKET_REF_PATTERN = re.compile(
-    r"(?:'([^']+)'|\b([a-zA-Z_][a-zA-Z0-9_]*))?\[([^\]]+)\]",
+    r"(?:'([^']+)'|\b([a-zA-Z_][a-zA-Z0-9_]*))?\[((?:[^\]]|\]\])+)\]",
     re.IGNORECASE,
 )
 _ISSELECTEDMEASURE_PATTERN = re.compile(
-    r"\bISSELECTEDMEASURE\s*\(\s*(?:'([^']+)'\s*|([a-zA-Z_][a-zA-Z0-9_]*)\s*)?\[([^\]]+)\]",
+    r"\bISSELECTEDMEASURE\s*\(\s*(?:'([^']+)'\s*|([a-zA-Z_][a-zA-Z0-9_]*)\s*)?\[((?:[^\]]|\]\])+)\]",
     re.IGNORECASE,
 )
 _SELECTEDMEASURENAME_PATTERN = re.compile(
@@ -68,6 +68,7 @@ def extract_calc_group_references(
         # 1. Check ISSELECTEDMEASURE([Measure]) predicates
         for match in _ISSELECTEDMEASURE_PATTERN.finditer(item_dax):
             tbl_quoted, tbl_unquoted, meas_name = match.groups()
+            meas_name = meas_name.replace("]]", "]")  # `]]` escapes a literal `]` in DAX
             target_tbl = tbl_quoted or tbl_unquoted
             if meas_name.strip().lower() not in _IGNORED_BRACKET_NAMES:
                 references.append(
@@ -134,7 +135,7 @@ def extract_calc_group_references(
         # Note: Avoid double-counting matches already captured by ISSELECTEDMEASURE
         for match in _BRACKET_REF_PATTERN.finditer(item_dax):
             tbl_quoted, tbl_unquoted, prop_name = match.groups()
-            prop_clean = prop_name.strip()
+            prop_clean = prop_name.replace("]]", "]").strip()
             if prop_clean.lower() in _IGNORED_BRACKET_NAMES:
                 continue
 
@@ -162,7 +163,7 @@ def extract_calc_group_references(
         if format_dax:
             for match in _BRACKET_REF_PATTERN.finditer(format_dax):
                 tbl_quoted, tbl_unquoted, prop_name = match.groups()
-                prop_clean = prop_name.strip()
+                prop_clean = prop_name.replace("]]", "]").strip()
                 if prop_clean.lower() in _IGNORED_BRACKET_NAMES:
                     continue
 

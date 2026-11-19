@@ -1,0 +1,15 @@
+table Sales
+	column Amount = 100
+		dataType: int64
+
+	column Region = "East"
+		dataType: string
+
+	column OrderDate = "2024-01-01"
+		dataType: dateTime
+
+	measure TotalSales = SUM(Sales[Amount])
+	measure 'Margin [%]' = DIVIDE(SUM(Sales[Amount]), 10)
+	measure 'Rate [x]' = 1
+	measure 'Pick [y]' = 2
+	measure 'Orphan [z]' = 3

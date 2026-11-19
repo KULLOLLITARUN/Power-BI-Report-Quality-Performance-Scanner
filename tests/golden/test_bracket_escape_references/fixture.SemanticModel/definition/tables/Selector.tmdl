@@ -1,0 +1,19 @@
+table Selector
+	column Selector
+		dataType: string
+		sourceColumn: [Value1]
+
+	column 'Selector Fields'
+		dataType: string
+		sourceColumn: [Value2]
+
+	column 'Selector Order'
+		dataType: int64
+		sourceColumn: [Value3]
+
+	partition Selector = calculated
+		mode: import
+		source =
+			{
+			    ("Pick", NAMEOF('Sales'[Pick [y]]]), 0)
+			}

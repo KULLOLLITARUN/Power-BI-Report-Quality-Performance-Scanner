@@ -58,8 +58,8 @@ export class SemanticReferenceIndex {
 // Calculation Group extractor (mirrors pbiscan.extraction.calc_group_extractor)
 // ---------------------------------------------------------------------------
 
-const BRACKET_REF_PATTERN = /(?:'([^']+)'|\b([a-zA-Z_][a-zA-Z0-9_]*))?\[([^\]]+)\]/gi;
-const ISSELECTEDMEASURE_PATTERN = /\bISSELECTEDMEASURE\s*\(\s*(?:'([^']+)'\s*|([a-zA-Z_][a-zA-Z0-9_]*)\s*)?\[([^\]]+)\]/gi;
+const BRACKET_REF_PATTERN = /(?:'([^']+)'|\b([a-zA-Z_][a-zA-Z0-9_]*))?\[((?:[^\]]|\]\])+)\]/gi;
+const ISSELECTEDMEASURE_PATTERN = /\bISSELECTEDMEASURE\s*\(\s*(?:'([^']+)'\s*|([a-zA-Z_][a-zA-Z0-9_]*)\s*)?\[((?:[^\]]|\]\])+)\]/gi;
 const SELECTEDMEASURENAME_PATTERN = /\bSELECTEDMEASURENAME\s*\(\s*\)\s*(?:==?|=)\s*"([^"]+)"/gi;
 const SELECTEDMEASURENAME_CALL = /\bSELECTEDMEASURENAME\s*\(/i;
 const STRING_LITERAL = /"((?:[^"]|"")*)"/g;
@@ -90,7 +90,8 @@ export function extractCalcGroupReferences(
 
     // 1. ISSELECTEDMEASURE([Measure]) predicates
     for (const match of itemDax.matchAll(ISSELECTEDMEASURE_PATTERN)) {
-      const [, tblQuoted, tblUnquoted, measName] = match;
+      const [, tblQuoted, tblUnquoted, rawMeasName] = match;
+      const measName = rawMeasName.replace(/\]\]/g, ']'); // `]]` escapes a literal `]` in DAX
       const targetTbl = tblQuoted || tblUnquoted;
       if (!IGNORED_BRACKET_NAMES.has(measName.trim().toLowerCase())) {
         references.push({
@@ -151,7 +152,7 @@ export function extractCalcGroupReferences(
     // captured by ISSELECTEDMEASURE above)
     for (const match of itemDax.matchAll(BRACKET_REF_PATTERN)) {
       const [, tblQuoted, tblUnquoted, propName] = match;
-      const propClean = propName.trim();
+      const propClean = propName.replace(/\]\]/g, ']').trim();
       if (IGNORED_BRACKET_NAMES.has(propClean.toLowerCase())) continue;
 
       const prefix = itemDax.slice(Math.max(0, match.index! - 25), match.index!);
@@ -175,7 +176,7 @@ export function extractCalcGroupReferences(
     if (formatDax) {
       for (const match of formatDax.matchAll(BRACKET_REF_PATTERN)) {
         const [, tblQuoted, tblUnquoted, propName] = match;
-        const propClean = propName.trim();
+        const propClean = propName.replace(/\]\]/g, ']').trim();
         if (IGNORED_BRACKET_NAMES.has(propClean.toLowerCase())) continue;
 
         const targetTbl = tblQuoted || tblUnquoted;
@@ -201,7 +202,7 @@ export function extractCalcGroupReferences(
 // Field Parameter extractor (mirrors pbiscan.extraction.field_param_extractor)
 // ---------------------------------------------------------------------------
 
-const NAMEOF_PATTERN = /\bNAMEOF\s*\(\s*(?:'([^']+)'\s*|([a-zA-Z_][a-zA-Z0-9_]*)\s*)?\[([^\]]+)\]\s*\)/gi;
+const NAMEOF_PATTERN = /\bNAMEOF\s*\(\s*(?:'([^']+)'\s*|([a-zA-Z_][a-zA-Z0-9_]*)\s*)?\[((?:[^\]]|\]\])+)\]\s*\)/gi;
 const GROUPED_TUPLE_PATTERN = /,\s*"[^"]+"\s*\)\s*\}/;
 
 export function extractFieldParamReferences(
@@ -226,7 +227,7 @@ export function extractFieldParamReferences(
   for (const match of partitionExpression.matchAll(NAMEOF_PATTERN)) {
     const [, tblQuoted, tblUnquoted, entityName] = match;
     const targetTbl = tblQuoted || tblUnquoted;
-    const entityClean = entityName.trim();
+    const entityClean = entityName.replace(/\]\]/g, ']').trim();
     const entityLower = entityClean.toLowerCase();
 
     let targetType: ReferenceTargetType;
@@ -283,7 +284,7 @@ export function extractRlsTmdlReferences(
 
     for (const refMatch of daxExpr.matchAll(BRACKET_REF_PATTERN)) {
       const [, tblQuoted, tblUnquoted, entityName] = refMatch;
-      const entityClean = entityName.trim();
+      const entityClean = entityName.replace(/\]\]/g, ']').trim();
       if (RLS_IGNORED_TOKENS.has(entityClean.toLowerCase())) continue;
 
       const targetTbl = tblQuoted || tblUnquoted || permTable;
@@ -321,7 +322,7 @@ export function extractRlsBimReferences(roles: any[], sourceFile: string = 'mode
 
       for (const refMatch of daxExpr.matchAll(BRACKET_REF_PATTERN)) {
         const [, tblQuoted, tblUnquoted, entityName] = refMatch;
-        const entityClean = entityName.trim();
+        const entityClean = entityName.replace(/\]\]/g, ']').trim();
         if (RLS_IGNORED_TOKENS.has(entityClean.toLowerCase())) continue;
 
         const targetTbl = tblQuoted || tblUnquoted || permTable;

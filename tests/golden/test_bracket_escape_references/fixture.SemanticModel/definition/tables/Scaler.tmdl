@@ -1,0 +1,8 @@
+table Scaler
+	calculationGroup
+
+	column Scaler
+		dataType: string
+		sourceColumn: Name
+
+	calculationItem Boosted = SELECTEDMEASURE() + [Margin [%]]]
