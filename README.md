@@ -185,6 +185,12 @@ pbiscan mcp
 }
 ```
 
+### Privacy: what stays on your machine
+
+Scanning, `pbiscan fix`, `diff`, Studio and the MCP server run locally and make no network calls.
+
+The one exception is the optional DAX rewrite advisor, available as the MCP tool `suggest_dax_rewrite` and in Studio (Measures screen, `/api/dax/rewrite`). If, and only if, you set your own `GROQ_API_KEY` (in the environment or a `.env` file), the DAX expression you ask it to rewrite is sent to Groq's API to get a suggestion. Without the key nothing is sent and the built-in recommendation text is returned. Do not set the key when your DAX must not leave your network.
+
 ---
 
 ## ⚙️ CI/CD Integration Examples
