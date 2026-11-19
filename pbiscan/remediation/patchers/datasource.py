@@ -64,6 +64,7 @@ class DataSourcePatcher(BasePatcher):
             "hardcoded_path_detected",
             "supported_path_semantics",
             "no_parameter_collision",
+            "parameter_defined",
             "target_file_located",
             "m_source_partition_found",
             "clean_syntax_boundary",
@@ -110,6 +111,14 @@ class DataSourcePatcher(BasePatcher):
             satisfied.append("no_parameter_collision")
         else:
             violated.append("no_parameter_collision")
+
+        # The rewritten partition refers to DataFolderPath by name. If the model does not
+        # define that parameter, Power Query fails on load, so only offer the patch once
+        # the parameter exists.
+        if self._parameter_defined(model_dir, param_name):
+            satisfied.append("parameter_defined")
+        else:
+            violated.append("parameter_defined")
 
         # 3. Locate target file (TMDL or BIM)
         target_file = self._find_target_file(model_dir, table_name)
@@ -200,6 +209,35 @@ class DataSourcePatcher(BasePatcher):
             return m2.group(1).strip()
 
         return loc.strip()
+
+    @staticmethod
+    def _parameter_defined(model_dir: Path, name: str) -> bool:
+        """True when the model defines an M expression/parameter called `name`."""
+        tmdl_decl = re.compile(
+            r"^[ \t]*expression[ \t]+(?:'((?:[^']|'')+)'|([^\s=]+))", re.IGNORECASE | re.MULTILINE
+        )
+        for p in model_dir.glob("**/*.tmdl"):
+            try:
+                text = p.read_text(encoding="utf-8-sig")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for m in tmdl_decl.finditer(text):
+                declared = (m.group(1) or m.group(2) or "").replace("''", "'")
+                if declared.lower() == name.lower():
+                    return True
+        for pattern in ("**/model.bim", "**/database.json", "**/*.bim"):
+            for p in model_dir.glob(pattern):
+                try:
+                    data = json.loads(p.read_text(encoding="utf-8-sig"))
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                model = data.get("model", data) if isinstance(data, dict) else {}
+                exprs = model.get("expressions") if isinstance(model, dict) else None
+                if isinstance(exprs, list) and any(
+                    isinstance(e, dict) and str(e.get("name", "")).lower() == name.lower() for e in exprs
+                ):
+                    return True
+        return False
 
     def _find_target_file(self, model_dir: Path, table_name: str) -> Optional[Path]:
         """Locate TMDL table file or model.bim."""
