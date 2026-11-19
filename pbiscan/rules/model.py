@@ -11,7 +11,9 @@ Each function:
 from __future__ import annotations
 
 import re
-from pbiscan.canonical.model import CanonicalReport, Column, Table, looks_like_date_table_name
+from pbiscan.canonical.model import (
+    CanonicalReport, Column, Table, looks_like_date_table_name, looks_like_dimension_name,
+)
 from pbiscan.engine.issue import RuleFinding
 from pbiscan.rules.catalog import new_finding
 
@@ -156,7 +158,6 @@ def check_fact_to_fact(report: CanonicalReport) -> list[RuleFinding]:
     """
     findings: list[RuleFinding] = []
     measure_tables = {m.table for m in report.dax.measures}
-    dim_hints = ("dim", "dimension", "lookup", "ref", "reference", "bridge")
 
     for rel in report.model.relationships:
         from_has_measures = rel.from_table in measure_tables
@@ -165,8 +166,8 @@ def check_fact_to_fact(report: CanonicalReport) -> list[RuleFinding]:
         if not (from_has_measures and to_has_measures):
             continue
 
-        from_looks_like_dim = any(h in rel.from_table.lower() for h in dim_hints)
-        to_looks_like_dim = any(h in rel.to_table.lower() for h in dim_hints)
+        from_looks_like_dim = looks_like_dimension_name(rel.from_table)
+        to_looks_like_dim = looks_like_dimension_name(rel.to_table)
 
         if not from_looks_like_dim and not to_looks_like_dim:
             findings.append(new_finding(

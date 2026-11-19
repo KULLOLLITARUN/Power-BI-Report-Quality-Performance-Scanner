@@ -54,6 +54,12 @@ pbiscan = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
+# Plain `pytest` (and CI) runs everything. For a quick loop while editing:
+#   python -m pytest -m "not slow and not parity"
+markers = [
+    "slow: randomised (hypothesis) or process-spawning tests; skip with -m \"not slow\"",
+    "parity: cross-engine Python vs studio-ui TypeScript comparison, needs Node; skip with -m \"not parity\"",
+]
 
 [tool.ruff.lint]
 # Deliberately conservative: pyflakes (F) + core pycodestyle errors (E4/E7/E9) only.

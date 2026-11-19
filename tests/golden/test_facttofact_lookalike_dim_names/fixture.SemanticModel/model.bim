@@ -1,0 +1,47 @@
+{
+  "_comment": "GOLDEN FIXTURE: M005 still fires. Refunds and Preferences are fact tables whose names merely contain the letters ref; a substring match took them for reference/dimension tables and hid the finding.",
+  "model": {
+    "tables": [
+      {
+        "name": "Refunds",
+        "columns": [
+          {"name": "OrderID", "dataType": "int64", "sourceColumn": "OrderID"},
+          {"name": "ProductID", "dataType": "int64", "sourceColumn": "ProductID"},
+          {"name": "OrderAmount", "dataType": "decimal", "sourceColumn": "OrderAmount"}
+        ],
+        "measures": [
+          {"name": "Total Refunds", "expression": "SUM(Refunds[OrderAmount])"}
+        ],
+        "partitions": [{"name": "Refunds", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "Preferences",
+        "columns": [
+          {"name": "ReturnID", "dataType": "int64", "sourceColumn": "ReturnID"},
+          {"name": "ProductID", "dataType": "int64", "sourceColumn": "ProductID"},
+          {"name": "ReturnAmount", "dataType": "decimal", "sourceColumn": "ReturnAmount"}
+        ],
+        "measures": [
+          {"name": "Total Preferences", "expression": "SUM(Preferences[ReturnAmount])"}
+        ],
+        "partitions": [{"name": "Preferences", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      },
+      {
+        "name": "DimDate",
+        "columns": [{"name": "Date", "dataType": "dateTime", "sourceColumn": "Date"}],
+        "annotations": [{"name": "PBI_IsDateTable", "value": "true"}],
+        "partitions": [{"name": "DimDate", "mode": "import", "source": {"type": "m", "expression": "let Source = Table.FromRows({}) in Source"}}]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "Refunds_Preferences",
+        "fromTable": "Refunds",
+        "fromColumn": "ProductID",
+        "toTable": "Preferences",
+        "toColumn": "ProductID",
+        "crossFilteringBehavior": "oneDirection"
+      }
+    ]
+  }
+}

@@ -29,6 +29,9 @@ from pbiscan.extraction.raw import extract_measure_names
 from pbiscan.rules.catalog import RULE_CATALOG
 from pbiscan.service import DEFAULT_CONFIG, ScanService
 
+# Needs Node and takes about a minute: left out of the quick tier (`-m "not parity"`).
+pytestmark = pytest.mark.parity
+
 REPO_ROOT = Path(__file__).parent.parent.parent
 STUDIO_UI_DIR = REPO_ROOT / "studio-ui"
 GOLDEN_DIR = REPO_ROOT / "tests" / "golden"

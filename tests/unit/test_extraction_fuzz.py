@@ -15,10 +15,14 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from pbiscan.extraction.pbip_reader import PBIPReader, PBIScanError
+
+# Randomised: left out of the quick tier (`-m "not slow"`).
+pytestmark = pytest.mark.slow
 from pbiscan.extraction.raw import decode_text
 from pbiscan.extraction.tmdl_parser import (
     parse_col_ref,

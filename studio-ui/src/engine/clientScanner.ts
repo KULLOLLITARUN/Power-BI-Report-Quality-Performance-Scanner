@@ -141,8 +141,21 @@ const DATE_NAME_WORDS = new Set([
 export function looksLikeDateTableName(name: string): boolean {
   const lower = name.toLowerCase();
   if (lower.startsWith('localdatetable') || lower.startsWith('datetabletemplate')) return true;
-  const spaced = name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
-  return (spaced.match(/[a-z]+|[0-9]+/g) ?? []).some((w) => DATE_NAME_WORDS.has(w));
+  return nameWords(name).some((w) => DATE_NAME_WORDS.has(w));
+}
+
+/** Mirrors pbiscan.canonical.model.name_words: lower-case words, splitting camelCase, snake_case, spaces, digits. */
+export function nameWords(name: string): string[] {
+  return name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().match(/[a-z]+|[0-9]+/g) ?? [];
+}
+
+const DIMENSION_WORDS = new Set([
+  'dimension', 'dimensions', 'lookup', 'lookups', 'ref', 'refs', 'reference', 'references', 'bridge', 'bridges',
+]);
+
+/** Mirrors pbiscan.canonical.model.looks_like_dimension_name: a `dim...` word or a whole dimension word. */
+export function looksLikeDimensionName(name: string): boolean {
+  return nameWords(name).some((w) => w.startsWith('dim') || DIMENSION_WORDS.has(w));
 }
 
 /** Mirrors pbiscan.rules.dax._normalise_expression. */
@@ -368,14 +381,13 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   // M005: Fact-to-fact relationships (mirrors pbiscan.rules.model.check_fact_to_fact)
   {
     const measureTables = new Set(measures.map((m) => m.table));
-    const dimHints = ['dim', 'dimension', 'lookup', 'ref', 'reference', 'bridge'];
     for (const rel of relationships) {
       const fromHasMeasures = measureTables.has(rel.from_table);
       const toHasMeasures = measureTables.has(rel.to_table);
       if (!fromHasMeasures || !toHasMeasures) continue;
 
-      const fromLooksLikeDim = dimHints.some((h) => rel.from_table.toLowerCase().includes(h));
-      const toLooksLikeDim = dimHints.some((h) => rel.to_table.toLowerCase().includes(h));
+      const fromLooksLikeDim = looksLikeDimensionName(rel.from_table);
+      const toLooksLikeDim = looksLikeDimensionName(rel.to_table);
 
       if (!fromLooksLikeDim && !toLooksLikeDim) {
         findings.push({
@@ -819,6 +831,11 @@ function tmdlKeyword(line: string, keyword: string): string | null {
 /** Collect the body lines of a measure/calculationItem declared at `depth`:
  * every following line indented deeper, stopping at a blank line or a sibling.
  * A ``` fence is taken verbatim up to its closing ```, blank lines included. */
+/** Boolean properties TMDL may write as a bare word (meaning true). Mirrors tmdl_parser._BARE_FLAGS. */
+const TMDL_BARE_FLAGS = new Set([
+  'isHidden', 'isSimpleMeasure', 'isKey', 'isNullable', 'isUnique', 'isDefaultLabel', 'isDefaultImage', 'isAvailableInMdx',
+]);
+
 function tmdlCollectBody(
   lines: string[], start: number, depth: number, inlineExpr: string | null, skip: (l: string) => boolean
 ): { body: string[]; next: number } {
@@ -831,8 +848,22 @@ function tmdlCollectBody(
       if (l.endsWith(TMDL_FENCE)) break;
     }
   }
+  // A `variation` block (a date column's hierarchy link) is a property, not DAX: skip its lines.
+  // Mirrors tmdl_parser, which does the same for measures and calculated columns.
+  let variationDepth: number | null = null;
   while (j < lines.length && lines[j].trim() !== '' && _leadingTabDepth(lines[j]) > depth) {
     const l = lines[j].trim();
+    const lineDepth = _leadingTabDepth(lines[j]);
+    if (variationDepth !== null && lineDepth > variationDepth) {
+      j++;
+      continue;
+    }
+    variationDepth = null;
+    if (l === 'variation' || l.startsWith('variation ')) {
+      variationDepth = lineDepth;
+      j++;
+      continue;
+    }
     if (!skip(l)) body.push(l);
     j++;
   }
@@ -888,17 +919,22 @@ function parseTableTmdl(
       // same depth ends it. (A prior version used a bare tab-prefix check, which never
       // stopped at sibling declarations and silently concatenated every subsequent
       // measure's DAX into the current one's expression.)
+      let hidden = false;
       const { body } = tmdlCollectBody(
         lines, i + 1, _leadingTabDepth(rawLine), inlineExpr,
-        // Mirrors tmdl_parser: only these `key:` properties are metadata. Anything else under the
-        // measure, including `formatStringDefinition = ...`, stays in the DAX so the references it
-        // makes (a dynamic format string calling another measure) are seen.
-        (l) => /^(formatString|lineageTag|dataType|summarizeBy|displayFolder|isHidden)\s*:/.test(l) || l.startsWith('//'),
+        // Mirrors tmdl_parser: only these `key:` properties and bare boolean flags are metadata.
+        // Anything else under the measure, including `formatStringDefinition = ...`, stays in the
+        // DAX so the references it makes (a dynamic format string calling another measure) are seen.
+        (l) => {
+          if (l === 'isHidden' || /^isHidden\s*:\s*(?!false\b)/i.test(l)) hidden = true;
+          return /^(formatString|lineageTag|dataType|summarizeBy|displayFolder|isHidden)\s*:/.test(l)
+            || TMDL_BARE_FLAGS.has(l) || l.startsWith('//');
+        },
       );
       fileMeasures.push({
         name: measureName,
         expression: tmdlStripFence(body.join('\n')) || "BLANK()",
-        hidden: false,
+        hidden,
       });
     } else if (line.startsWith('calculationItem ') || line.startsWith('calculationItem\t')) {
       const [itemName, inlineExpr] = tmdlSplitDeclaration(line.substring(16));

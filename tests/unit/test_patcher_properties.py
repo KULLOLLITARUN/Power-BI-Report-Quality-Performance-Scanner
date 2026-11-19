@@ -35,6 +35,9 @@ from pbiscan.remediation.patchers.measure import MeasurePatcher
 from pbiscan.remediation.patchers.relationship import RelationshipPatcher
 from pbiscan.rules.dax import has_nested_calculate, strip_dax_comments
 
+# Randomised: left out of the quick tier (`-m "not slow"`).
+pytestmark = pytest.mark.slow
+
 PROPERTY = settings(max_examples=120, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 BOM = chr(0xFEFF)
 

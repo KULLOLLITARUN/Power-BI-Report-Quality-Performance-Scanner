@@ -14,6 +14,9 @@ import shutil
 import sys
 import pytest
 
+# Starts a real MCP server process: left out of the quick tier (`-m "not slow"`).
+pytestmark = pytest.mark.slow
+
 from pbiscan.mcp.server import MCP_AVAILABLE
 
 if not MCP_AVAILABLE:

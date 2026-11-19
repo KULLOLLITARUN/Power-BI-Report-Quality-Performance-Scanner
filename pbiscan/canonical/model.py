@@ -30,8 +30,33 @@ def looks_like_date_table_name(name: str) -> bool:
     """
     if name.lower().startswith(_AUTO_DATE_PREFIXES):
         return True
+    return any(word in _DATE_NAME_WORDS for word in name_words(name))
+
+
+def name_words(name: str) -> list[str]:
+    """Lower-case words of a table name, splitting camelCase, snake_case, spaces and digits.
+
+    Mirrored by nameWords in studio-ui/src/engine/clientScanner.ts.
+    """
     spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", name)
-    return any(word in _DATE_NAME_WORDS for word in re.findall(r"[a-z]+|[0-9]+", spaced.lower()))
+    return re.findall(r"[a-z]+|[0-9]+", spaced.lower())
+
+
+_DIMENSION_WORDS = frozenset({
+    "dimension", "dimensions", "lookup", "lookups", "ref", "refs",
+    "reference", "references", "bridge", "bridges",
+})
+
+
+def looks_like_dimension_name(name: str) -> bool:
+    """True when a table name reads as a dimension: a word starting with `dim` (Dim Customer,
+    DimCustomer, dimcustomer) or a whole word such as Lookup, Reference or Bridge.
+
+    Whole words, so fact tables like `Refunds` or `Preferences` are not taken for
+    dimensions (a substring test read `ref` and `reference` inside them).
+    Mirrored by looksLikeDimensionName in studio-ui/src/engine/clientScanner.ts.
+    """
+    return any(word.startswith("dim") or word in _DIMENSION_WORDS for word in name_words(name))
 
 
 # ---------------------------------------------------------------------------
