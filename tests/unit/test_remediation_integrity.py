@@ -191,8 +191,8 @@ def test_sandbox_rejects_a_patch_that_leaves_a_file_unreadable(tmp_path: Path, m
 
 
 def test_auto_date_fix_leaves_a_fully_readable_model(tmp_path: Path):
-    """The auto-date patcher empties LocalDateTable_*.tmdl files instead of deleting
-    them. An empty file must not count as unreadable, or every later scan would
+    """The auto-date patcher deletes the LocalDateTable_*.tmdl files it empties. The
+    cleaned model must still scan without unreadable files, or every later scan would
     switch unused-measure detection off."""
     project = tmp_path / "autodate"
     shutil.copytree(GOLDEN_DIR / "test_model_auto_datetime_bloat", project)
@@ -204,8 +204,7 @@ def test_auto_date_fix_leaves_a_fully_readable_model(tmp_path: Path):
     success, _ = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan)
 
     assert success
-    emptied = [p for p in project.rglob("LocalDateTable_*.tmdl") if not p.read_text(encoding="utf-8").strip()]
-    assert emptied, "fixture no longer exercises the emptied-file case"
+    assert not list(project.rglob("LocalDateTable_*.tmdl"))
     after = ScanService.execute_scan(project)
     assert after.report.unread_files == []
     assert not [w for w in after.warnings if w.startswith("Skipped") or "was not checked" in w]

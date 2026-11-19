@@ -22,6 +22,13 @@ from pbiscan.remediation.models import (
 )
 
 
+_AUTO_DATE_FILE_PREFIXES = ("LocalDateTable_", "DateTableTemplate_")
+
+
+def _is_auto_date_table_file(path: Path) -> bool:
+    return path.suffix.lower() == ".tmdl" and path.name.startswith(_AUTO_DATE_FILE_PREFIXES)
+
+
 class SandboxValidator:
     """Validates candidate remediation plans in an isolated temporary sandbox."""
 
@@ -119,7 +126,12 @@ class SandboxValidator:
         if errors:
             return errors
         for path, text, line_ending in pending:
-            atomic_write_text(path, text, newline=line_ending)
+            if not text.strip() and _is_auto_date_table_file(path):
+                # An emptied auto date table file is removed: Power BI Desktop does not
+                # expect a zero-byte table definition in the project.
+                path.unlink()
+            else:
+                atomic_write_text(path, text, newline=line_ending)
         return errors
 
     @classmethod

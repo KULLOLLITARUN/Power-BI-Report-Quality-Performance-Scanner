@@ -60,6 +60,20 @@ def temp_hardcoded_datasource_tmdl(tmp_path: Path) -> Path:
     src = GOLDEN_DIR / "test_m_hardcoded_datasource"
     dest = tmp_path / "test_m_hardcoded_datasource"
     shutil.copytree(src, dest)
+    # The patch rewrites paths to DataFolderPath, so the model must define it.
+    (dest / "fixture.SemanticModel" / "definition" / "expressions.tmdl").write_text(
+        "expression DataFolderPath = \"C:\\Data\" meta [IsParameterQuery=true, Type=\"Text\", IsParameterQueryRequired=true]\n"
+        "\tlineageTag: 00000000-0000-0000-0000-000000000001\n",
+        encoding="utf-8",
+    )
+    return dest
+
+
+@pytest.fixture
+def temp_hardcoded_datasource_tmdl_no_param(tmp_path: Path) -> Path:
+    """Same project, but the model does not define DataFolderPath."""
+    dest = tmp_path / "test_m_hardcoded_datasource_no_param"
+    shutil.copytree(GOLDEN_DIR / "test_m_hardcoded_datasource", dest)
     return dest
 
 
@@ -80,6 +94,9 @@ def temp_hardcoded_datasource_bim(tmp_path: Path) -> Path:
                 'let Source = Csv.Document(File.Contents("C:\\Users\\Dev\\Downloads\\Sales.csv"), '
                 '[Delimiter=",", Columns=3]) in Source'
             )
+    data["model"].setdefault("expressions", []).append(
+        {"name": "DataFolderPath", "kind": "m", "expression": '"C:\\\\Data" meta [IsParameterQuery=true, Type="Text"]'}
+    )
     bim_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
     return dest
 
@@ -649,6 +666,19 @@ class TestDataSourcePatcher:
         assert success is True
         assert manifest.decision == "ACCEPTED"
         assert manifest.after_score >= before_score
+
+    def test_undefined_parameter_blocks_remediation(self, temp_hardcoded_datasource_tmdl_no_param: Path):
+        """A patch naming DataFolderPath must not be offered when the model lacks it."""
+        project = temp_hardcoded_datasource_tmdl_no_param
+        scan_res = ScanService.execute_scan(project)
+        issue = next(f for f in scan_res.issues if f.rule_id == "M_HARDCODED_DATA_SOURCE")
+        patcher = DataSourcePatcher()
+        evidence = patcher.analyze(issue, scan_res.report, project)
+        assert "parameter_defined" in evidence.violated_preconditions
+        assert patcher.generate_patch(issue, evidence, project) is None
+
+        plan = RemediationEngine.plan(project, scan_res, rule_filter="M_HARDCODED_DATA_SOURCE")
+        assert not plan.actionable_patches
 
     def test_parameter_name_collision_blocks_remediation(self, temp_hardcoded_datasource_tmdl: Path):
         scan_res = ScanService.execute_scan(temp_hardcoded_datasource_tmdl)
@@ -1855,7 +1885,7 @@ class TestAutoDateCleanupRemovesWhatWiresItIn:
         model = (definition / "model.tmdl").read_text(encoding="utf-8")
         assert "ref table LocalDateTable" not in model
         assert "__PBI_TimeIntelligenceEnabled = 0" in model
-        assert not (definition / "tables" / "LocalDateTable_12345678.tmdl").read_text(encoding="utf-8").strip()
+        assert not (definition / "tables" / "LocalDateTable_12345678.tmdl").exists()
 
         after = ScanService.execute_scan(temp_autodate_tmdl)
         assert not [i for i in after.issues if i.rule_id == "MODEL_AUTO_DATETIME_BLOAT"]
@@ -1875,7 +1905,15 @@ class TestAutoDateCleanupRemovesWhatWiresItIn:
         success, manifest = RemediationEngine.apply(plan, validation, backup=False, original_scan=scan)
         assert success, manifest.rejection_reasons
 
-        changed = sorted(Path(k).name for k, v in before.items() if (project / k).read_bytes() != v)
+        changed = sorted(
+            Path(k).name for k, v in before.items()
+            if not (project / k).exists() or (project / k).read_bytes() != v
+        )
+        removed = sorted(Path(k).name for k in before if not (project / k).exists())
+        assert removed == [
+            "DateTableTemplate_79c1342f-96cf-41f7-ba1d-4ceb28893187.tmdl",
+            "LocalDateTable_6179b6f8-f964-446d-85c9-7b7d4d077e3e.tmdl",
+        ]
         assert changed == sorted([
             "model.tmdl", "relationships.tmdl", "Banana Price (BLS).tmdl",
             "DateTableTemplate_79c1342f-96cf-41f7-ba1d-4ceb28893187.tmdl",
