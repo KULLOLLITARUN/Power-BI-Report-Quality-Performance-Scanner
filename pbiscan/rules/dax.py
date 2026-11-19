@@ -252,7 +252,7 @@ def check_duplicate_measures(report: CanonicalReport) -> list[RuleFinding]:
         normalised = _normalise_expression(measure.expression)
         if len(normalised) <= _MIN_DUPLICATE_LENGTH:
             continue  # trivial constants (0, 1, BLANK()) are intentionally identical
-        digest = hashlib.md5(normalised.encode("utf-8")).hexdigest()
+        digest = hashlib.md5(normalised.encode("utf-8"), usedforsecurity=False).hexdigest()
         hash_to_measures.setdefault(digest, []).append(
             f"{measure.table}[{measure.name}]"
         )
