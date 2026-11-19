@@ -108,7 +108,10 @@ class RemediationPlanner:
                 continue
 
             if generated:
-                patches.extend(generated)
+                # Several findings can need the same shared patch (e.g. the one parameter all
+                # rewritten data source paths refer to); keep it once.
+                known_ids = {p.patch_id for p in patches}
+                patches.extend(p for p in generated if p.patch_id not in known_ids)
             else:
                 skipped_findings.append({
                     "issue_key": f"{rule_id}::{issue.location or ''}",

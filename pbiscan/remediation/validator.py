@@ -51,8 +51,13 @@ class SandboxValidator:
     """Validates candidate remediation plans in an isolated temporary sandbox."""
 
     @classmethod
-    def apply_patches_to_dir(cls, patches: list[Patch], target_dir: Path) -> list[str]:
+    def apply_patches_to_dir(
+        cls, patches: list[Patch], target_dir: Path, source_root: Optional[Path] = None
+    ) -> list[str]:
         """Apply patch chunks to files inside target_dir. Returns list of errors if any.
+
+        `source_root` is the project the patches were planned on; a patch that creates a file is
+        written at its path relative to it (`target_dir` itself when omitted).
 
         Every patched file is built in memory and re-parsed (check_patched_text)
         first; nothing is written unless all of them pass, and each file is then
@@ -70,24 +75,37 @@ class SandboxValidator:
 
         for source_path, file_patches in patches_by_file.items():
             filename = source_path.name
-            sandbox_file_or_none = _locate_in_dir(target_dir, source_path)
-            if sandbox_file_or_none is None:
-                errors.append(f"Target file not found in sandbox: {filename}")
-                continue
 
-            sandbox_file = sandbox_file_or_none
+            if file_patches[0].creates_file:
+                try:
+                    relative = source_path.relative_to(source_root or target_dir)
+                except ValueError:
+                    errors.append(f"New file {filename} is outside the project")
+                    continue
+                sandbox_file = target_dir / relative
+                if sandbox_file.exists() or not sandbox_file.parent.is_dir():
+                    errors.append(f"Cannot create {filename}: it already exists or its folder is missing")
+                    continue
+                content = ""
+            else:
+                sandbox_file_or_none = _locate_in_dir(target_dir, source_path)
+                if sandbox_file_or_none is None:
+                    errors.append(f"Target file not found in sandbox: {filename}")
+                    continue
 
-            # Check source hash against expected
-            expected_hash = file_patches[0].source_hash
-            current_hash = compute_file_sha256(sandbox_file)
-            if current_hash != expected_hash:
-                errors.append(
-                    f"Source hash mismatch for {sandbox_file.name}: "
-                    f"expected {expected_hash[:8]}, got {current_hash[:8]}"
-                )
-                continue
+                sandbox_file = sandbox_file_or_none
 
-            content = sandbox_file.read_text(encoding="utf-8")
+                # Check source hash against expected
+                expected_hash = file_patches[0].source_hash
+                current_hash = compute_file_sha256(sandbox_file)
+                if current_hash != expected_hash:
+                    errors.append(
+                        f"Source hash mismatch for {sandbox_file.name}: "
+                        f"expected {expected_hash[:8]}, got {current_hash[:8]}"
+                    )
+                    continue
+
+                content = sandbox_file.read_text(encoding="utf-8")
             lines = content.splitlines(keepends=True)
 
             # Collect all chunks across all patches for this file
@@ -130,7 +148,7 @@ class SandboxValidator:
                 continue
 
             patched = "".join(lines)
-            newline = "\r\n" if b"\r\n" in sandbox_file.read_bytes() else "\n"
+            newline = "\r\n" if sandbox_file.exists() and b"\r\n" in sandbox_file.read_bytes() else "\n"
             built.append((sandbox_file, content, patched, newline))
 
         # A relationship may only disappear together with a table the same plan removes, so
@@ -186,7 +204,7 @@ class SandboxValidator:
             shutil.copytree(plan.model_path, sandbox_path)
 
             # 2. Apply candidate patches in sandbox
-            patch_errors = cls.apply_patches_to_dir(actionable, sandbox_path)
+            patch_errors = cls.apply_patches_to_dir(actionable, sandbox_path, source_root=plan.model_path)
             if patch_errors:
                 for p in actionable:
                     p.state = PatchLifecycleState.REJECTED

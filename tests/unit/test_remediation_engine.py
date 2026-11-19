@@ -667,17 +667,90 @@ class TestDataSourcePatcher:
         assert manifest.decision == "ACCEPTED"
         assert manifest.after_score >= before_score
 
-    def test_undefined_parameter_blocks_remediation(self, temp_hardcoded_datasource_tmdl_no_param: Path):
-        """A patch naming DataFolderPath must not be offered when the model lacks it."""
+    def test_paths_in_different_folders_block_remediation_without_a_parameter(
+        self, temp_hardcoded_datasource_tmdl_no_param: Path
+    ):
+        """One DataFolderPath cannot stand for two folders, so nothing is offered (and nothing
+        that names an undefined parameter)."""
         project = temp_hardcoded_datasource_tmdl_no_param
         scan_res = ScanService.execute_scan(project)
         issue = next(f for f in scan_res.issues if f.rule_id == "M_HARDCODED_DATA_SOURCE")
         patcher = DataSourcePatcher()
         evidence = patcher.analyze(issue, scan_res.report, project)
-        assert "parameter_defined" in evidence.violated_preconditions
+        assert "parameter_available" in evidence.violated_preconditions
         assert patcher.generate_patch(issue, evidence, project) is None
 
         plan = RemediationEngine.plan(project, scan_res, rule_filter="M_HARDCODED_DATA_SOURCE")
+        assert not plan.actionable_patches
+
+    def test_missing_parameter_is_created_with_the_fix(self, temp_hardcoded_datasource_tmdl_no_param: Path):
+        """With every path in one folder, the fix also defines DataFolderPath (that folder as its
+        value), so the rewritten partitions resolve to the same files as before."""
+        project = temp_hardcoded_datasource_tmdl_no_param
+        downloads = next(project.rglob("DownloadsCustomers.tmdl"))
+        downloads.write_text(
+            downloads.read_text(encoding="utf-8").replace("C:\\Users\\Dev\\Downloads", "C:\\Users\\Admin\\Desktop"),
+            encoding="utf-8",
+        )
+        definition = next(project.rglob("model.tmdl")).parent
+        assert not (definition / "expressions.tmdl").exists()
+
+        scan = RemediationEngine.analyze(project)
+        plan = RemediationEngine.plan(project, scan, rule_filter="M_HARDCODED_DATA_SOURCE")
+        ids = sorted(p.patch_id for p in plan.actionable_patches)
+        assert sum("DataFolderPath-expression" in i for i in ids) == 1  # shared, planned once
+        assert sum("DataFolderPath-ref" in i for i in ids) == 1
+        assert len(ids) == 4  # two tables + the parameter + its ref
+
+        validation = RemediationEngine.validate(plan, scan)
+        assert validation.accepted, validation.rejection_reasons
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan)
+        assert success, manifest.rejection_reasons
+
+        expression = (definition / "expressions.tmdl").read_text(encoding="utf-8")
+        assert expression.startswith('expression DataFolderPath = "C:\\Users\\Admin\\Desktop" meta [IsParameterQuery=true')
+        assert "ref expression DataFolderPath" in (definition / "model.tmdl").read_text(encoding="utf-8")
+        orders = next(project.rglob("LocalOrders.tmdl")).read_text(encoding="utf-8")
+        assert 'File.Contents(DataFolderPath & "\\Orders.xlsx")' in orders
+        after = ScanService.execute_scan(project)
+        assert not [i for i in after.issues if i.rule_id == "M_HARDCODED_DATA_SOURCE"]
+        assert after.report.unread_files == []
+
+    def test_existing_expressions_file_gets_the_parameter_appended(
+        self, temp_hardcoded_datasource_tmdl_no_param: Path
+    ):
+        project = temp_hardcoded_datasource_tmdl_no_param
+        downloads = next(project.rglob("DownloadsCustomers.tmdl"))
+        downloads.write_text(
+            downloads.read_text(encoding="utf-8").replace("C:\\Users\\Dev\\Downloads", "C:\\Users\\Admin\\Desktop"),
+            encoding="utf-8",
+        )
+        definition = next(project.rglob("model.tmdl")).parent
+        other = (
+            'expression Other = "x" meta [IsParameterQuery=true, Type="Text"]\n'
+            "\tlineageTag: aaaaaaaa-0000-0000-0000-000000000000\n"
+        )
+        (definition / "expressions.tmdl").write_text(other, encoding="utf-8")
+
+        scan = RemediationEngine.analyze(project)
+        plan = RemediationEngine.plan(project, scan, rule_filter="M_HARDCODED_DATA_SOURCE")
+        validation = RemediationEngine.validate(plan, scan)
+        assert validation.accepted, validation.rejection_reasons
+        success, manifest = RemediationEngine.apply(plan, validation, backup=False, original_scan=scan)
+        assert success, manifest.rejection_reasons
+
+        text = (definition / "expressions.tmdl").read_text(encoding="utf-8")
+        assert text.startswith(other) and "expression DataFolderPath" in text
+
+    def test_bim_without_the_parameter_is_not_offered(self, temp_hardcoded_datasource_bim: Path):
+        """Creating the parameter is TMDL-only; a model.bim without it gets no patch."""
+        bim_file = temp_hardcoded_datasource_bim / "fixture.SemanticModel" / "model.bim"
+        data = json.loads(bim_file.read_text(encoding="utf-8"))
+        data["model"]["expressions"] = []
+        bim_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+        scan = RemediationEngine.analyze(temp_hardcoded_datasource_bim)
+        plan = RemediationEngine.plan(temp_hardcoded_datasource_bim, scan, rule_filter="M_HARDCODED_DATA_SOURCE")
         assert not plan.actionable_patches
 
     def test_parameter_name_collision_blocks_remediation(self, temp_hardcoded_datasource_tmdl: Path):

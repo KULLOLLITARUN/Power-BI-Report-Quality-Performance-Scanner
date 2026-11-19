@@ -51,6 +51,10 @@ def compute_sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+# `Patch.source_hash` of a patch that creates its file. The file must not exist when it is applied.
+NEW_FILE_SOURCE_HASH = "new-file"
+
+
 def compute_file_sha256(file_path: Path) -> str:
     """Compute SHA-256 hash of a file's raw byte contents.
 
@@ -100,6 +104,11 @@ class Patch:
     evidence: PatchEvidence
     chunks: list[PatchChunk]
     rationale: str
+
+    @property
+    def creates_file(self) -> bool:
+        """True when this patch writes a file that does not exist yet."""
+        return self.source_hash == NEW_FILE_SOURCE_HASH
 
     def to_dict(self) -> Dict[str, Any]:
         return {

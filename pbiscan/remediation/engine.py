@@ -171,7 +171,11 @@ class RemediationEngine:
         """Steps 2-6 of apply; the caller holds the project lock."""
         # 2. Re-verify source hashes on real workspace to protect against stale changes
         for patch in actionable:
-            current_hash = compute_file_sha256(patch.file_path)
+            if patch.creates_file:
+                # Stale if the file appeared since planning.
+                current_hash = "exists" if patch.file_path.exists() else patch.source_hash
+            else:
+                current_hash = compute_file_sha256(patch.file_path)
             if current_hash != patch.source_hash:
                 reason = (
                     f"Target file changed after remediation plan was generated: {patch.file_path.name} "

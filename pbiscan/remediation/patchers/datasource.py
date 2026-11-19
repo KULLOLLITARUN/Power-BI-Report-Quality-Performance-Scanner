@@ -4,12 +4,14 @@ from __future__ import annotations
 import copy
 import json
 import re
+import uuid
 from pathlib import Path, PureWindowsPath
 from typing import Any, Optional
 
 from pbiscan.canonical.model import CanonicalReport, Table
 from pbiscan.engine.issue import AuditIssue
 from pbiscan.remediation.models import (
+    NEW_FILE_SOURCE_HASH,
     Patch,
     PatchChunk,
     PatchEvidence,
@@ -34,6 +36,8 @@ _JSON_ESCAPED_LOCAL_PATH_PATTERN = re.compile(
     r'\\"[a-zA-Z]:\\\\(?:users|documents|desktop|downloads|temp|tmp)[^"]*?\\"',
     re.IGNORECASE,
 )
+
+_PARAM_NAME = "DataFolderPath"
 
 _BOM = chr(0xFEFF)  # patchers read files as plain UTF-8, which keeps a byte-order mark as text
 
@@ -64,7 +68,7 @@ class DataSourcePatcher(BasePatcher):
             "hardcoded_path_detected",
             "supported_path_semantics",
             "no_parameter_collision",
-            "parameter_defined",
+            "parameter_available",
             "target_file_located",
             "m_source_partition_found",
             "clean_syntax_boundary",
@@ -113,12 +117,16 @@ class DataSourcePatcher(BasePatcher):
             violated.append("no_parameter_collision")
 
         # The rewritten partition refers to DataFolderPath by name. If the model does not
-        # define that parameter, Power Query fails on load, so only offer the patch once
-        # the parameter exists.
-        if self._parameter_defined(model_dir, param_name):
-            satisfied.append("parameter_defined")
+        # define that parameter, Power Query fails on load. So the patch is offered only when
+        # the parameter exists or can be created with it: a TMDL project whose hardcoded
+        # paths all sit in one folder, which becomes the parameter's value.
+        if self._parameter_defined(model_dir, param_name) or (
+            self._can_create_parameter(model_dir)
+            and len(self._hardcoded_folders(report)) == 1
+        ):
+            satisfied.append("parameter_available")
         else:
-            violated.append("parameter_defined")
+            violated.append("parameter_available")
 
         # 3. Locate target file (TMDL or BIM)
         target_file = self._find_target_file(model_dir, table_name)
@@ -194,6 +202,104 @@ class DataSourcePatcher(BasePatcher):
                 f"Parameterize hardcoded developer workstation file path in table '{table_name}' "
                 f"to decouple partition from local developer file system."
             ),
+        )
+
+    def generate_patches(
+        self,
+        issue: AuditIssue,
+        evidence: PatchEvidence,
+        model_dir: Path,
+    ) -> list[Patch]:
+        """The table patch, plus the patches that define `DataFolderPath` when the model lacks it."""
+        patch = self.generate_patch(issue, evidence, model_dir)
+        if patch is None:
+            return []
+        if self._parameter_defined(model_dir, _PARAM_NAME):
+            return [patch]
+        shared = self._parameter_patches(model_dir, patch, evidence)
+        # Without the parameter the table patch would break the model, so offer neither.
+        return [patch, *shared] if shared else []
+
+    @staticmethod
+    def _model_tmdl(model_dir: Path) -> Optional[Path]:
+        found = sorted(model_dir.glob("**/model.tmdl"))
+        return found[0] if len(found) == 1 else None
+
+    @classmethod
+    def _can_create_parameter(cls, model_dir: Path) -> bool:
+        """True for a TMDL project with one model.tmdl (the parameter goes beside it)."""
+        return cls._model_tmdl(model_dir) is not None
+
+    @staticmethod
+    def _hardcoded_folders(report: CanonicalReport) -> set[str]:
+        """Distinct (lower-cased) folders of the hardcoded local file paths in the model's tables."""
+        folders: set[str] = set()
+        for table in report.model.tables:
+            for match in _LOCAL_USER_PATH_PATTERN.finditer(table.partition_source or ""):
+                folders.add(PureWindowsPath(match.group(0).strip("'\"")).parent.as_posix().lower())
+        return folders
+
+    def _parameter_patches(self, model_dir: Path, table_patch: Patch, evidence: PatchEvidence) -> list[Patch]:
+        """Patches that define the DataFolderPath parameter: its expression and its `ref` in model.tmdl."""
+        model_tmdl = self._model_tmdl(model_dir)
+        if model_tmdl is None:
+            return []
+        match = _LOCAL_USER_PATH_PATTERN.search(table_patch.chunks[0].original_text)
+        if not match:
+            return []
+        folder = str(PureWindowsPath(match.group(0).strip("'\"")).parent)
+        definition_dir = model_tmdl.parent
+        expr_file = definition_dir / "expressions.tmdl"
+        lineage = uuid.uuid5(uuid.NAMESPACE_URL, f"pbiscan:{_PARAM_NAME}")
+        block = (
+            f'expression {_PARAM_NAME} = "{folder}" meta '
+            '[IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]\n'
+            f"\tlineageTag: {lineage}\n"
+            "\n"
+            "\tannotation PBI_ResultType = Text\n"
+        )
+        patches: list[Patch] = []
+        rationale = f"Define the {_PARAM_NAME} parameter (the folder the hardcoded paths pointed at)."
+
+        if expr_file.exists():
+            content = expr_file.read_text(encoding="utf-8")
+            lines = content.splitlines(keepends=True)
+            text = ("\n" if lines and not lines[-1].endswith("\n") else "") + ("\n" if lines else "") + block
+            chunk = PatchChunk.create(len(lines) + 1, len(lines), "", text)
+            source_hash = compute_file_sha256(expr_file)
+        else:
+            chunk = PatchChunk.create(1, 0, "", block)
+            source_hash = NEW_FILE_SOURCE_HASH
+        patches.append(self._shared_patch(f"REM-M_HARDCODED_DATA_SOURCE-{_PARAM_NAME}-expression",
+                                          expr_file, source_hash, evidence, chunk, rationale))
+
+        model_text = model_tmdl.read_text(encoding="utf-8")
+        if not re.search(rf"^[ \t]*ref[ \t]+expression[ \t]+'?{_PARAM_NAME}'?[ \t]*$", model_text, re.MULTILINE | re.IGNORECASE):
+            model_lines = model_text.splitlines(keepends=True)
+            last_ref = max(
+                (i for i, ln in enumerate(model_lines) if re.match(r"\s*ref\s+(table|expression)\b", ln)),
+                default=len(model_lines) - 1,
+            )
+            insert_at = last_ref + 1  # 0-based index of the line after the last ref
+            ref_line = f"ref expression {_PARAM_NAME}\n"
+            if model_lines and insert_at > 0 and not model_lines[insert_at - 1].endswith("\n"):
+                ref_line = "\n" + ref_line
+            patches.append(self._shared_patch(
+                f"REM-M_HARDCODED_DATA_SOURCE-{_PARAM_NAME}-ref",
+                model_tmdl, compute_file_sha256(model_tmdl), evidence,
+                PatchChunk.create(insert_at + 1, insert_at, "", ref_line),
+                f"Reference the {_PARAM_NAME} parameter from model.tmdl.",
+            ))
+        return patches
+
+    def _shared_patch(
+        self, patch_id: str, file_path: Path, source_hash: str,
+        evidence: PatchEvidence, chunk: PatchChunk, rationale: str,
+    ) -> Patch:
+        return Patch(
+            patch_id=patch_id, rule_id=self.rule_id, file_path=file_path, source_hash=source_hash,
+            safety=RemediationSafety.REVIEW_REQUIRED, state=PatchLifecycleState.PLANNED,
+            evidence=evidence, chunks=[chunk], rationale=rationale,
         )
 
     def _parse_table_name(self, issue: AuditIssue) -> str:
