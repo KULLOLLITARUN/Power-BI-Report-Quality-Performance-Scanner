@@ -1,12 +1,14 @@
 """Relationship patcher for MODEL_BIDIRECTIONAL."""
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from pbiscan.canonical.model import CanonicalReport
 from pbiscan.engine.issue import AuditIssue
+from pbiscan.extraction.tmdl_parser import parse_tmdl_relationships_text
 from pbiscan.remediation.models import (
     Patch,
     PatchChunk,
@@ -16,6 +18,8 @@ from pbiscan.remediation.models import (
     compute_file_sha256,
 )
 from pbiscan.remediation.patchers.base import BasePatcher
+
+_BOM = chr(0xFEFF)  # patchers read files as plain UTF-8, which keeps a byte-order mark as text
 
 
 class RelationshipPatcher(BasePatcher):
@@ -176,6 +180,19 @@ class RelationshipPatcher(BasePatcher):
             return m1.group(1).strip(), m1.group(2).strip(), m2.group(1).strip(), m2.group(2).strip()
         return "", "", "", ""
 
+    @staticmethod
+    def _same_endpoints(
+        a: Tuple[str, str, str, str],
+        from_table: str,
+        from_col: str,
+        to_table: str,
+        to_col: str,
+    ) -> bool:
+        """Exact (case-insensitive) endpoint match, in either direction."""
+        want = (from_table.lower(), from_col.lower(), to_table.lower(), to_col.lower())
+        got = tuple(x.lower() for x in a)
+        return got == want or got == (want[2], want[3], want[0], want[1])
+
     def _patch_tmdl(
         self,
         content: str,
@@ -184,7 +201,7 @@ class RelationshipPatcher(BasePatcher):
         to_table: str,
         to_col: str,
     ) -> Optional[PatchChunk]:
-        """Generate PatchChunk for TMDL relationship block."""
+        """Generate PatchChunk for the TMDL relationship block with exactly these endpoints."""
         lines = content.splitlines(keepends=True)
         blocks: list[Tuple[int, int]] = []
         start = -1
@@ -197,26 +214,29 @@ class RelationshipPatcher(BasePatcher):
         if start != -1:
             blocks.append((start, len(lines)))
 
-        pair1 = f"{from_table}.{from_col}".lower()
-        pair2 = f"{to_table}.{to_col}".lower()
-
         for b_start, b_end in blocks:
-            block_text = "".join(lines[b_start:b_end]).lower()
-            if pair1 in block_text and pair2 in block_text:
-                for idx in range(b_start, b_end):
-                    line = lines[idx]
-                    if "crossfilteringbehavior:" in line.lower() and ("both" in line.lower() or "2" in line.lower()):
-                        orig_line = line
-                        indent = line[:len(line) - len(line.lstrip())]
-                        repl_line = f"{indent}crossFilteringBehavior: oneDirection\n"
-                        if not line.endswith("\n"):
-                            repl_line = repl_line.rstrip("\n")
-                        return PatchChunk.create(
-                            start_line=idx + 1,
-                            end_line=idx + 1,
-                            original_text=orig_line,
-                            replacement_text=repl_line,
-                        )
+            parsed = parse_tmdl_relationships_text("".join(lines[b_start:b_end]))
+            if len(parsed) != 1:
+                continue
+            rel = parsed[0]
+            if not self._same_endpoints(
+                (rel.from_table, rel.from_column, rel.to_table, rel.to_column),
+                from_table, from_col, to_table, to_col,
+            ):
+                continue
+            for idx in range(b_start, b_end):
+                line = lines[idx]
+                if "crossfilteringbehavior:" in line.lower() and ("both" in line.lower() or "2" in line.lower()):
+                    indent = line[:len(line) - len(line.lstrip())]
+                    repl_line = f"{indent}crossFilteringBehavior: oneDirection\n"
+                    if not line.endswith("\n"):
+                        repl_line = repl_line.rstrip("\n")
+                    return PatchChunk.create(
+                        start_line=idx + 1,
+                        end_line=idx + 1,
+                        original_text=line,
+                        replacement_text=repl_line,
+                    )
 
         return None
 
@@ -228,20 +248,62 @@ class RelationshipPatcher(BasePatcher):
         to_table: str,
         to_col: str,
     ) -> Optional[PatchChunk]:
-        """Generate PatchChunk for BIM model.bim relationship entry."""
+        """Generate PatchChunk for the BIM relationship entry with exactly these endpoints.
+
+        A line edit is only returned when the patched file parses to the original
+        model with that one relationship set to oneDirection, so a neighbouring
+        relationship can never be flipped by mistake.
+        """
+        try:
+            original = json.loads(content.lstrip(_BOM))
+        except json.JSONDecodeError:
+            return None
+
+        matches: list[dict[str, Any]] = []
+
+        def walk(node: Any) -> None:
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    if key == "relationships" and isinstance(value, list):
+                        for entry in value:
+                            if (
+                                isinstance(entry, dict)
+                                and str(entry.get("crossFilteringBehavior", "")).lower() in ("bothdirections", "both")
+                                and self._same_endpoints(
+                                    (
+                                        str(entry.get("fromTable", "")), str(entry.get("fromColumn", "")),
+                                        str(entry.get("toTable", "")), str(entry.get("toColumn", "")),
+                                    ),
+                                    from_table, from_col, to_table, to_col,
+                                )
+                            ):
+                                matches.append(entry)
+                    walk(value)
+            elif isinstance(node, list):
+                for value in node:
+                    walk(value)
+
+        walk(original)
+        if len(matches) != 1:
+            return None
+        matches[0]["crossFilteringBehavior"] = "oneDirection"
+        expected = original  # mutated in place: the single matching entry is now oneDirection
+
         lines = content.splitlines(keepends=True)
         for i, line in enumerate(lines):
             if '"crossFilteringBehavior"' in line and ('"bothDirections"' in line or '"both"' in line):
-                # Verify surrounding lines match fromTable/toTable
-                context_window = "".join(lines[max(0, i - 6):min(len(lines), i + 7)])
-                if from_table.lower() in context_window.lower() and to_table.lower() in context_window.lower():
-                    orig_line = line
-                    repl_line = line.replace('"bothDirections"', '"oneDirection"').replace('"both"', '"oneDirection"')
-                    return PatchChunk.create(
-                        start_line=i + 1,
-                        end_line=i + 1,
-                        original_text=orig_line,
-                        replacement_text=repl_line,
-                    )
+                repl_line = line.replace('"bothDirections"', '"oneDirection"').replace('"both"', '"oneDirection"')
+                trial = list(lines)
+                trial[i] = repl_line
+                try:
+                    if json.loads("".join(trial).lstrip(_BOM)) == expected:
+                        return PatchChunk.create(
+                            start_line=i + 1,
+                            end_line=i + 1,
+                            original_text=line,
+                            replacement_text=repl_line,
+                        )
+                except json.JSONDecodeError:
+                    continue
 
         return None

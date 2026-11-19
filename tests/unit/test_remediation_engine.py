@@ -1613,6 +1613,214 @@ class TestMeasurePatcherDeepCoverage:
 
 
 
+class TestMeasurePatcherDeletesOnlyTheMeasure:
+    """Regression: the unused-measure patch must remove exactly one measure and
+    never a same-named column, a sibling member, or another table's measure."""
+
+    @staticmethod
+    def _apply(content: str, chunk) -> str:
+        assert content.count(chunk.original_text) == 1
+        return content.replace(chunk.original_text, chunk.replacement_text)
+
+    def test_bim_same_named_column_in_earlier_table_is_untouched(self):
+        model = {"model": {"tables": [
+            {"name": "Customers", "columns": [
+                {"name": "Margin", "dataType": "decimal"}, {"name": "Id", "dataType": "int64"}]},
+            {"name": "Sales", "columns": [{"name": "Amount", "dataType": "decimal"}],
+             "measures": [{"name": "Total", "expression": "1"}, {"name": "Margin", "expression": "2"}]},
+        ]}}
+        content = json.dumps(model, indent=2)
+        chunk = MeasurePatcher()._patch_bim(content, "Sales", "Margin")
+        assert chunk is not None
+        patched = json.loads(self._apply(content, chunk))
+        customers, sales = patched["model"]["tables"]
+        assert [c["name"] for c in customers["columns"]] == ["Margin", "Id"]
+        assert [m["name"] for m in sales["measures"]] == ["Total"]
+
+    def test_bim_same_named_measure_in_other_table_is_untouched(self):
+        model = {"model": {"tables": [
+            {"name": "A", "measures": [{"name": "Rate", "expression": "1"}]},
+            {"name": "B", "measures": [{"name": "Rate", "expression": "2"}, {"name": "Keep", "expression": "3"}]},
+        ]}}
+        content = json.dumps(model, indent=2)
+        chunk = MeasurePatcher()._patch_bim(content, "B", "Rate")
+        assert chunk is not None
+        a, b = json.loads(self._apply(content, chunk))["model"]["tables"]
+        assert [m["name"] for m in a["measures"]] == ["Rate"]
+        assert [m["name"] for m in b["measures"]] == ["Keep"]
+
+    def test_bim_ambiguous_or_missing_measure_is_refused(self):
+        model = {"model": {"tables": [
+            {"name": "A", "measures": [{"name": "Rate", "expression": "1"}]},
+            {"name": "B", "measures": [{"name": "Rate", "expression": "2"}]},
+        ]}}
+        patcher = MeasurePatcher()
+        assert patcher._patch_bim(json.dumps(model, indent=2), "", "Rate") is None
+        assert patcher._patch_bim(json.dumps(model, indent=2), "A", "Ghost") is None
+
+    def test_bim_minified_file_is_refused_not_wholly_deleted(self):
+        content = json.dumps({"model": {"tables": [{"name": "T", "measures": [{"name": "M", "expression": "1"}]}]}})
+        assert MeasurePatcher()._patch_bim(content, "T", "M") is None
+
+    def test_bim_with_byte_order_mark_still_patches(self):
+        model = {"model": {"tables": [{"name": "T", "measures": [
+            {"name": "Keep", "expression": "1"}, {"name": "Drop", "expression": "2"}]}]}}
+        content = chr(0xFEFF) + json.dumps(model, indent=2)
+        chunk = MeasurePatcher()._patch_bim(content, "T", "Drop")
+        assert chunk is not None
+        remaining = json.loads(self._apply(content, chunk).lstrip(chr(0xFEFF)))
+        assert [m["name"] for m in remaining["model"]["tables"][0]["measures"]] == ["Keep"]
+
+    def test_tmdl_keeps_following_hierarchy_and_table_annotation(self):
+        content = (
+            "table Sales\n"
+            "\tmeasure Unused = SUM(Sales[Amount])\n"
+            "\t\tformatString: 0\n"
+            "\n"
+            "\thierarchy Geo\n"
+            "\t\tlevel Country\n"
+            "\t\t\tcolumn: Country\n"
+            "\n"
+            "\tannotation PBI_ResultType = Table\n"
+        )
+        chunk = MeasurePatcher()._patch_tmdl(content, "Unused")
+        assert chunk is not None
+        patched = self._apply(content, chunk)
+        assert "Unused" not in patched
+        assert "hierarchy Geo" in patched and "level Country" in patched
+        assert "annotation PBI_ResultType = Table" in patched
+
+    def test_tmdl_removes_every_doc_comment_line_above_the_measure(self):
+        content = (
+            "table Sales\n"
+            "\tmeasure Keep = 1\n"
+            "\n"
+            "\t/// first doc line\n"
+            "\t/// second doc line\n"
+            "\tmeasure Unused = 2\n"
+            "\t\tformatString: 0\n"
+            "\n"
+            "\tmeasure Other = 3\n"
+        )
+        chunk = MeasurePatcher()._patch_tmdl(content, "Unused")
+        assert chunk is not None
+        patched = self._apply(content, chunk)
+        assert "doc line" not in patched
+        assert "measure Keep = 1" in patched and "measure Other = 3" in patched
+
+    def test_tmdl_multiline_expression_and_properties_are_removed_with_the_measure(self):
+        content = (
+            "table Sales\n"
+            "\tmeasure Unused =\n"
+            "\t\t\tVAR x = 1\n"
+            "\t\t\tRETURN x\n"
+            "\t\tformatString: 0\n"
+            "\t\tannotation Note = Hi\n"
+            "\n"
+            "\tmeasure Other = 3\n"
+        )
+        chunk = MeasurePatcher()._patch_tmdl(content, "Unused")
+        assert chunk is not None
+        patched = self._apply(content, chunk)
+        assert patched == "table Sales\n\tmeasure Other = 3\n"
+
+
+class TestRelationshipPatcherTargetsExactRelationship:
+    """Regression: only the relationship with exactly the finding's endpoints may be
+    flipped, never a look-alike (substring) or a neighbouring relationship."""
+
+    def test_tmdl_prefix_lookalike_table_is_not_matched(self):
+        content = (
+            "relationship r1\n\tcrossFilteringBehavior: bothDirections\n"
+            "\tfromColumn: ReturnSales.Date\n\ttoColumn: Calendar.Date\n\n"
+            "relationship r2\n\tcrossFilteringBehavior: bothDirections\n"
+            "\tfromColumn: Sales.Date\n\ttoColumn: Calendar.Date\n"
+        )
+        chunk = RelationshipPatcher()._patch_tmdl(content, "Sales", "Date", "Calendar", "Date")
+        assert chunk is not None
+        assert chunk.start_line == 7  # r2's crossFilteringBehavior, not r1's
+
+    def test_tmdl_unknown_relationship_is_refused(self):
+        content = "relationship r1\n\tcrossFilteringBehavior: bothDirections\n\tfromColumn: A.X\n\ttoColumn: B.X\n"
+        assert RelationshipPatcher()._patch_tmdl(content, "A", "X", "Ghost", "X") is None
+
+    def test_bim_adjacent_relationship_sharing_a_dimension_is_not_flipped(self):
+        rels = [
+            {"name": "a", "fromTable": "Returns", "fromColumn": "P", "toTable": "Product", "toColumn": "P",
+             "crossFilteringBehavior": "bothDirections"},
+            {"name": "b", "fromTable": "Sales", "fromColumn": "P", "toTable": "Product", "toColumn": "P",
+             "crossFilteringBehavior": "bothDirections"},
+        ]
+        content = json.dumps({"model": {"relationships": rels}}, indent=2)
+        chunk = RelationshipPatcher()._patch_bim(content, "Sales", "P", "Product", "P")
+        assert chunk is not None
+        # Both relationships share an identical line, so apply by line number, as the engine does.
+        lines = content.splitlines(keepends=True)
+        assert lines[chunk.start_line - 1] == chunk.original_text
+        lines[chunk.start_line - 1] = chunk.replacement_text
+        patched = json.loads("".join(lines))
+        a, b = patched["model"]["relationships"]
+        assert a["crossFilteringBehavior"] == "bothDirections"
+        assert b["crossFilteringBehavior"] == "oneDirection"
+
+    def test_bim_duplicate_endpoints_are_refused_as_ambiguous(self):
+        rel = {"fromTable": "A", "fromColumn": "X", "toTable": "B", "toColumn": "X", "crossFilteringBehavior": "bothDirections"}
+        content = json.dumps({"model": {"relationships": [dict(rel, name="1"), dict(rel, name="2")]}}, indent=2)
+        assert RelationshipPatcher()._patch_bim(content, "A", "X", "B", "X") is None
+
+
+class TestDataSourcePatcherTargetsNamedTable:
+    def test_bim_patches_the_named_table_not_the_first_one_with_a_local_path(self):
+        def table(name: str, path: str) -> dict:
+            expr = f'let Source = Excel.Workbook(File.Contents("{path}")) in Source'
+            return {"name": name, "partitions": [{"name": name, "source": {"type": "m", "expression": expr}}]}
+
+        orders = table("Orders", "C:\\Users\\a\\Desktop\\Orders.xlsx")
+        customers = table("Customers", "C:\\Users\\a\\Desktop\\Customers.xlsx")
+        content = json.dumps({"model": {"tables": [orders, customers]}}, indent=2)
+
+        chunk = DataSourcePatcher()._patch_bim(content, "Customers")
+        assert chunk is not None
+        patched = json.loads(content.replace(chunk.original_text, chunk.replacement_text))
+        o, c = patched["model"]["tables"]
+        assert o == orders
+        assert "DataFolderPath" in c["partitions"][0]["source"]["expression"]
+        assert "Customers.xlsx" in c["partitions"][0]["source"]["expression"]
+
+    def test_bim_unknown_table_is_refused(self):
+        expr = 'let Source = Excel.Workbook(File.Contents("C:\\Users\\a\\Desktop\\Orders.xlsx")) in Source'
+        content = json.dumps({"model": {"tables": [
+            {"name": "Orders", "partitions": [{"name": "Orders", "source": {"type": "m", "expression": expr}}]}
+        ]}}, indent=2)
+        assert DataSourcePatcher()._patch_bim(content, "Ghost") is None
+
+
+class TestDanglingRelationshipsRejected:
+    def test_removing_auto_date_tables_that_relationships_still_reference_is_rejected(self, temp_autodate_tmdl: Path):
+        """Power BI wires auto date tables to the fact table with relationships. A patch
+        that deletes the tables but leaves those relationships yields a model Power BI
+        cannot open, so validation must reject it."""
+        rel_file = temp_autodate_tmdl / "fixture.SemanticModel" / "definition" / "relationships.tmdl"
+        rel_file.write_text(
+            "relationship 11111111-aaaa-bbbb-cccc-000000000001\n"
+            "\tjoinOnDateBehavior: datePartOnly\n"
+            "\tfromColumn: Sales.OrderDate\n"
+            "\ttoColumn: LocalDateTable_12345678.Date\n",
+            encoding="utf-8",
+        )
+        scan = RemediationEngine.analyze(temp_autodate_tmdl)
+        plan = RemediationEngine.plan(temp_autodate_tmdl, scan, rule_filter="MODEL_AUTO_DATETIME_BLOAT")
+        assert plan.actionable_patches
+        validation = RemediationEngine.validate(plan, scan)
+        assert not validation.accepted
+        assert any("relationship" in r and "LocalDateTable_12345678" in r for r in validation.rejection_reasons)
+
+    def test_auto_date_cleanup_without_relationships_is_still_accepted(self, temp_autodate_tmdl: Path):
+        scan = RemediationEngine.analyze(temp_autodate_tmdl)
+        plan = RemediationEngine.plan(temp_autodate_tmdl, scan, rule_filter="MODEL_AUTO_DATETIME_BLOAT")
+        assert RemediationEngine.validate(plan, scan).accepted
+
+
 class TestDataSourceFileName:
     """pathlib.Path on Linux treats '\' as a filename character, so a Windows path's
     'file name' was the whole path there and the BIM patch wrote invalid JSON."""

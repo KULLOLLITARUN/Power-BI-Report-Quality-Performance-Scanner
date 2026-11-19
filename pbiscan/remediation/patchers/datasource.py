@@ -1,9 +1,11 @@
 """Data source patcher for M_HARDCODED_DATA_SOURCE."""
 from __future__ import annotations
 
+import copy
+import json
 import re
 from pathlib import Path, PureWindowsPath
-from typing import Optional
+from typing import Any, Optional
 
 from pbiscan.canonical.model import CanonicalReport, Table
 from pbiscan.engine.issue import AuditIssue
@@ -32,6 +34,8 @@ _JSON_ESCAPED_LOCAL_PATH_PATTERN = re.compile(
     r'\\"[a-zA-Z]:\\\\(?:users|documents|desktop|downloads|temp|tmp)[^"]*?\\"',
     re.IGNORECASE,
 )
+
+_BOM = chr(0xFEFF)  # patchers read files as plain UTF-8, which keeps a byte-order mark as text
 
 
 def _file_name(path: str) -> str:
@@ -252,29 +256,85 @@ class DataSourcePatcher(BasePatcher):
                 )
         return None
 
+    @staticmethod
+    def _bim_table_path(data: Any, table_name: str) -> Optional[list[Any]]:
+        """Path (keys and indexes) to the single `tables` entry named `table_name`."""
+        found: list[list[Any]] = []
+
+        def walk(node: Any, path: list[Any]) -> None:
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    if key == "tables" and isinstance(value, list):
+                        for idx, entry in enumerate(value):
+                            if isinstance(entry, dict) and str(entry.get("name", "")).lower() == table_name.lower():
+                                found.append(path + [key, idx])
+                    walk(value, path + [key])
+            elif isinstance(node, list):
+                for idx, value in enumerate(node):
+                    walk(value, path + [idx])
+
+        walk(data, [])
+        return found[0] if len(found) == 1 else None
+
     def _patch_bim(self, content: str, table_name: str) -> Optional[PatchChunk]:
-        """Generate PatchChunk for BIM partition source expression.
+        """Generate PatchChunk for BIM partition source expression of `table_name`.
 
         model.bim/database.json is JSON text: json.dumps has escaped each backslash
         to two chars and each quote to `\\"`. _JSON_ESCAPED_LOCAL_PATH_PATTERN's match
         therefore spans the FULL escaped-quote boundary tokens (the leading/trailing
         `\\"`, not just the bare `"` inside them) so the replacement can own — and
         correctly re-escape — both ends instead of leaving a stray backslash behind.
+
+        Every candidate line is checked by parsing the patched file: only the
+        named table may differ from the original, so another table's hardcoded
+        path is never rewritten in its place.
         """
+        try:
+            original = json.loads(content.lstrip(_BOM))
+        except json.JSONDecodeError:
+            return None
+        path = self._bim_table_path(original, table_name)
+        if path is None:
+            return None
+
+        def only_target_table_changed(patched: Any) -> bool:
+            before, after = original, patched
+            for key in path:
+                try:
+                    before, after = before[key], after[key]
+                except (KeyError, IndexError, TypeError):
+                    return False
+            if before == after:
+                return False  # the edit did not touch the named table
+            restored = copy.deepcopy(patched)
+            container = restored
+            for key in path[:-1]:
+                container = container[key]
+            container[path[-1]] = copy.deepcopy(before)
+            return bool(restored == original)
+
         lines = content.splitlines(keepends=True)
         for i, line in enumerate(lines):
             match = _JSON_ESCAPED_LOCAL_PATH_PATTERN.search(line)
-            if match:
-                raw_path_with_quotes = match.group(0)
-                # Strip the JSON-escaped boundary tokens (\" ... \") and un-escape
-                # doubled backslashes back to single ones to recover the plain path.
-                clean_path = raw_path_with_quotes[2:-2].replace("\\\\", "\\")
-                filename = _file_name(clean_path)
-                if not filename:
-                    filename = "data.csv"
-                # Full JSON-escaped replacement, including its own boundary quotes.
-                param_expr = f'DataFolderPath & \\"\\\\{filename}\\"'
-                repl_line = line.replace(raw_path_with_quotes, param_expr)
+            if not match:
+                continue
+            raw_path_with_quotes = match.group(0)
+            # Strip the JSON-escaped boundary tokens (\" ... \") and un-escape
+            # doubled backslashes back to single ones to recover the plain path.
+            clean_path = raw_path_with_quotes[2:-2].replace("\\\\", "\\")
+            filename = _file_name(clean_path)
+            if not filename:
+                filename = "data.csv"
+            # Full JSON-escaped replacement, including its own boundary quotes.
+            param_expr = f'DataFolderPath & \\"\\\\{filename}\\"'
+            repl_line = line.replace(raw_path_with_quotes, param_expr)
+            trial = list(lines)
+            trial[i] = repl_line
+            try:
+                patched = json.loads("".join(trial).lstrip(_BOM))
+            except json.JSONDecodeError:
+                continue
+            if only_target_table_changed(patched):
                 return PatchChunk.create(
                     start_line=i + 1,
                     end_line=i + 1,

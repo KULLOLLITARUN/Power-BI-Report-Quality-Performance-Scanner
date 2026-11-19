@@ -10,7 +10,7 @@ from typing import Optional, Tuple
 
 from pbiscan import __version__
 from pbiscan.remediation.backup import BackupManager
-from pbiscan.remediation.integrity import new_unread_files
+from pbiscan.remediation.integrity import new_dangling_relationships, new_unread_files
 from pbiscan.remediation.models import (
     PatchLifecycleState,
     PatchValidationResult,
@@ -183,6 +183,11 @@ class RemediationEngine:
             )
             if broken:
                 raise ValueError(f"Patched model has file(s) that no longer parse: {', '.join(broken)}")
+            dangling = new_dangling_relationships(original_scan, final_scan) if original_scan else []
+            if dangling:
+                raise ValueError(
+                    "Patched model has relationship(s) pointing at a removed table: " + ", ".join(dangling)
+                )
             if final_scan.overall_score < validation_result.before_score:
                 raise ValueError(
                     f"Final scan score ({final_scan.overall_score:.1f}) regressed below baseline ({validation_result.before_score:.1f})"

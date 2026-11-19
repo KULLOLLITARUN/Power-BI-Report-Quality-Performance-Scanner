@@ -98,6 +98,26 @@ def _check_relationships(name: str, before: str, after: str) -> list[str]:
     return []
 
 
+def new_dangling_relationships(before: ScanResult, after: ScanResult) -> list[str]:
+    """Relationships that point at a table the model no longer has, and did not before.
+
+    A patch that deletes a table must delete or rewrite every relationship that
+    touches it: Power BI refuses a model whose relationship names a missing table.
+    The scanner keeps such relationships, so this is checked on the scan result.
+    """
+    def dangling(scan: ScanResult) -> set[str]:
+        if scan.report is None:
+            return set()
+        tables = {t.name.lower() for t in scan.report.model.tables}
+        return {
+            f"{r.from_table}[{r.from_column}] -> {r.to_table}[{r.to_column}]"
+            for r in scan.report.model.relationships
+            if r.from_table.lower() not in tables or r.to_table.lower() not in tables
+        }
+
+    return sorted(dangling(after) - dangling(before))
+
+
 def new_unread_files(before: ScanResult, after: ScanResult) -> list[str]:
     """Project files (relative paths) that `after` could not read but `before` could."""
     def relative(scan: ScanResult) -> set[str]:

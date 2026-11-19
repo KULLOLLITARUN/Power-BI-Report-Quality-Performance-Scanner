@@ -1,10 +1,11 @@
 """Measure patcher for DAX_UNUSED_MEASURE."""
 from __future__ import annotations
 
+import copy
 import json
 import re
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from pbiscan.canonical.model import CanonicalReport, Measure
 from pbiscan.engine.issue import AuditIssue
@@ -17,6 +18,8 @@ from pbiscan.remediation.models import (
     compute_file_sha256,
 )
 from pbiscan.remediation.patchers.base import BasePatcher
+
+_BOM = chr(0xFEFF)  # patchers read files as plain UTF-8, which keeps a byte-order mark as text
 
 
 class MeasurePatcher(BasePatcher):
@@ -289,125 +292,158 @@ class MeasurePatcher(BasePatcher):
         return None
 
     def _patch_tmdl(self, content: str, measure_name: str) -> Optional[PatchChunk]:
-        """Generate PatchChunk removing the measure block in TMDL."""
+        """Generate PatchChunk removing the measure block in TMDL.
+
+        The block is the declaration plus every following line indented deeper
+        than it, so sibling members (hierarchies, partitions, table annotations)
+        are never swallowed. All `///` doc lines directly above it go with it.
+        """
         lines = content.splitlines(keepends=True)
-        target_start = -1
-        target_end = -1
 
         meas_pattern = re.compile(
             rf"^\s*measure\s+(?:'{re.escape(measure_name)}'|{re.escape(measure_name)})\s*=",
             re.IGNORECASE,
         )
 
+        def indent_of(line: str) -> int:
+            return len(line) - len(line.lstrip(" \t"))
+
         for i, line in enumerate(lines):
-            if meas_pattern.search(line):
-                # Start of measure found
-                # Check for preceding doc comment (e.g. `/// ...`)
-                start_idx = i
-                if start_idx > 0 and lines[start_idx - 1].strip().startswith("///"):
-                    start_idx -= 1
-                target_start = start_idx
+            if not meas_pattern.search(line):
+                continue
 
-                # Find end of measure block: indented properties until next unindented line or next block
-                end_idx = i + 1
-                while end_idx < len(lines):
-                    next_line = lines[end_idx]
-                    stripped = next_line.strip()
-                    if not stripped:
-                        # Empty line between declarations
-                        end_idx += 1
-                        continue
-                    # If indented with tab or spaces, belongs to measure properties
-                    if next_line.startswith(("\t\t", "    ", "\t")):
-                        if stripped.startswith(("measure ", "column ", "partition ", "table ", "///")):
-                            break
-                        end_idx += 1
-                    else:
-                        break
+            start_idx = i
+            while start_idx > 0 and lines[start_idx - 1].strip().startswith("///"):
+                start_idx -= 1
 
-                target_end = end_idx
+            decl_indent = indent_of(line)
+            end_idx = i + 1
+            while end_idx < len(lines):
+                next_line = lines[end_idx]
+                if not next_line.strip():
+                    end_idx += 1  # blank separator lines go with the block
+                    continue
+                if indent_of(next_line) > decl_indent:
+                    end_idx += 1  # property, annotation or expression continuation
+                    continue
                 break
 
-        if target_start != -1 and target_end != -1:
-            orig_text = "".join(lines[target_start:target_end])
             return PatchChunk.create(
-                start_line=target_start + 1,
-                end_line=target_end,
-                original_text=orig_text,
+                start_line=start_idx + 1,
+                end_line=end_idx,
+                original_text="".join(lines[start_idx:end_idx]),
                 replacement_text="",
             )
 
         return None
 
+    @staticmethod
+    def _bim_measure_path(data: Any, table_name: str, measure_name: str) -> Optional[list[Any]]:
+        """Path (keys and indexes) to the one `measures` entry this patch must remove.
+
+        Entries are matched by the owning table's name, so a column or another
+        table's measure with the same name is never a candidate. When no table
+        carries `table_name` (hand-built or unnamed containers) the measure must
+        be unique in the file; anything ambiguous returns None.
+        """
+        found: list[tuple[list[Any], str]] = []
+
+        def walk(node: Any, path: list[Any]) -> None:
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    if key == "measures" and isinstance(value, list):
+                        for idx, entry in enumerate(value):
+                            if isinstance(entry, dict) and str(entry.get("name", "")).lower() == measure_name.lower():
+                                found.append((path + [key, idx], str(node.get("name", ""))))
+                    walk(value, path + [key])
+            elif isinstance(node, list):
+                for idx, value in enumerate(node):
+                    walk(value, path + [idx])
+
+        walk(data, [])
+        if table_name:
+            in_table = [f for f in found if f[1].lower() == table_name.lower()]
+            if in_table:
+                found = in_table
+        return found[0][0] if len(found) == 1 else None
+
     def _patch_bim(self, content: str, table_name: str, measure_name: str) -> Optional[PatchChunk]:
-        """Generate PatchChunk removing the measure object in BIM model.bim."""
+        """Generate PatchChunk removing the measure object in BIM model.bim.
+
+        A text edit is only returned when the patched file parses to exactly the
+        original model minus that one measure, so a wrong object (a column of the
+        same name, another table's measure) or a broken comma can never be emitted.
+        """
+        try:
+            original = json.loads(content.lstrip(_BOM))
+        except json.JSONDecodeError:
+            return None
+        path = self._bim_measure_path(original, table_name, measure_name)
+        if path is None:
+            return None
+        expected = copy.deepcopy(original)
+        container = expected
+        for key in path[:-1]:
+            container = container[key]
+        container.pop(path[-1])
+
+        def verified(patched_lines: list[str]) -> bool:
+            try:
+                return bool(json.loads("".join(patched_lines).lstrip(_BOM)) == expected)
+            except json.JSONDecodeError:
+                return False
+
         lines = content.splitlines(keepends=True)
-        
-        # Locate the measure in JSON lines
+        name_literals = {json.dumps(measure_name, ensure_ascii=a) for a in (True, False)}
+        name_line = re.compile(r'"name"\s*:\s*(?:' + "|".join(re.escape(n) for n in name_literals) + ")")
+
         for i, line in enumerate(lines):
-            if f'"name": "{measure_name}"' in line or f'"name":"{measure_name}"' in line:
-                start_idx = i
-                while start_idx >= 0 and "{" not in lines[start_idx]:
-                    start_idx -= 1
-                
-                end_idx = i
-                brace_depth = 0
-                for k in range(start_idx, len(lines)):
-                    brace_depth += lines[k].count("{") - lines[k].count("}")
-                    if brace_depth == 0:
-                        end_idx = k + 1
-                        break
+            if not name_line.search(line):
+                continue
+            start_idx = i
+            while start_idx >= 0 and "{" not in lines[start_idx]:
+                start_idx -= 1
+            if start_idx < 0:
+                continue
 
-                # Candidate 1: trailing comma
-                cand1_start = start_idx
-                cand1_end = end_idx
-                if cand1_end < len(lines) and lines[cand1_end - 1].rstrip().endswith(","):
-                    pass
-                elif cand1_end < len(lines) and lines[cand1_end].strip().startswith(","):
-                    cand1_end += 1
+            end_idx = i
+            brace_depth = 0
+            for k in range(start_idx, len(lines)):
+                brace_depth += lines[k].count("{") - lines[k].count("}")
+                if brace_depth == 0:
+                    end_idx = k + 1
+                    break
 
-                test_lines = list(lines)
-                test_lines[cand1_start:cand1_end] = []
-                try:
-                    json.loads("".join(test_lines))
-                    return PatchChunk.create(
-                        start_line=cand1_start + 1,
-                        end_line=cand1_end,
-                        original_text="".join(lines[cand1_start:cand1_end]),
-                        replacement_text="",
-                    )
-                except json.JSONDecodeError:
-                    pass
-
-                # Candidate 2: leading comma
-                cand2_start = start_idx
-                cand2_end = end_idx
-                if cand2_start > 0 and lines[cand2_start - 1].rstrip().endswith(","):
-                    prev_line = lines[cand2_start - 1]
-                    comma_pos = prev_line.rfind(",")
-                    if comma_pos != -1:
-                        test_lines = list(lines)
-                        test_lines[cand2_start - 1] = prev_line[:comma_pos] + prev_line[comma_pos + 1:]
-                        test_lines[cand2_start:cand2_end] = []
-                        try:
-                            json.loads("".join(test_lines))
-                            orig = lines[cand2_start - 1] + "".join(lines[cand2_start:cand2_end])
-                            repl = prev_line[:comma_pos] + prev_line[comma_pos + 1:]
-                            return PatchChunk.create(
-                                start_line=cand2_start,
-                                end_line=cand2_end,
-                                original_text=orig,
-                                replacement_text=repl,
-                            )
-                        except json.JSONDecodeError:
-                            pass
-
-                # Fallback: candidate 1
+            # Candidate 1: delete the object, taking its trailing comma with it.
+            cand1_end = end_idx
+            if cand1_end < len(lines) and lines[cand1_end - 1].rstrip().endswith(","):
+                pass
+            elif cand1_end < len(lines) and lines[cand1_end].strip().startswith(","):
+                cand1_end += 1
+            trial = list(lines)
+            trial[start_idx:cand1_end] = []
+            if verified(trial):
                 return PatchChunk.create(
-                    start_line=cand1_start + 1,
+                    start_line=start_idx + 1,
                     end_line=cand1_end,
-                    original_text="".join(lines[cand1_start:cand1_end]),
+                    original_text="".join(lines[start_idx:cand1_end]),
                     replacement_text="",
                 )
+
+            # Candidate 2: last item in its array, so drop the previous item's comma instead.
+            if start_idx > 0 and lines[start_idx - 1].rstrip().endswith(","):
+                prev_line = lines[start_idx - 1]
+                comma_pos = prev_line.rfind(",")
+                repl = prev_line[:comma_pos] + prev_line[comma_pos + 1:]
+                trial = list(lines)
+                trial[start_idx - 1] = repl
+                trial[start_idx:end_idx] = []
+                if verified(trial):
+                    return PatchChunk.create(
+                        start_line=start_idx,
+                        end_line=end_idx,
+                        original_text=prev_line + "".join(lines[start_idx:end_idx]),
+                        replacement_text=repl,
+                    )
 
         return None

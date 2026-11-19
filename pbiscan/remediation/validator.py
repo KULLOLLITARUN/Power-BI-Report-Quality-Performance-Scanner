@@ -9,7 +9,7 @@ from typing import Optional
 from pbiscan.diff import DiffService, QualityGatePolicy
 from pbiscan.fileio import atomic_write_text
 from pbiscan.service import ScanResult, ScanService
-from pbiscan.remediation.integrity import check_patched_text, new_unread_files
+from pbiscan.remediation.integrity import check_patched_text, new_dangling_relationships, new_unread_files
 from pbiscan.remediation.models import (
     Patch,
     PatchLifecycleState,
@@ -189,14 +189,21 @@ class SandboxValidator:
             # 3b. A patch must not leave any file the scanner can no longer read:
             # its findings would vanish and look resolved.
             broken = new_unread_files(original_scan, after_scan)
-            if broken:
+            dangling = new_dangling_relationships(original_scan, after_scan)
+            if broken or dangling:
                 for p in actionable:
                     p.state = PatchLifecycleState.REJECTED
+                reasons = []
+                if broken:
+                    reasons.append(f"Patched model has file(s) that no longer parse: {', '.join(broken)}")
+                if dangling:
+                    reasons.append(
+                        "Patched model has relationship(s) pointing at a table the patch removed: "
+                        + ", ".join(dangling)
+                    )
                 return PatchValidationResult(
                     accepted=False,
-                    rejection_reasons=[
-                        f"Patched model has file(s) that no longer parse: {', '.join(broken)}"
-                    ],
+                    rejection_reasons=reasons,
                     finding_resolved=False,
                     resolved_count=0,
                     expected_resolved_count=len(actionable),
