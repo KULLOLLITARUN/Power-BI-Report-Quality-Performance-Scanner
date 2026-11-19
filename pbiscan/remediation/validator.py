@@ -9,7 +9,9 @@ from typing import Optional
 from pbiscan.diff import DiffService, QualityGatePolicy
 from pbiscan.fileio import atomic_write_text
 from pbiscan.service import ScanResult, ScanService
-from pbiscan.remediation.integrity import check_patched_text, new_dangling_relationships, new_unread_files
+from pbiscan.remediation.integrity import (
+    check_patched_text, new_dangling_relationships, new_unread_files, tables_emptied_by,
+)
 from pbiscan.remediation.models import (
     Patch,
     PatchLifecycleState,
@@ -33,6 +35,7 @@ class SandboxValidator:
         """
         errors: list[str] = []
         pending: list[tuple[Path, str, str]] = []
+        built: list[tuple[Path, str, str, str]] = []
 
         # Group patches and their chunks by resolved target file
         patches_by_filename: dict[str, list[Patch]] = {}
@@ -100,11 +103,17 @@ class SandboxValidator:
                 continue
 
             patched = "".join(lines)
-            problems = check_patched_text(sandbox_file, content, patched)
+            newline = "\r\n" if b"\r\n" in sandbox_file.read_bytes() else "\n"
+            built.append((sandbox_file, content, patched, newline))
+
+        # A relationship may only disappear together with a table the same plan removes, so
+        # work out which tables this plan empties before checking any single file.
+        removed_tables = tables_emptied_by(built)
+        for sandbox_file, content, patched, newline in built:
+            problems = check_patched_text(sandbox_file, content, patched, removed_tables=removed_tables)
             if problems:
                 errors.extend(problems)
                 continue
-            newline = "\r\n" if b"\r\n" in sandbox_file.read_bytes() else "\n"
             pending.append((sandbox_file, patched, newline))
 
         if errors:

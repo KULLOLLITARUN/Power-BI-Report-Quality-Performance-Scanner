@@ -8,6 +8,7 @@ from typing import Optional
 
 from pbiscan.canonical.model import CanonicalReport
 from pbiscan.engine.issue import AuditIssue
+from pbiscan.extraction.tmdl_parser import parse_tmdl_relationships_text
 from pbiscan.remediation.models import (
     Patch,
     PatchChunk,
@@ -73,8 +74,9 @@ class AutoDatePatcher(BasePatcher):
         for rel in report.model.relationships:
             from_match = any(t.lower() == rel.from_table.lower() for t in local_date_tables)
             to_match = any(t.lower() == rel.to_table.lower() for t in local_date_tables)
-            # If both ends are not standard auto-variations or if custom active user relationship
-            if from_match and to_match:
+            # Power BI's own relationship runs fact table -> auto table's Date column, and is
+            # removed with the table. Anything else touching an auto table was built by a person.
+            if (from_match or to_match) and not _is_auto_relationship(rel.from_table, rel.to_table, rel.to_column):
                 custom_rel = True
                 break
 
@@ -140,7 +142,13 @@ class AutoDatePatcher(BasePatcher):
         evidence: PatchEvidence,
         model_dir: Path,
     ) -> list[Patch]:
-        """Generate patches removing LocalDateTable references and table definitions."""
+        """Generate patches removing the auto date/time tables and everything that wires them in.
+
+        Power BI connects each auto date table to its fact table with a relationship, a
+        `variation` block on the fact table's date column, and a `ref table` line in model.tmdl;
+        and it re-creates the tables unless `__PBI_TimeIntelligenceEnabled` is switched off. All
+        of those go together, so the model is never left pointing at a table that is gone.
+        """
         if evidence.violated_preconditions:
             return []
 
@@ -153,7 +161,16 @@ class AutoDatePatcher(BasePatcher):
             if p_model:
                 patches.append(p_model)
 
-            # 2. Patch/clear individual LocalDateTable_*.tmdl and DateTableTemplate_*.tmdl files
+            # 2. Relationships into the auto tables, and the variation blocks that name them
+            removed_ids: set[str] = set()
+            for rel_file in sorted(model_dir.glob("**/relationships.tmdl")):
+                p_rel, ids = self._patch_relationships_tmdl(rel_file, evidence)
+                removed_ids |= ids
+                if p_rel:
+                    patches.append(p_rel)
+            patches.extend(self._patch_variations_tmdl(model_dir, removed_ids, evidence))
+
+            # 3. Patch/clear individual LocalDateTable_*.tmdl and DateTableTemplate_*.tmdl files
             for tmdl_file in model_dir.glob("**/*.tmdl"):
                 if tmdl_file.name.startswith("LocalDateTable_") or tmdl_file.name.startswith("DateTableTemplate_"):
                     content = tmdl_file.read_text(encoding="utf-8")
@@ -210,7 +227,7 @@ class AutoDatePatcher(BasePatcher):
         return None
 
     def _patch_model_tmdl(self, model_tmdl: Path, evidence: PatchEvidence) -> Optional[Patch]:
-        """Generate PatchChunk removing ref table LocalDateTable_* lines in model.tmdl."""
+        """Remove the auto tables' `ref table` lines and switch auto date/time off in model.tmdl."""
         content = model_tmdl.read_text(encoding="utf-8")
         lines = content.splitlines(keepends=True)
         chunks: list[PatchChunk] = []
@@ -223,8 +240,16 @@ class AutoDatePatcher(BasePatcher):
                     original_text=line,
                     replacement_text="",
                 ))
+            elif _TIME_INTELLIGENCE_ON.match(line):
+                # Left on, Power BI would generate the tables again the next time the model opens.
+                chunks.append(PatchChunk.create(
+                    start_line=i + 1,
+                    end_line=i + 1,
+                    original_text=line,
+                    replacement_text=_TIME_INTELLIGENCE_ON.sub(r"\g<1>0\g<2>", line),
+                ))
 
-        if not chunks:
+        if not any(c.replacement_text == "" for c in chunks):
             return None
 
         source_hash = compute_file_sha256(model_tmdl)
@@ -239,28 +264,131 @@ class AutoDatePatcher(BasePatcher):
             state=PatchLifecycleState.PLANNED,
             evidence=evidence,
             chunks=chunks,
-            rationale="Remove auto-generated LocalDateTable references from model.tmdl.",
+            rationale=(
+                "Remove auto-generated LocalDateTable references from model.tmdl and turn Auto Date/Time "
+                "off (__PBI_TimeIntelligenceEnabled = 0) so Power BI does not recreate them."
+            ),
         )
 
+    def _patch_relationships_tmdl(self, rel_file: Path, evidence: PatchEvidence) -> tuple[Optional[Patch], set[str]]:
+        """Remove each relationship from a fact table into an auto date table; return their ids."""
+        content = rel_file.read_text(encoding="utf-8")
+        lines = content.splitlines(keepends=True)
+        chunks: list[PatchChunk] = []
+        removed_ids: set[str] = set()
+
+        for i, line in enumerate(lines):
+            header = re.match(r"^relationship\s+(.+?)\s*$", line.rstrip("\r\n"))
+            if not header:
+                continue
+            end = _block_end(lines, i)
+            parsed = parse_tmdl_relationships_text("".join(lines[i:end]))
+            if len(parsed) != 1:
+                continue
+            rel = parsed[0]
+            if not _is_auto_relationship(rel.from_table, rel.to_table, rel.to_column):
+                continue
+            removed_ids.add(header.group(1).strip().strip("'"))
+            chunks.append(PatchChunk.create(
+                start_line=i + 1,
+                end_line=end,
+                original_text="".join(lines[i:end]),
+                replacement_text="",
+            ))
+
+        if not chunks:
+            return None, set()
+
+        source_hash = compute_file_sha256(rel_file)
+        return Patch(
+            patch_id=f"REM-MODEL_AUTO_DATETIME_BLOAT-relationships-{source_hash[:8]}",
+            rule_id=self.rule_id,
+            file_path=rel_file,
+            source_hash=source_hash,
+            safety=RemediationSafety.REVIEW_REQUIRED,
+            state=PatchLifecycleState.PLANNED,
+            evidence=evidence,
+            chunks=chunks,
+            rationale=f"Remove {len(chunks)} relationship(s) that connect date columns to auto-generated date tables.",
+        ), removed_ids
+
+    def _patch_variations_tmdl(self, model_dir: Path, removed_ids: set[str], evidence: PatchEvidence) -> list[Patch]:
+        """Remove the `variation` blocks on date columns that point at an auto date table."""
+        patches: list[Patch] = []
+        for tmdl in sorted(model_dir.glob("**/*.tmdl")):
+            if tmdl.name.startswith(_AUTO_PREFIXES) or tmdl.name in ("model.tmdl", "relationships.tmdl"):
+                continue
+            lines = tmdl.read_text(encoding="utf-8").splitlines(keepends=True)
+            chunks: list[PatchChunk] = []
+            for i, line in enumerate(lines):
+                if not re.match(r"^\s*variation\b", line):
+                    continue
+                end = _block_end(lines, i)
+                block = "".join(lines[i:end])
+                if any(rid in block for rid in removed_ids) or re.search(r"\b(LocalDateTable_|DateTableTemplate_)", block):
+                    chunks.append(PatchChunk.create(
+                        start_line=i + 1, end_line=end, original_text=block, replacement_text="",
+                    ))
+            if chunks:
+                source_hash = compute_file_sha256(tmdl)
+                patches.append(Patch(
+                    patch_id=f"REM-MODEL_AUTO_DATETIME_BLOAT-variations-{tmdl.stem}-{source_hash[:8]}",
+                    rule_id=self.rule_id,
+                    file_path=tmdl,
+                    source_hash=source_hash,
+                    safety=RemediationSafety.REVIEW_REQUIRED,
+                    state=PatchLifecycleState.PLANNED,
+                    evidence=evidence,
+                    chunks=chunks,
+                    rationale=f"Remove the date-hierarchy variation(s) on {tmdl.stem} that point at auto-generated date tables.",
+                ))
+        return patches
+
     def _patch_bim(self, bim_file: Path, evidence: PatchEvidence) -> Optional[Patch]:
-        """Generate Patch removing LocalDateTable objects in BIM."""
+        """Generate Patch removing the auto date tables, their relationships and variations in BIM."""
         content = bim_file.read_text(encoding="utf-8")
         try:
-            data = json.loads(content)
+            data = json.loads(content.lstrip(_BOM))
         except json.JSONDecodeError:
             return None
 
         # Check model.tables
         model_obj = data.get("model", data)
         tables = model_obj.get("tables", [])
-        filtered_tables = [
-            t for t in tables
-            if not str(t.get("name", "")).startswith("LocalDateTable_")
-            and not str(t.get("name", "")).startswith("DateTableTemplate_")
-        ]
+        auto_names = {str(t.get("name", "")) for t in tables if str(t.get("name", "")).startswith(_AUTO_PREFIXES)}
+        filtered_tables = [t for t in tables if str(t.get("name", "")) not in auto_names]
 
         if len(filtered_tables) == len(tables):
             return None
+
+        removed_rel_names: set[str] = set()
+        kept_rels = []
+        for rel in model_obj.get("relationships", []):
+            if _is_auto_relationship(str(rel.get("fromTable", "")), str(rel.get("toTable", "")), str(rel.get("toColumn", ""))):
+                removed_rel_names.add(str(rel.get("name", "")))
+            else:
+                kept_rels.append(rel)
+        if "relationships" in model_obj:
+            model_obj["relationships"] = kept_rels
+
+        for table in filtered_tables:
+            for column in table.get("columns", []):
+                variations = column.get("variations")
+                if not isinstance(variations, list):
+                    continue
+                kept = [
+                    v for v in variations
+                    if str(v.get("relationship", "")) not in removed_rel_names
+                    and not any(name in json.dumps(v.get("defaultHierarchy", "")) for name in auto_names)
+                ]
+                if kept:
+                    column["variations"] = kept
+                else:
+                    column.pop("variations")
+
+        for annotation in model_obj.get("annotations", []):
+            if annotation.get("name") == "__PBI_TimeIntelligenceEnabled" and str(annotation.get("value")) == "1":
+                annotation["value"] = "0"  # otherwise Power BI recreates the tables
 
         model_obj["tables"] = filtered_tables
         new_content = json.dumps(data, indent=2) + "\n"
@@ -283,5 +411,38 @@ class AutoDatePatcher(BasePatcher):
             state=PatchLifecycleState.PLANNED,
             evidence=evidence,
             chunks=[chunk],
-            rationale="Remove auto-generated LocalDateTable table objects from model.bim.",
+            rationale=(
+                "Remove auto-generated LocalDateTable tables, the relationships and variations that use them, "
+                "and turn Auto Date/Time off, from model.bim."
+            ),
         )
+
+
+_BOM = chr(0xFEFF)  # patchers read files as plain UTF-8, which keeps a byte-order mark as text
+_AUTO_PREFIXES = ("LocalDateTable_", "DateTableTemplate_")
+_TIME_INTELLIGENCE_ON = re.compile(r"^(\s*annotation\s+__PBI_TimeIntelligenceEnabled\s*=\s*)1(\s*)$")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" \t"))
+
+
+def _block_end(lines: list[str], start: int) -> int:
+    """End (exclusive) of the TMDL block starting at `start`: the lines indented deeper than its
+    first line, plus the blank separator lines that follow."""
+    base = _indent(lines[start])
+    end = start + 1
+    while end < len(lines) and lines[end].strip() and _indent(lines[end]) > base:
+        end += 1
+    while end < len(lines) and not lines[end].strip():
+        end += 1
+    return end
+
+
+def _is_auto_relationship(from_table: str, to_table: str, to_column: str) -> bool:
+    """The relationship Power BI creates for auto date/time: fact table -> auto table's Date column."""
+    return (
+        to_table.startswith(_AUTO_PREFIXES)
+        and not from_table.startswith(_AUTO_PREFIXES)
+        and to_column.strip("'").lower() == "date"
+    )

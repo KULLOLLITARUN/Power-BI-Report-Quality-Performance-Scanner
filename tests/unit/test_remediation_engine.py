@@ -1795,25 +1795,164 @@ class TestDataSourcePatcherTargetsNamedTable:
         assert DataSourcePatcher()._patch_bim(content, "Ghost") is None
 
 
-class TestDanglingRelationshipsRejected:
-    def test_removing_auto_date_tables_that_relationships_still_reference_is_rejected(self, temp_autodate_tmdl: Path):
-        """Power BI wires auto date tables to the fact table with relationships. A patch
-        that deletes the tables but leaves those relationships yields a model Power BI
-        cannot open, so validation must reject it."""
-        rel_file = temp_autodate_tmdl / "fixture.SemanticModel" / "definition" / "relationships.tmdl"
-        rel_file.write_text(
-            "relationship 11111111-aaaa-bbbb-cccc-000000000001\n"
-            "\tjoinOnDateBehavior: datePartOnly\n"
-            "\tfromColumn: Sales.OrderDate\n"
-            "\ttoColumn: LocalDateTable_12345678.Date\n",
-            encoding="utf-8",
-        )
+REAL_PROJECT = Path(__file__).resolve().parents[2] / "pbip_project"
+
+
+def _wire_auto_date(project: Path) -> None:
+    """Wire the golden auto-date fixture the way Power BI does: a relationship from the fact
+    table's date column into the auto table, a variation block on that column, and the
+    Auto Date/Time switch in model.tmdl."""
+    definition = project / "fixture.SemanticModel" / "definition"
+    (definition / "relationships.tmdl").write_text(
+        "relationship 11111111-aaaa-bbbb-cccc-000000000001\n"
+        "\tjoinOnDateBehavior: datePartOnly\n"
+        "\tfromColumn: Sales.OrderDate\n"
+        "\ttoColumn: LocalDateTable_12345678.Date\n"
+        "\n"
+        "relationship keep-me\n"
+        "\tfromColumn: Sales.Amount\n"
+        "\ttoColumn: Sales.Amount\n",
+        encoding="utf-8",
+    )
+    sales = definition / "tables" / "Sales.tmdl"
+    text = sales.read_text(encoding="utf-8")
+    text = text.replace(
+        "\t\tdataType: dateTime\n",
+        "\t\tdataType: dateTime\n\n"
+        "\t\tvariation Variation\n"
+        "\t\t\tisDefault\n"
+        "\t\t\trelationship: 11111111-aaaa-bbbb-cccc-000000000001\n"
+        "\t\t\tdefaultHierarchy: LocalDateTable_12345678.'Date Hierarchy'\n",
+        1,
+    )
+    sales.write_text(text, encoding="utf-8")
+    model = definition / "model.tmdl"
+    model.write_text(
+        model.read_text(encoding="utf-8").rstrip("\n") + "\n\nannotation __PBI_TimeIntelligenceEnabled = 1\n",
+        encoding="utf-8",
+    )
+
+
+class TestAutoDateCleanupRemovesWhatWiresItIn:
+    """Power BI connects an auto date table to its fact table with a relationship, a `variation`
+    block on the date column and a model switch. Removing only the table leaves a model Power BI
+    cannot open (or that it silently rebuilds), so the cleanup removes all of it together."""
+
+    def test_wired_tmdl_model_is_cleaned_up_completely(self, temp_autodate_tmdl: Path):
+        _wire_auto_date(temp_autodate_tmdl)
         scan = RemediationEngine.analyze(temp_autodate_tmdl)
         plan = RemediationEngine.plan(temp_autodate_tmdl, scan, rule_filter="MODEL_AUTO_DATETIME_BLOAT")
-        assert plan.actionable_patches
+        validation = RemediationEngine.validate(plan, scan)
+        assert validation.accepted, validation.rejection_reasons
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan)
+        assert success, manifest.rejection_reasons
+
+        definition = temp_autodate_tmdl / "fixture.SemanticModel" / "definition"
+        relationships = (definition / "relationships.tmdl").read_text(encoding="utf-8")
+        assert "LocalDateTable" not in relationships and "keep-me" in relationships
+        sales = (definition / "tables" / "Sales.tmdl").read_text(encoding="utf-8")
+        assert "variation" not in sales and "column OrderDate" in sales
+        model = (definition / "model.tmdl").read_text(encoding="utf-8")
+        assert "ref table LocalDateTable" not in model
+        assert "__PBI_TimeIntelligenceEnabled = 0" in model
+        assert not (definition / "tables" / "LocalDateTable_12345678.tmdl").read_text(encoding="utf-8").strip()
+
+        after = ScanService.execute_scan(temp_autodate_tmdl)
+        assert not [i for i in after.issues if i.rule_id == "MODEL_AUTO_DATETIME_BLOAT"]
+        names = {t.name for t in after.report.model.tables}
+        assert all(r.from_table in names and r.to_table in names for r in after.report.model.relationships)
+
+    def test_real_power_bi_project_is_cleaned_up_without_touching_anything_else(self, tmp_path: Path):
+        project = tmp_path / "real"
+        shutil.copytree(REAL_PROJECT, project)
+        before = {p.relative_to(project).as_posix(): p.read_bytes() for p in project.rglob("*") if p.is_file()}
+        scan = RemediationEngine.analyze(project)
+        assert any(i.rule_id == "MODEL_AUTO_DATETIME_BLOAT" for i in scan.issues)
+
+        plan = RemediationEngine.plan(project, scan, rule_filter="MODEL_AUTO_DATETIME_BLOAT")
+        validation = RemediationEngine.validate(plan, scan)
+        assert validation.accepted, validation.rejection_reasons
+        success, manifest = RemediationEngine.apply(plan, validation, backup=False, original_scan=scan)
+        assert success, manifest.rejection_reasons
+
+        changed = sorted(Path(k).name for k, v in before.items() if (project / k).read_bytes() != v)
+        assert changed == sorted([
+            "model.tmdl", "relationships.tmdl", "Banana Price (BLS).tmdl",
+            "DateTableTemplate_79c1342f-96cf-41f7-ba1d-4ceb28893187.tmdl",
+            "LocalDateTable_6179b6f8-f964-446d-85c9-7b7d4d077e3e.tmdl",
+        ])
+        after = ScanService.execute_scan(project)
+        assert not [i for i in after.issues if i.rule_id == "MODEL_AUTO_DATETIME_BLOAT"]
+        assert len(after.report.model.relationships) == len(scan.report.model.relationships) - 1
+
+    def test_wired_bim_model_is_cleaned_up_completely(self, temp_autodate_bim: Path):
+        bim_file = temp_autodate_bim / "fixture.SemanticModel" / "model.bim"
+        data = json.loads(bim_file.read_text(encoding="utf-8"))
+        fact = data["model"]["tables"][0]
+        fact["columns"].append({
+            "name": "OrderDate", "dataType": "dateTime", "sourceColumn": "OrderDate",
+            "variations": [{"name": "Variation", "isDefault": True, "relationship": "auto-1",
+                            "defaultHierarchy": {"table": "LocalDateTable_12345678", "hierarchy": "Date Hierarchy"}}],
+        })
+        data["model"].setdefault("relationships", []).append({
+            "name": "auto-1", "fromTable": fact["name"], "fromColumn": "OrderDate",
+            "toTable": "LocalDateTable_12345678", "toColumn": "Date",
+        })
+        data["model"]["annotations"] = [{"name": "__PBI_TimeIntelligenceEnabled", "value": "1"}]
+        bim_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        keep = [r["name"] for r in data["model"]["relationships"] if r["name"] != "auto-1"]
+
+        scan = RemediationEngine.analyze(temp_autodate_bim)
+        plan = RemediationEngine.plan(temp_autodate_bim, scan, rule_filter="MODEL_AUTO_DATETIME_BLOAT")
+        validation = RemediationEngine.validate(plan, scan)
+        assert validation.accepted, validation.rejection_reasons
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan)
+        assert success, manifest.rejection_reasons
+
+        patched = json.loads(bim_file.read_text(encoding="utf-8"))["model"]
+        assert "LocalDateTable_12345678" not in {t["name"] for t in patched["tables"]}
+        assert [r["name"] for r in patched["relationships"]] == keep
+        order_date = next(c for c in patched["tables"][0]["columns"] if c["name"] == "OrderDate")
+        assert "variations" not in order_date
+        assert patched["annotations"] == [{"name": "__PBI_TimeIntelligenceEnabled", "value": "0"}]
+
+    @pytest.mark.parametrize("from_table, from_col, to_table, to_col", [
+        ("LocalDateTable_12345678", "Date", "Sales", "Amount"),     # out of the auto table
+        ("Sales", "OrderDate", "LocalDateTable_12345678", "Year"),  # not into its Date column
+    ])
+    def test_a_relationship_a_person_built_blocks_the_cleanup(
+        self, temp_autodate_tmdl: Path, from_table, from_col, to_table, to_col
+    ):
+        scan_res = ScanService.execute_scan(temp_autodate_tmdl)
+        from pbiscan.canonical.model import Relationship
+        scan_res.report.model.relationships.append(Relationship(
+            from_table=from_table, from_column=from_col, to_table=to_table, to_column=to_col,
+            cross_filter_direction="single",
+        ))
+        finding = next(f for f in scan_res.issues if f.rule_id == "MODEL_AUTO_DATETIME_BLOAT")
+        evidence = AutoDatePatcher().analyze(finding, scan_res.report, temp_autodate_tmdl)
+        assert "zero_custom_relationship_dependencies" in evidence.violated_preconditions
+
+
+class TestDanglingRelationshipsRejected:
+    """The net under the patcher: whatever a plan does, it may not leave a relationship
+    pointing at a table it removed."""
+
+    def test_a_plan_that_forgets_the_relationships_is_rejected(self, temp_autodate_tmdl: Path):
+        _wire_auto_date(temp_autodate_tmdl)
+        scan = RemediationEngine.analyze(temp_autodate_tmdl)
+        plan = RemediationEngine.plan(temp_autodate_tmdl, scan, rule_filter="MODEL_AUTO_DATETIME_BLOAT")
+        plan.patches = [p for p in plan.patches if p.file_path.name != "relationships.tmdl"]
         validation = RemediationEngine.validate(plan, scan)
         assert not validation.accepted
         assert any("relationship" in r and "LocalDateTable_12345678" in r for r in validation.rejection_reasons)
+
+    def test_dropping_a_relationship_with_no_removed_table_is_rejected(self):
+        from pbiscan.remediation.integrity import check_patched_text
+        before = "relationship a\n\tfromColumn: A.X\n\ttoColumn: B.X\n"
+        problems = check_patched_text(Path("relationships.tmdl"), before, "")
+        assert problems and "removed by the patch" in problems[0]
+        assert check_patched_text(Path("relationships.tmdl"), before, "", removed_tables=frozenset({"b"})) == []
 
     def test_auto_date_cleanup_without_relationships_is_still_accepted(self, temp_autodate_tmdl: Path):
         scan = RemediationEngine.analyze(temp_autodate_tmdl)

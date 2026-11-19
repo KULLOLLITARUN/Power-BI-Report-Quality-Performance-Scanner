@@ -16,6 +16,12 @@ logger = logging.getLogger(__name__)
 # A table reference: 'Quoted Name' (with '' as an escaped quote) or a bare name.
 _COL_REF_RE = re.compile(r"^(?:'((?:[^']|'')*)'|([^.']+))\.(.*)$")
 _FENCE = "```"
+# Boolean properties TMDL may write as a bare word (meaning true) under a measure or
+# calculated column. Mirrored by TMDL_BARE_FLAGS in studio-ui/src/engine/clientScanner.ts.
+_BARE_FLAGS = frozenset({
+    "isHidden", "isSimpleMeasure", "isKey", "isNullable", "isUnique",
+    "isDefaultLabel", "isDefaultImage", "isAvailableInMdx",
+})
 
 
 def parse_tmdl_model(sm_dir: Path) -> RawModel:
@@ -143,6 +149,7 @@ def parse_tmdl_table_text(content: str, source_file: str = "") -> Optional[RawTa
     current_item_type: Optional[str] = None
     current_item_data: dict[str, Any] = {}
     current_expr_lines: list[str] = []
+    variation_indent: Optional[int] = None  # inside a `variation` block, whose lines are not DAX
 
     def flush_current() -> None:
         nonlocal current_item_type, current_item_data, current_expr_lines
@@ -251,9 +258,20 @@ def parse_tmdl_table_text(content: str, source_file: str = "") -> Optional[RawTa
             else:
                 current_expr_lines.append(stripped)
         elif current_item_type in ("measure", "calc_col"):
+            indent = len(line) - len(line.lstrip(" 	"))
+            if variation_indent is not None and indent > variation_indent:
+                continue  # a property of the date variation (isDefault, relationship, defaultHierarchy)
+            variation_indent = None
+            if stripped == "variation" or stripped.startswith("variation "):
+                variation_indent = indent
+                continue
             if ":" in stripped and any(stripped.startswith(p) for p in ("formatString:", "lineageTag:", "dataType:", "summarizeBy:", "displayFolder:", "isHidden:")):
                 k, v = stripped.split(":", 1)
-                current_item_data[k.strip()] = v.strip()
+                k, v = k.strip(), v.strip()
+                current_item_data[k] = (v.lower() != "false") if k == "isHidden" else v
+            elif stripped in _BARE_FLAGS:
+                # `isHidden` on its own line means true; it is a property, not DAX.
+                current_item_data[stripped] = True
             else:
                 current_expr_lines.append(stripped)
         elif current_item_type == "column":

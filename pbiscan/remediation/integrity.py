@@ -20,7 +20,7 @@ from pbiscan.service import ScanResult
 _JSON_SUFFIXES = {".json", ".bim", ".pbir", ".pbism", ".pbip"}
 
 
-def check_patched_text(path: Path, before: str, after: str) -> list[str]:
+def check_patched_text(path: Path, before: str, after: str, removed_tables: frozenset[str] = frozenset()) -> list[str]:
     """Return problems with replacing `before` by `after` in `path`; empty means OK.
 
     JSON files must still parse. A TMDL table file must either be emptied
@@ -28,7 +28,8 @@ def check_patched_text(path: Path, before: str, after: str) -> list[str]:
     same columns and calculation items, and every measure left in it must keep
     its exact expression: a measure deleted without its body would otherwise
     leave that body attached to the measure above it. relationships.tmdl must
-    keep every relationship's endpoints.
+    keep every relationship's endpoints, except that a relationship may be dropped when one
+    of its tables is in `removed_tables` (tables the same plan deletes, lower-cased).
     """
     name = path.name
     suffix = path.suffix.lower()
@@ -46,7 +47,7 @@ def check_patched_text(path: Path, before: str, after: str) -> list[str]:
         return []
 
     if name.lower() == "relationships.tmdl":
-        return _check_relationships(name, before, after)
+        return _check_relationships(name, before, after, removed_tables)
 
     original = parse_tmdl_table_text(before)
     if original is None:
@@ -86,16 +87,35 @@ def _check_table(name: str, before: RawTable, after: RawTable) -> list[str]:
     return problems
 
 
-def _check_relationships(name: str, before: str, after: str) -> list[str]:
+def _check_relationships(name: str, before: str, after: str, removed_tables: frozenset[str] = frozenset()) -> list[str]:
     def endpoints(text: str) -> list[tuple[str, str, str, str]]:
         return sorted(
             (r.from_table, r.from_column, r.to_table, r.to_column)
             for r in parse_tmdl_relationships_text(text)
         )
 
-    if endpoints(after) != endpoints(before):
-        return [f"{name}: relationship endpoints changed by the patch"]
+    kept = endpoints(after)
+    original = endpoints(before)
+    remaining = list(original)
+    for rel in kept:
+        if rel not in remaining:
+            return [f"{name}: relationship endpoints changed by the patch"]
+        remaining.remove(rel)
+    for rel in remaining:  # dropped by the patch
+        if rel[0].lower() not in removed_tables and rel[2].lower() not in removed_tables:
+            return [f"{name}: relationship {rel[0]}[{rel[1]}] -> {rel[2]}[{rel[3]}] removed by the patch"]
     return []
+
+
+def tables_emptied_by(files: list[tuple[Path, str, str, str]]) -> frozenset[str]:
+    """Lower-cased names of the TMDL tables whose file a set of (path, before, after, newline) edits empties."""
+    names: set[str] = set()
+    for path, before, after, _ in files:
+        if path.suffix.lower() == ".tmdl" and not after.strip():
+            table = parse_tmdl_table_text(before.lstrip(chr(0xFEFF)))
+            if table is not None:
+                names.add(table.name.lower())
+    return frozenset(names)
 
 
 def new_dangling_relationships(before: ScanResult, after: ScanResult) -> list[str]:

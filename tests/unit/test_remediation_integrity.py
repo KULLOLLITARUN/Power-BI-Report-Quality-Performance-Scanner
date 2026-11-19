@@ -182,7 +182,7 @@ def test_sandbox_rejects_a_patch_that_leaves_a_file_unreadable(tmp_path: Path, m
     shutil.copytree(GOLDEN_DIR / "test_enterprise_stress", project)
     scan, plan = _plan_that_breaks_sales_tmdl(project)
     # Bypass the per-file check to prove the whole-project check catches it on its own.
-    monkeypatch.setattr(validator_module, "check_patched_text", lambda *a: [])
+    monkeypatch.setattr(validator_module, "check_patched_text", lambda *a, **kw: [])
 
     result = RemediationEngine.validate(plan, scan)
 
@@ -218,7 +218,7 @@ def test_apply_rolls_back_a_patch_that_leaves_a_file_unreadable(tmp_path: Path, 
     original = sales.read_bytes()
     scan, plan = _plan_that_breaks_sales_tmdl(project)
     # Let both sandbox checks pass so the real apply's final verification is what's tested.
-    monkeypatch.setattr(validator_module, "check_patched_text", lambda *a: [])
+    monkeypatch.setattr(validator_module, "check_patched_text", lambda *a, **kw: [])
     monkeypatch.setattr(validator_module, "new_unread_files", lambda *a: [])
     # The unreadable Sales table also leaves its relationships dangling, which the sandbox rejects.
     monkeypatch.setattr(validator_module, "new_dangling_relationships", lambda *a: [])
