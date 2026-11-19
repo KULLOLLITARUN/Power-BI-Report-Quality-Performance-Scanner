@@ -34,7 +34,10 @@ GOLDEN_EXPECTATIONS = [
     ("test_facttofact",      "MODEL_FACT_TO_FACT",         1,  60,  60),
     ("test_expensive_dax",   "DAX_SUSPICIOUS_PATTERN",     1,   1,  65),
 
+    ("test_nested_calculate", "DAX_SUSPICIOUS_PATTERN",   1,   1,  65),
+
     # CRITICAL NEGATIVE — must produce 0 findings
+    ("test_dax_pattern_negative", "DAX_SUSPICIOUS_PATTERN", 0, 0, 100),
     ("test_measure_referenced_by_another", "DAX_UNUSED_MEASURE", 0, 0, 100),
 ]
 

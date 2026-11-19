@@ -7,7 +7,7 @@ from pbiscan.canonical.model import (
 from pbiscan.rules.dax import (
     check_suspicious_dax, check_excessive_calc_columns,
     check_duplicate_measures, check_unused_measures,
-    _normalise_expression, strip_dax_comments, DAX_RULES,
+    _normalise_expression, strip_dax_comments, has_nested_calculate, DAX_RULES,
 )
 
 
@@ -89,6 +89,51 @@ class TestSuspiciousIgnoresComments:
     def test_real_pattern_after_comment_still_flagged(self):
         m = _measure("M", "-- note\nCALCULATE(FILTER(ALL(Sales), 1))")
         assert len(check_suspicious_dax(_make_report(measures=[m]))) == 1
+
+
+class TestSuspiciousIgnoresStringLiterals:
+    def test_pattern_text_inside_string_literal_not_flagged(self):
+        m = _measure("Label", 'IF(1, "Use FILTER(ALL(x)) or EARLIER( here", "n")')
+        assert check_suspicious_dax(_make_report(measures=[m])) == []
+
+    def test_escaped_quote_does_not_end_string_early(self):
+        m = _measure("Label", '"say ""EARLIER(" & [x]')
+        assert check_suspicious_dax(_make_report(measures=[m])) == []
+
+    def test_code_after_string_still_flagged(self):
+        m = _measure("Label", '"note" & EARLIER(Sales[x])')
+        assert len(check_suspicious_dax(_make_report(measures=[m]))) == 1
+
+
+class TestNestedCalculate:
+    def test_sequential_calculate_not_flagged(self):
+        m = _measure("M", "CALCULATE(SUM(T[a])) + CALCULATE(SUM(T[b]))")
+        assert check_suspicious_dax(_make_report(measures=[m])) == []
+
+    def test_nested_calculate_flagged(self):
+        m = _measure("M", "CALCULATE(CALCULATE(SUM(T[a]), T[b] = 1), T[c] = 2)")
+        findings = check_suspicious_dax(_make_report(measures=[m]))
+        assert len(findings) == 1
+        assert "Nested CALCULATE" in findings[0].evidence
+
+    def test_nested_in_later_argument_flagged(self):
+        m = _measure("M", "CALCULATE(SUM(T[a]), FILTER(T, CALCULATE(MAX(T[b])) > 0))")
+        assert len(check_suspicious_dax(_make_report(measures=[m]))) == 1
+
+    def test_calculate_in_string_or_name_not_counted(self):
+        m = _measure("M", 'CALCULATE(SUM(T[a]), T[note] = "CALCULATE(x)")')
+        assert check_suspicious_dax(_make_report(measures=[m])) == []
+
+    def test_parentheses_inside_names_do_not_break_depth(self):
+        m = _measure("M", "CALCULATE(SUM(T[a (usd)])) + CALCULATE(SUM('T (x)'[b]))")
+        assert check_suspicious_dax(_make_report(measures=[m])) == []
+
+    def test_calculatetable_is_not_calculate(self):
+        m = _measure("M", "CALCULATE(COUNTROWS(CALCULATETABLE(T)))")
+        assert check_suspicious_dax(_make_report(measures=[m])) == []
+
+    def test_has_nested_calculate_is_case_insensitive(self):
+        assert has_nested_calculate("calculate(1, Calculate(2))")
 
 
 class TestCheckExcessiveCalcColumns:

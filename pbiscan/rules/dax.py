@@ -21,12 +21,12 @@ from pbiscan.rules.catalog import new_finding
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def strip_dax_comments(expr: str) -> str:
-    """Remove ``//``, ``--`` and ``/* */`` comments without touching string literals.
+def _walk_dax(expr: str, *, drop_comments: bool, blank: str) -> str:
+    """Single pass over a DAX expression, aware of strings, names and comments.
 
-    Walks the expression once so comment markers inside "text" literals
-    (e.g. URLs), 'Table Names' and [Column Names] are preserved. A removed
-    comment is replaced by a single space so adjacent tokens never fuse.
+    ``blank`` controls which literal contents are replaced by spaces (delimiters
+    and length are kept): ``""`` none, ``"strings"`` only "text" literals,
+    ``"all"`` also 'Table Names' and [Column Names].
     """
     out: list[str] = []
     i, n = 0, len(expr)
@@ -34,24 +34,27 @@ def strip_dax_comments(expr: str) -> str:
         ch = expr[i]
         if ch in ('"', "'", "["):
             close = {'"': '"', "'": "'", "[": "]"}[ch]
+            do_blank = blank == "all" or (blank == "strings" and ch == '"')
             out.append(ch)
             i += 1
             while i < n:
-                out.append(expr[i])
-                if expr[i] == close:
+                c = expr[i]
+                if c == close:
                     # A doubled quote ("" or '') is an escaped quote, not the end.
                     if close != "]" and i + 1 < n and expr[i + 1] == close:
-                        out.append(expr[i + 1])
+                        out.append("  " if do_blank else c + c)
                         i += 2
                         continue
+                    out.append(c)
                     i += 1
                     break
+                out.append(" " if do_blank and c != "\n" else c)
                 i += 1
-        elif expr.startswith("//", i) or expr.startswith("--", i):
+        elif drop_comments and (expr.startswith("//", i) or expr.startswith("--", i)):
             while i < n and expr[i] != "\n":
                 i += 1
             out.append(" ")
-        elif expr.startswith("/*", i):
+        elif drop_comments and expr.startswith("/*", i):
             end = expr.find("*/", i + 2)
             i = n if end == -1 else end + 2
             out.append(" ")
@@ -61,12 +64,57 @@ def strip_dax_comments(expr: str) -> str:
     return "".join(out)
 
 
+def strip_dax_comments(expr: str) -> str:
+    """Remove ``//``, ``--`` and ``/* */`` comments without touching string literals.
+
+    Comment markers inside "text" literals (e.g. URLs), 'Table Names' and
+    [Column Names] are preserved. A removed comment becomes a single space so
+    adjacent tokens never fuse.
+    """
+    return _walk_dax(expr, drop_comments=True, blank="")
+
+
+def dax_code_only(expr: str) -> str:
+    """Comments removed and "text" literal contents blanked: safe to regex for code."""
+    return _walk_dax(expr, drop_comments=True, blank="strings")
+
+
+_CALCULATE_CALL = re.compile(r"\bCALCULATE\s*\(", re.IGNORECASE)
+
+
+def has_nested_calculate(expr: str) -> bool:
+    """True when a CALCULATE( call appears inside another CALCULATE's arguments.
+
+    Sequential calls such as ``CALCULATE(a) + CALCULATE(b)`` are not nested.
+    """
+    code = _walk_dax(expr, drop_comments=True, blank="all")
+    opens = [m.end() for m in _CALCULATE_CALL.finditer(code)]  # index just past "("
+    for idx, start in enumerate(opens):
+        depth = 1
+        pos = start
+        while pos < len(code) and depth:
+            if code[pos] == "(":
+                depth += 1
+            elif code[pos] == ")":
+                depth -= 1
+            pos += 1
+        end = pos if depth == 0 else len(code)
+        if any(start <= later < end for later in opens[idx + 1:]):
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # D001 — Suspicious DAX patterns
 # ---------------------------------------------------------------------------
 
 # Patterns are defined here but should ultimately be driven from rules.config.json.
 # The pipeline passes config to rule functions via keyword arguments.
+# The nested-CALCULATE regex is the shipped default (and what rules.config.json
+# carries). A regex cannot tell nesting from sequential calls, so this exact
+# pattern is evaluated with a parenthesis-depth check instead.
+_NESTED_CALCULATE_PATTERN = r"CALCULATE\s*\(.*?CALCULATE\s*\("
+
 _DEFAULT_SUSPICIOUS_PATTERNS: list[tuple[str, str]] = [
     (
         r"FILTER\s*\(\s*ALL\s*\(",
@@ -77,7 +125,7 @@ _DEFAULT_SUSPICIOUS_PATTERNS: list[tuple[str, str]] = [
         "EARLIER() — legacy iterator function; consider VAR/RETURN instead",
     ),
     (
-        r"CALCULATE\s*\(.*?CALCULATE\s*\(",
+        _NESTED_CALCULATE_PATTERN,
         "Nested CALCULATE() — verify context-transition behaviour",
     ),
 ]
@@ -99,9 +147,13 @@ def check_suspicious_dax(
     findings: list[RuleFinding] = []
     for measure in report.dax.measures:
         # Match against code only: commented-out DAX must not raise findings.
-        code = strip_dax_comments(measure.expression)
+        code = dax_code_only(measure.expression)
         for pattern, description in patterns:
-            if re.search(pattern, code, re.IGNORECASE | re.DOTALL):
+            if pattern == _NESTED_CALCULATE_PATTERN:
+                matched = has_nested_calculate(measure.expression)
+            else:
+                matched = re.search(pattern, code, re.IGNORECASE | re.DOTALL) is not None
+            if matched:
                 findings.append(new_finding(
                     "DAX_SUSPICIOUS_PATTERN",
                     evidence=(

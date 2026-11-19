@@ -28,10 +28,11 @@ interface CalcGroupEntry {
 }
 
 /**
- * Mirrors pbiscan.rules.dax.strip_dax_comments: removes //, -- and block comments
- * while leaving string literals, 'Table Names' and [Column Names] untouched.
+ * Mirrors pbiscan.rules.dax._walk_dax: one pass aware of strings, names and comments.
+ * `blank` replaces literal contents with spaces: 'none', 'strings' ("text" only),
+ * or 'all' (also 'Table Names' and [Column Names]).
  */
-export function stripDaxComments(expr: string): string {
+function walkDax(expr: string, dropComments: boolean, blank: 'none' | 'strings' | 'all'): string {
   let out = '';
   let i = 0;
   const n = expr.length;
@@ -39,25 +40,28 @@ export function stripDaxComments(expr: string): string {
     const ch = expr[i];
     if (ch === '"' || ch === "'" || ch === '[') {
       const close = ch === '[' ? ']' : ch;
+      const doBlank = blank === 'all' || (blank === 'strings' && ch === '"');
       out += ch;
       i++;
       while (i < n) {
-        out += expr[i];
-        if (expr[i] === close) {
+        const c = expr[i];
+        if (c === close) {
           if (close !== ']' && expr[i + 1] === close) {
-            out += expr[i + 1];
+            out += doBlank ? '  ' : c + c;
             i += 2;
             continue;
           }
+          out += c;
           i++;
           break;
         }
+        out += doBlank && c !== '\n' ? ' ' : c;
         i++;
       }
-    } else if (expr.startsWith('//', i) || expr.startsWith('--', i)) {
+    } else if (dropComments && (expr.startsWith('//', i) || expr.startsWith('--', i))) {
       while (i < n && expr[i] !== '\n') i++;
       out += ' ';
-    } else if (expr.startsWith('/*', i)) {
+    } else if (dropComments && expr.startsWith('/*', i)) {
       const end = expr.indexOf('*/', i + 2);
       i = end === -1 ? n : end + 2;
       out += ' ';
@@ -67,6 +71,40 @@ export function stripDaxComments(expr: string): string {
     }
   }
   return out;
+}
+
+/** Mirrors pbiscan.rules.dax.strip_dax_comments. */
+export function stripDaxComments(expr: string): string {
+  return walkDax(expr, true, 'none');
+}
+
+/** Mirrors pbiscan.rules.dax.dax_code_only: comments removed, "text" literals blanked. */
+export function daxCodeOnly(expr: string): string {
+  return walkDax(expr, true, 'strings');
+}
+
+/** Mirrors pbiscan.rules.dax.has_nested_calculate: CALCULATE( inside another CALCULATE's arguments. */
+export function hasNestedCalculate(expr: string): boolean {
+  const code = walkDax(expr, true, 'all');
+  const opens: number[] = [];
+  const re = /\bCALCULATE\s*\(/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(code)) !== null) opens.push(m.index + m[0].length);
+  for (let idx = 0; idx < opens.length; idx++) {
+    const start = opens[idx];
+    let depth = 1;
+    let pos = start;
+    while (pos < code.length && depth) {
+      if (code[pos] === '(') depth++;
+      else if (code[pos] === ')') depth--;
+      pos++;
+    }
+    const end = depth === 0 ? pos : code.length;
+    for (let j = idx + 1; j < opens.length; j++) {
+      if (opens[j] >= start && opens[j] < end) return true;
+    }
+  }
+  return false;
 }
 
 /** Mirrors pbiscan.rules.dax._normalise_expression. */
@@ -387,9 +425,15 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     [/\bEARLIER\s*\(/is, 'EARLIER() — legacy iterator function; consider VAR/RETURN instead'],
     [/CALCULATE\s*\(.*?CALCULATE\s*\(/is, 'Nested CALCULATE() — verify context-transition behaviour'],
   ];
+  const NESTED_CALCULATE_SOURCE = String.raw`CALCULATE\s*\(.*?CALCULATE\s*\(`;
   for (const m of measures) {
+    const code = daxCodeOnly(m.expression);
     for (const [pattern, description] of SUSPICIOUS_DAX_PATTERNS) {
-      if (pattern.test(stripDaxComments(m.expression))) {
+      // Nesting needs paren-depth tracking; a regex also matches sequential calls.
+      const matched = pattern.source === NESTED_CALCULATE_SOURCE
+        ? hasNestedCalculate(m.expression)
+        : pattern.test(code);
+      if (matched) {
         findings.push({
           ...ruleMeta('DAX_SUSPICIOUS_PATTERN'),
           title: 'Suspicious DAX pattern detected',

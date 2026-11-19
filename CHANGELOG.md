@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Browser-only scans now include `semantic_references` and `dax_graph`**, so the evidence above and measure dependencies also work without the local engine. A parity test compares both engines' references and graphs over every golden fixture.
 - **Studio unit tests** (Vitest) for the model helpers, measure evidence, DAX graph serialization and map layout, run in CI.
 
+### Fixed
+- **DAX rules read code, not text.** D001 (`DAX_SUSPICIOUS_PATTERN`) no longer fires on commented-out DAX or on pattern text inside string literals, and "Nested CALCULATE()" now means a `CALCULATE` inside another `CALCULATE`'s arguments (a parenthesis-depth check), so `CALCULATE(a) + CALCULATE(b)` is no longer flagged. D003 (`DAX_DUPLICATE_MEASURE`) keeps `//` and `--` inside string literals, so measures that differ only by a URL are no longer reported as duplicates, and skips constant expressions of 5 characters or fewer. The browser scanner mirrors all of it; new golden fixtures cover a true positive and a critical negative.
+
 ### Changed
 - **Studio redesign.** New look (navy ink, cobalt accent, IBM Plex and Archivo, both themes), a mobile layout with a bottom tab bar and bottom sheets, and a 3D model map built with three.js: tables are blocks sized by column count and coloured by role, relationships are arcs with dots showing filter direction, and tables with findings carry a severity marker. Report pages can float above the model with a thread from each visual to the tables it reads. Fonts are bundled instead of loaded from Google Fonts.
 - **Studio fixes**: `pbiscan studio <path>` scans the path on first load (it used to show a "needs the local engine" error); dropped folders with more than 100 entries are read completely; picking a folder with no project files shows an error instead of nothing; the Fixes tab no longer shows simulated patches in browser-only mode.

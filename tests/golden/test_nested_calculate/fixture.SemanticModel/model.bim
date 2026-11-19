@@ -1,0 +1,69 @@
+{
+  "_comment": "GOLDEN FIXTURE (true-positive control): D001 fires once. Revenue Filtered nests CALCULATE inside CALCULATE.",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {
+            "name": "Amount",
+            "dataType": "decimal",
+            "sourceColumn": "Amount"
+          },
+          {
+            "name": "Region",
+            "dataType": "string",
+            "sourceColumn": "Region"
+          }
+        ],
+        "measures": [
+          {
+            "name": "Total Revenue",
+            "expression": "SUM(Sales[Amount])"
+          },
+          {
+            "name": "Revenue Filtered",
+            "expression": "CALCULATE(CALCULATE(SUM(Sales[Amount]), Sales[Region] = \"East\"), Sales[Amount] > 0)"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Sales",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": "let Source = Table.FromRows({}) in Source"
+            }
+          }
+        ]
+      },
+      {
+        "name": "DimDate",
+        "columns": [
+          {
+            "name": "Date",
+            "dataType": "dateTime",
+            "sourceColumn": "Date"
+          }
+        ],
+        "annotations": [
+          {
+            "name": "PBI_IsDateTable",
+            "value": "true"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "DimDate",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": "let Source = Table.FromRows({}) in Source"
+            }
+          }
+        ]
+      }
+    ],
+    "relationships": []
+  }
+}
