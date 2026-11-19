@@ -231,7 +231,9 @@ export const FixesScreen: React.FC<{
               <tbody>{history.map((h) => (
                 <tr key={h.manifest_id}>
                   <td>{new Date(h.created_at).toLocaleString()}</td>
-                  <td style={{ color: h.rollback_executed ? 'var(--sev-critical)' : 'var(--good)' }}>{h.rollback_executed ? 'Rolled back' : h.decision.toLowerCase()}</td>
+                  <td style={{ color: h.rollback_executed || h.decision === 'ROLLBACK_FAILED' ? 'var(--sev-critical)' : 'var(--good)' }}>
+                    {h.decision === 'ROLLBACK_FAILED' ? 'Rollback failed' : h.rollback_executed ? 'Rolled back' : h.decision.toLowerCase()}
+                  </td>
                   <td className="num">{h.applied_count}</td>
                   <td className="mono">{h.before_score.toFixed(1)} → {h.after_score.toFixed(1)}</td>
                   <td className="mono muted">{h.manifest_id}</td>

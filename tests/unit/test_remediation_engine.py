@@ -1821,6 +1821,122 @@ class TestDanglingRelationshipsRejected:
         assert RemediationEngine.validate(plan, scan).accepted
 
 
+class TestBackupAndRestoreSafety:
+    """Regression: a backup must never be overwritten, and a failed restore must
+    not leave the project half deleted."""
+
+    def test_backups_made_in_the_same_second_do_not_overwrite_each_other(self, tmp_path: Path, monkeypatch):
+        import datetime as real_dt
+        from pbiscan.remediation import backup as backup_module
+
+        class FixedClock(real_dt.datetime):
+            @classmethod
+            def utcnow(cls):
+                return cls(2026, 1, 1, 0, 0, 0)
+
+        monkeypatch.setattr(backup_module, "datetime", FixedClock)
+        project = tmp_path / "proj"
+        project.mkdir()
+        (project / "a.txt").write_text("ORIGINAL", encoding="utf-8")
+
+        first = BackupManager.create_backup(project)
+        (project / "a.txt").write_text("AFTER FIRST APPLY", encoding="utf-8")
+        second = BackupManager.create_backup(project)
+
+        assert first != second
+        assert (first / "a.txt").read_text(encoding="utf-8") == "ORIGINAL"
+        assert (second / "a.txt").read_text(encoding="utf-8") == "AFTER FIRST APPLY"
+        assert BackupManager.get_backup_metadata(second)["backup_id"].startswith("BKP-")
+
+    def test_failed_restore_leaves_the_project_untouched(self, tmp_path: Path, monkeypatch):
+        project = tmp_path / "proj"
+        (project / "sub").mkdir(parents=True)
+        (project / "a.txt").write_text("ORIGINAL-A", encoding="utf-8")
+        (project / "sub" / "b.txt").write_text("ORIGINAL-B", encoding="utf-8")
+        backup = BackupManager.create_backup(project)
+        (project / "a.txt").write_text("PATCHED-A", encoding="utf-8")
+
+        real_rename = Path.rename
+
+        def locked_rename(self, target):
+            if self == project:
+                raise PermissionError("project folder is open in another program")
+            return real_rename(self, target)
+
+        monkeypatch.setattr(Path, "rename", locked_rename)
+        with pytest.raises(PermissionError):
+            BackupManager.restore_backup(backup, project)
+
+        assert (project / "a.txt").read_text(encoding="utf-8") == "PATCHED-A"
+        assert (project / "sub" / "b.txt").read_text(encoding="utf-8") == "ORIGINAL-B"
+        assert not (tmp_path / "proj.restore_tmp").exists()
+        assert not (tmp_path / "proj.restore_old").exists()
+
+    def test_restore_replaces_changed_added_and_removed_files(self, tmp_path: Path):
+        project = tmp_path / "proj"
+        project.mkdir()
+        (project / "a.txt").write_text("ORIGINAL", encoding="utf-8")
+        (project / "gone.txt").write_text("GONE", encoding="utf-8")
+        backup = BackupManager.create_backup(project)
+        (project / "a.txt").write_text("CHANGED", encoding="utf-8")
+        (project / "gone.txt").unlink()
+        (project / "extra.txt").write_text("EXTRA", encoding="utf-8")
+
+        assert BackupManager.restore_backup(backup, project) is True
+        assert BackupManager.verify_restoration(backup, project)
+        assert sorted(p.name for p in project.iterdir()) == ["a.txt", "gone.txt"]
+        assert not (tmp_path / "proj.restore_tmp").exists()
+        assert not (tmp_path / "proj.restore_old").exists()
+
+    def test_restore_of_a_missing_backup_returns_false(self, tmp_path: Path):
+        project = tmp_path / "proj"
+        project.mkdir()
+        assert BackupManager.restore_backup(tmp_path / "nope", project) is False
+        assert project.exists()
+
+
+class TestRollbackIsReportedHonestly:
+    def test_failed_write_without_backup_is_not_reported_as_rolled_back(self, temp_bidirectional_bim: Path, monkeypatch):
+        scan_res = RemediationEngine.analyze(temp_bidirectional_bim)
+        plan = RemediationEngine.plan(temp_bidirectional_bim, scan_res)
+        validation = RemediationEngine.validate(plan, scan_res)
+        assert validation.accepted is True
+
+        from pbiscan.remediation.validator import SandboxValidator
+        monkeypatch.setattr(
+            SandboxValidator, "apply_patches_to_dir",
+            classmethod(lambda cls, patches, target_dir: ["simulated disk write failure"]),
+        )
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=False, original_scan=scan_res)
+        assert success is False
+        assert manifest.decision == "ROLLBACK_FAILED"
+        assert manifest.rollback_executed is False
+        assert any("No backup was taken" in r for r in manifest.rejection_reasons)
+
+    def test_unrestorable_backup_is_reported_not_raised(self, temp_bidirectional_bim: Path, monkeypatch):
+        scan_res = RemediationEngine.analyze(temp_bidirectional_bim)
+        plan = RemediationEngine.plan(temp_bidirectional_bim, scan_res)
+        validation = RemediationEngine.validate(plan, scan_res)
+
+        from pbiscan.remediation.validator import SandboxValidator
+        monkeypatch.setattr(
+            SandboxValidator, "apply_patches_to_dir",
+            classmethod(lambda cls, patches, target_dir: ["simulated disk write failure"]),
+        )
+
+        def locked(*args, **kwargs):
+            raise PermissionError("folder locked")
+
+        monkeypatch.setattr(BackupManager, "restore_backup", staticmethod(locked))
+
+        success, manifest = RemediationEngine.apply(plan, validation, backup=True, original_scan=scan_res)
+        assert success is False
+        assert manifest.decision == "ROLLBACK_FAILED"
+        assert manifest.rollback_executed is False
+        assert any("Restore failed" in r and manifest.backup_location in r for r in manifest.rejection_reasons)
+
+
 class TestDataSourceFileName:
     """pathlib.Path on Linux treats '\' as a filename character, so a Windows path's
     'file name' was the whole path there and the BIM patch wrote invalid JSON."""

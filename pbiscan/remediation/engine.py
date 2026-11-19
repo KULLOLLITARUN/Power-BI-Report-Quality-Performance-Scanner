@@ -41,6 +41,24 @@ def _save_manifest_best_effort(manifest: RemediationManifest, model_path: Path) 
         logger.warning("Could not save remediation audit manifest for %s: %s", model_path, exc)
 
 
+def _rollback(backup_dir: Optional[Path], model_path: Path) -> tuple[bool, str]:
+    """Restore the pre-apply backup and verify it byte for byte. Never raises.
+
+    Returns (restored, problem). The manifest records `restored`, so a failed or
+    impossible rollback is reported as such instead of being claimed as done.
+    """
+    if backup_dir is None:
+        return False, "No backup was taken (backup disabled), so files already written stay patched."
+    try:
+        if not BackupManager.restore_backup(backup_dir, model_path):
+            return False, f"Backup not found at {backup_dir}."
+        if not BackupManager.verify_restoration(backup_dir, model_path):
+            return False, f"Restored files do not match the backup; the original is in {backup_dir}."
+    except OSError as exc:
+        return False, f"Restore failed ({exc}); the original files are in {backup_dir}."
+    return True, ""
+
+
 class RemediationEngine:
     """Enterprise Safe Remediation Engine for PBIP Sentinel."""
 
@@ -148,8 +166,7 @@ class RemediationEngine:
         # 4. Apply patches to real workspace
         apply_errors = SandboxValidator.apply_patches_to_dir(actionable, plan.model_path)
         if apply_errors:
-            if backup_dir:
-                BackupManager.restore_backup(backup_dir, plan.model_path)
+            restored, rollback_problem = _rollback(backup_dir, plan.model_path)
             for p in actionable:
                 p.state = PatchLifecycleState.REJECTED
             manifest = RemediationManifest(
@@ -158,7 +175,7 @@ class RemediationEngine:
                 model_path=str(plan.model_path),
                 baseline_scan_fingerprint=baseline_fp,
                 created_at=created_at,
-                decision="ROLLED_BACK",
+                decision="ROLLED_BACK" if restored else "ROLLBACK_FAILED",
                 before_score=validation_result.before_score,
                 after_score=validation_result.after_score,
                 score_delta=0.0,
@@ -166,10 +183,11 @@ class RemediationEngine:
                 backup_location=backup_meta.get("backup_location"),
                 backup_hash=backup_meta.get("backup_hash"),
                 files_backed_up=backup_meta.get("files_backed_up", []),
-                rollback_executed=True,
+                rollback_executed=restored,
                 patches=[p.to_dict() for p in plan.patches],
                 conflicts=[c.to_dict() for c in plan.conflicts],
-                rejection_reasons=[f"Disk write error: {e}" for e in apply_errors],
+                rejection_reasons=[f"Disk write error: {e}" for e in apply_errors]
+                + ([rollback_problem] if rollback_problem else []),
             )
             _save_manifest_best_effort(manifest, plan.model_path)
             return False, manifest
@@ -195,11 +213,7 @@ class RemediationEngine:
             final_fp = compute_scan_fingerprint(final_scan)
         except Exception as exc:
             # Rollback and verify restoration
-            if backup_dir:
-                BackupManager.restore_backup(backup_dir, plan.model_path)
-                restored_ok = BackupManager.verify_restoration(backup_dir, plan.model_path)
-                if not restored_ok:
-                    raise RuntimeError("Critical rollback error: Restored model does not match original backup.")
+            restored, rollback_problem = _rollback(backup_dir, plan.model_path)
 
             for p in actionable:
                 p.state = PatchLifecycleState.REJECTED
@@ -209,7 +223,7 @@ class RemediationEngine:
                 model_path=str(plan.model_path),
                 baseline_scan_fingerprint=baseline_fp,
                 created_at=created_at,
-                decision="ROLLED_BACK",
+                decision="ROLLED_BACK" if restored else "ROLLBACK_FAILED",
                 before_score=validation_result.before_score,
                 after_score=0.0,
                 score_delta=0.0,
@@ -217,10 +231,14 @@ class RemediationEngine:
                 backup_location=backup_meta.get("backup_location"),
                 backup_hash=backup_meta.get("backup_hash"),
                 files_backed_up=backup_meta.get("files_backed_up", []),
-                rollback_executed=True,
+                rollback_executed=restored,
                 patches=[p.to_dict() for p in plan.patches],
                 conflicts=[c.to_dict() for c in plan.conflicts],
-                rejection_reasons=[f"Final verification failed, rolled back to backup: {exc}"],
+                rejection_reasons=[
+                    f"Final verification failed, rolled back to backup: {exc}"
+                    if restored
+                    else f"Final verification failed: {exc} {rollback_problem}"
+                ],
             )
             _save_manifest_best_effort(manifest, plan.model_path)
             return False, manifest
@@ -258,13 +276,14 @@ class RemediationEngine:
             from pbiscan.remediation.store import RemediationAuditStore
             RemediationAuditStore.save_manifest(manifest, plan.model_path)
         except Exception as audit_err:
-            if backup_dir:
-                BackupManager.restore_backup(backup_dir, plan.model_path)
-            manifest.decision = "ROLLED_BACK"
-            manifest.rollback_executed = True
+            restored, rollback_problem = _rollback(backup_dir, plan.model_path)
+            manifest.decision = "ROLLED_BACK" if restored else "ROLLBACK_FAILED"
+            manifest.rollback_executed = restored
             manifest.audit_saved = False
             manifest.audit_error = str(audit_err)
             manifest.rejection_reasons.append(f"Audit persistence failure: {audit_err}")
+            if rollback_problem:
+                manifest.rejection_reasons.append(rollback_problem)
             return False, manifest
 
         return True, manifest

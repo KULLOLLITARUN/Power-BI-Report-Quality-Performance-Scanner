@@ -251,7 +251,7 @@ class RemediationManifest:
     model_path: str = ""
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     actor: str = "CLI"                   # "CLI", "STUDIO", "CI", "AUTOMATION"
-    decision: str = "ACCEPTED"           # "ACCEPTED", "REJECTED", "REVIEW_REQUIRED", "ROLLED_BACK", "DRY_RUN"
+    decision: str = "ACCEPTED"           # "ACCEPTED", "REJECTED", "REVIEW_REQUIRED", "ROLLED_BACK", "ROLLBACK_FAILED", "DRY_RUN"
     baseline_scan_fingerprint: str = ""
     post_scan_fingerprint: str = ""
     before_score: float = 0.0

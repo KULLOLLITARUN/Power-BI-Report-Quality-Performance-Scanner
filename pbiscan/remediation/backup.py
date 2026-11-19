@@ -16,23 +16,56 @@ class BackupManager:
         """Create a timestamped backup directory of the PBIP project."""
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         backup_dir = project_path.parent / f"{project_path.name}.bak_{timestamp}"
-        
-        if backup_dir.exists():
-            shutil.rmtree(backup_dir)
-            
+
+        # Never overwrite an earlier backup: it may be the only restore point for a
+        # previous apply made within the same second.
+        counter = 1
+        while backup_dir.exists():
+            counter += 1
+            backup_dir = project_path.parent / f"{project_path.name}.bak_{timestamp}_{counter}"
+
         shutil.copytree(project_path, backup_dir)
         return backup_dir
 
     @staticmethod
     def restore_backup(backup_path: Path, target_path: Path) -> bool:
-        """Restore target directory from backup."""
+        """Restore target directory from backup.
+
+        The restored copy is built beside the target and swapped in by renaming, so a
+        failure (a file locked by Power BI Desktop or a sync client, a full disk)
+        leaves the project exactly as it was instead of half deleted. Raises OSError
+        on failure; returns False only when the backup itself is missing.
+        """
         if not backup_path.exists():
             return False
 
-        if target_path.exists():
-            shutil.rmtree(target_path)
+        staging = target_path.with_name(target_path.name + ".restore_tmp")
+        displaced = target_path.with_name(target_path.name + ".restore_old")
+        for leftover in (staging, displaced):  # stale from an interrupted earlier restore
+            if leftover.exists():
+                shutil.rmtree(leftover)
 
-        shutil.copytree(backup_path, target_path)
+        try:
+            shutil.copytree(backup_path, staging)
+        except BaseException:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+
+        if target_path.exists():
+            try:
+                target_path.rename(displaced)
+            except BaseException:
+                shutil.rmtree(staging, ignore_errors=True)
+                raise
+        try:
+            staging.rename(target_path)
+        except BaseException:
+            if displaced.exists() and not target_path.exists():
+                displaced.rename(target_path)
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+
+        shutil.rmtree(displaced, ignore_errors=True)
         return True
 
     @staticmethod
