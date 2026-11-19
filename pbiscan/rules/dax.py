@@ -40,8 +40,8 @@ def _walk_dax(expr: str, *, drop_comments: bool, blank: str) -> str:
             while i < n:
                 c = expr[i]
                 if c == close:
-                    # A doubled quote ("" or '') is an escaped quote, not the end.
-                    if close != "]" and i + 1 < n and expr[i + 1] == close:
+                    # A doubled delimiter ("", '' or ]]) is an escaped character, not the end.
+                    if i + 1 < n and expr[i + 1] == close:
                         out.append("  " if do_blank else c + c)
                         i += 2
                         continue

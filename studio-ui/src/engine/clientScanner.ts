@@ -71,7 +71,8 @@ function walkDax(expr: string, dropComments: boolean, blank: 'none' | 'strings' 
       while (i < n) {
         const c = expr[i];
         if (c === close) {
-          if (close !== ']' && expr[i + 1] === close) {
+          // A doubled delimiter ("", '' or ]]) is an escaped character, not the end.
+          if (expr[i + 1] === close) {
             out += doBlank ? '  ' : c + c;
             i += 2;
             continue;
