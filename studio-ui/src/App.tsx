@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CircleX, FolderDown } from 'lucide-react';
 import type { AuditFinding, ScanResult } from './types';
-import { apiFetch } from './utils/api';
+import { apiFetch, hasStudioToken } from './utils/api';
 import { useTheme } from './hooks/useTheme';
 import { parseDroppedPbip } from './engine/clientScanner';
 import { SAMPLE_BANANAS_REPORT, SAMPLE_ENTERPRISE_REPORT, sampleHistory } from './data/sampleReports';
@@ -71,7 +71,9 @@ const Studio: React.FC = () => {
       try {
         const res = await fetch('/api/health');
         const ok = res.ok && (res.headers.get('content-type') || '').includes('application/json') && (await res.json())?.status === 'ok';
-        setHasBackend(!!ok);
+        // A server that answers but never handed this page its token (a hosted copy) cannot
+        // serve folder calls, so treat it as no local engine and scan in the browser.
+        setHasBackend(!!ok && hasStudioToken());
       } catch {
         setHasBackend(false);
       } finally {

@@ -31,6 +31,15 @@ function captureToken(): string | null {
 
 const studioToken = captureToken();
 
+/**
+ * True when this page was opened from the URL `pbiscan studio` prints. A hosted copy of the
+ * page (or one opened without that URL) has no token, so the server refuses its folder calls
+ * and the page must scan in the browser instead.
+ */
+export function hasStudioToken(): boolean {
+  return studioToken !== null && studioToken !== '';
+}
+
 /** fetch() for Studio's own API, with the per-run access token attached. */
 export function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
