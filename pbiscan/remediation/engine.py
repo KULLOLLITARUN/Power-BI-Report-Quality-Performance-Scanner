@@ -11,6 +11,7 @@ from typing import Optional, Tuple
 from pbiscan import __version__
 from pbiscan.remediation.backup import BackupManager
 from pbiscan.remediation.integrity import new_dangling_relationships, new_unread_files
+from pbiscan.remediation.lock import ProjectLockedError, project_lock
 from pbiscan.remediation.models import (
     PatchLifecycleState,
     PatchValidationResult,
@@ -129,6 +130,45 @@ class RemediationEngine:
             _save_manifest_best_effort(manifest, plan.model_path)
             return False, manifest
 
+        # 2-6 run under the project lock, so a second apply cannot interleave its writes.
+        try:
+            with project_lock(plan.model_path):
+                return cls._apply_locked(
+                    plan, validation_result, backup, config_path, original_scan,
+                    actionable, created_at, baseline_fp,
+                )
+        except ProjectLockedError as exc:
+            for p in actionable:
+                p.state = PatchLifecycleState.REJECTED
+            # Nothing is written to the project, not even the audit record: the other apply owns it.
+            return False, RemediationManifest(
+                engine_version=__version__,
+                model_name=plan.model_path.name,
+                model_path=str(plan.model_path),
+                created_at=created_at,
+                decision="REJECTED",
+                baseline_scan_fingerprint=baseline_fp,
+                before_score=validation_result.before_score,
+                after_score=validation_result.after_score,
+                score_delta=0.0,
+                patches=[p.to_dict() for p in plan.patches],
+                conflicts=[c.to_dict() for c in plan.conflicts],
+                rejection_reasons=[str(exc)],
+            )
+
+    @classmethod
+    def _apply_locked(
+        cls,
+        plan: RemediationPlan,
+        validation_result: PatchValidationResult,
+        backup: bool,
+        config_path: Optional[str],
+        original_scan: Optional[ScanResult],
+        actionable: list,
+        created_at: str,
+        baseline_fp: str,
+    ) -> Tuple[bool, RemediationManifest]:
+        """Steps 2-6 of apply; the caller holds the project lock."""
         # 2. Re-verify source hashes on real workspace to protect against stale changes
         for patch in actionable:
             current_hash = compute_file_sha256(patch.file_path)
