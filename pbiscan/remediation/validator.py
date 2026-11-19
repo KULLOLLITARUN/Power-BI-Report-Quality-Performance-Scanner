@@ -29,6 +29,24 @@ def _is_auto_date_table_file(path: Path) -> bool:
     return path.suffix.lower() == ".tmdl" and path.name.startswith(_AUTO_DATE_FILE_PREFIXES)
 
 
+def _locate_in_dir(target_dir: Path, source_path: Path) -> Optional[Path]:
+    """The file under `target_dir` that corresponds to `source_path` (a path in the original project).
+
+    `target_dir` is the project or a copy of it, so the right file is the one whose path
+    relative to `target_dir` is the tail of `source_path`. Where two files share a name the
+    longest matching tail wins; a file whose tail does not match is never picked.
+    """
+    best: Optional[Path] = None
+    best_len = 0
+    source_parts = source_path.parts
+    for candidate in target_dir.glob(f"**/{source_path.name}"):
+        rel_parts = candidate.relative_to(target_dir).parts
+        if len(rel_parts) <= len(source_parts) and source_parts[len(source_parts) - len(rel_parts):] == rel_parts:
+            if len(rel_parts) > best_len:
+                best, best_len = candidate, len(rel_parts)
+    return best
+
+
 class SandboxValidator:
     """Validates candidate remediation plans in an isolated temporary sandbox."""
 
@@ -44,19 +62,21 @@ class SandboxValidator:
         pending: list[tuple[Path, str, str]] = []
         built: list[tuple[Path, str, str, str]] = []
 
-        # Group patches and their chunks by resolved target file
-        patches_by_filename: dict[str, list[Patch]] = {}
+        # Group patches and their chunks by target file. Files with the same name can live in
+        # different folders, so the full path is the key, not the name.
+        patches_by_file: dict[Path, list[Patch]] = {}
         for patch in patches:
-            patches_by_filename.setdefault(patch.file_path.name, []).append(patch)
+            patches_by_file.setdefault(patch.file_path, []).append(patch)
 
-        for filename, file_patches in patches_by_filename.items():
-            candidates = [p for p in target_dir.glob(f"**/{filename}")]
-            if not candidates:
+        for source_path, file_patches in patches_by_file.items():
+            filename = source_path.name
+            sandbox_file_or_none = _locate_in_dir(target_dir, source_path)
+            if sandbox_file_or_none is None:
                 errors.append(f"Target file not found in sandbox: {filename}")
                 continue
 
-            sandbox_file = candidates[0]
-            
+            sandbox_file = sandbox_file_or_none
+
             # Check source hash against expected
             expected_hash = file_patches[0].source_hash
             current_hash = compute_file_sha256(sandbox_file)

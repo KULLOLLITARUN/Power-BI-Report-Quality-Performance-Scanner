@@ -230,3 +230,28 @@ def test_apply_rolls_back_a_patch_that_leaves_a_file_unreadable(tmp_path: Path, 
     assert manifest.decision == "ROLLED_BACK"
     assert any("no longer parse" in r for r in manifest.rejection_reasons)
     assert sales.read_bytes() == original
+
+
+def test_same_named_files_in_different_folders_are_patched_separately(tmp_path: Path):
+    """Two patched files may share a name (two models each have a model.tmdl). Each patch must
+    land in its own file, not be merged into whichever file the name finds first."""
+    from pbiscan.remediation.models import PatchEvidence, PatchLifecycleState, RemediationSafety
+
+    for folder in ("a", "b"):
+        (tmp_path / folder).mkdir()
+        (tmp_path / folder / "notes.txt").write_text("keep\nold\n", encoding="utf-8")
+
+    def patch_for(folder: str) -> Patch:
+        target = tmp_path / folder / "notes.txt"
+        return Patch(
+            patch_id=f"p-{folder}", rule_id="X", file_path=target, source_hash=compute_file_sha256(target),
+            safety=RemediationSafety.REVIEW_REQUIRED, state=PatchLifecycleState.PLANNED,
+            evidence=PatchEvidence(rule_id="X", finding_key="k", confidence=1.0),
+            chunks=[PatchChunk.create(2, 2, "old\n", f"new-{folder}\n")], rationale="r",
+        )
+
+    errors = SandboxValidator.apply_patches_to_dir([patch_for("a"), patch_for("b")], tmp_path)
+
+    assert errors == []
+    assert (tmp_path / "a" / "notes.txt").read_text(encoding="utf-8") == "keep\nnew-a\n"
+    assert (tmp_path / "b" / "notes.txt").read_text(encoding="utf-8") == "keep\nnew-b\n"
