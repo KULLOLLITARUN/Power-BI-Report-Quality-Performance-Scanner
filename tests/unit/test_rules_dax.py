@@ -165,6 +165,15 @@ class TestCheckDuplicateMeasures:
         assert check_duplicate_measures(_make_report(measures=[m1, m2])) == []
 
 
+    def test_trivial_constant_measures_not_duplicates(self):
+        measures = [_measure("A", "0"), _measure("B", "0"), _measure("C", "BLANK()")]
+        assert check_duplicate_measures(_make_report(measures=measures)) == []
+
+    def test_short_cutoff_boundary_still_flags_longer_duplicates(self):
+        measures = [_measure("A", "SUM(T[x])"), _measure("B", "SUM( T[x] )")]
+        assert len(check_duplicate_measures(_make_report(measures=measures))) == 1
+
+
 class TestStripDaxComments:
     def test_strips_line_and_block_comments(self):
         out = strip_dax_comments("1 // a\n+ 2 -- b\n+ /* c */ 3")

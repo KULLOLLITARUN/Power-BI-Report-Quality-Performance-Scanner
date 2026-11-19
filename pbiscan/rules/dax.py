@@ -183,6 +183,10 @@ def _normalise_expression(expr: str) -> str:
     return expr.lower()
 
 
+# Normalised expressions this short are constants; the Studio scanner uses the same cutoff.
+_MIN_DUPLICATE_LENGTH = 5
+
+
 def check_duplicate_measures(report: CanonicalReport) -> list[RuleFinding]:
     """D003 — Detect measures with identical normalised expressions.
 
@@ -194,6 +198,8 @@ def check_duplicate_measures(report: CanonicalReport) -> list[RuleFinding]:
 
     for measure in report.dax.measures:
         normalised = _normalise_expression(measure.expression)
+        if len(normalised) <= _MIN_DUPLICATE_LENGTH:
+            continue  # trivial constants (0, 1, BLANK()) are intentionally identical
         digest = hashlib.md5(normalised.encode("utf-8")).hexdigest()
         hash_to_measures.setdefault(digest, []).append(
             f"{measure.table}[{measure.name}]"
