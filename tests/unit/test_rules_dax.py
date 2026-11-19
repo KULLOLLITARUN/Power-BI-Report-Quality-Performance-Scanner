@@ -7,7 +7,7 @@ from pbiscan.canonical.model import (
 from pbiscan.rules.dax import (
     check_suspicious_dax, check_excessive_calc_columns,
     check_duplicate_measures, check_unused_measures,
-    _normalise_expression, DAX_RULES,
+    _normalise_expression, strip_dax_comments, DAX_RULES,
 )
 
 
@@ -77,6 +77,20 @@ class TestCheckSuspiciousDax:
 # ---------------------------------------------------------------------------
 # D002 — excessive calculated columns
 # ---------------------------------------------------------------------------
+class TestSuspiciousIgnoresComments:
+    def test_commented_out_pattern_not_flagged(self):
+        m = _measure("M", "-- FILTER(ALL(Sales))\nSUM(Sales[Amount])")
+        assert check_suspicious_dax(_make_report(measures=[m])) == []
+
+    def test_block_commented_pattern_not_flagged(self):
+        m = _measure("M", "/* EARLIER(x) */ SUM(Sales[Amount])")
+        assert check_suspicious_dax(_make_report(measures=[m])) == []
+
+    def test_real_pattern_after_comment_still_flagged(self):
+        m = _measure("M", "-- note\nCALCULATE(FILTER(ALL(Sales), 1))")
+        assert len(check_suspicious_dax(_make_report(measures=[m]))) == 1
+
+
 class TestCheckExcessiveCalcColumns:
     def test_fires_above_threshold(self):
         calc_cols = [
@@ -144,6 +158,25 @@ class TestCheckDuplicateMeasures:
         e1 = "-- my measure\nSUM(Sales[Amount])"
         e2 = "SUM(Sales[Amount])"
         assert _normalise_expression(e1) == _normalise_expression(e2)
+
+    def test_comment_markers_inside_string_literals_are_preserved(self):
+        m1 = _measure("LinkA", '"https://a.example.com"')
+        m2 = _measure("LinkB", '"https://b.example.com"')
+        assert check_duplicate_measures(_make_report(measures=[m1, m2])) == []
+
+
+class TestStripDaxComments:
+    def test_strips_line_and_block_comments(self):
+        out = strip_dax_comments("1 // a\n+ 2 -- b\n+ /* c */ 3")
+        assert "a" not in out and "b" not in out and "c" not in out
+        assert "1" in out and "2" in out and "3" in out
+
+    def test_preserves_markers_inside_strings_names_and_columns(self):
+        expr = "\"a--b\" & 'T//1'[x] & [c/*d*/e] & \"q\"\"//\""
+        assert strip_dax_comments(expr) == expr
+
+    def test_unterminated_block_comment_drops_rest(self):
+        assert strip_dax_comments("1 /* never closed").strip() == "1"
 
 
 # ---------------------------------------------------------------------------

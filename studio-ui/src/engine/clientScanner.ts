@@ -27,6 +27,60 @@ interface CalcGroupEntry {
   items: CalcItem[];
 }
 
+/**
+ * Mirrors pbiscan.rules.dax.strip_dax_comments: removes //, -- and block comments
+ * while leaving string literals, 'Table Names' and [Column Names] untouched.
+ */
+export function stripDaxComments(expr: string): string {
+  let out = '';
+  let i = 0;
+  const n = expr.length;
+  while (i < n) {
+    const ch = expr[i];
+    if (ch === '"' || ch === "'" || ch === '[') {
+      const close = ch === '[' ? ']' : ch;
+      out += ch;
+      i++;
+      while (i < n) {
+        out += expr[i];
+        if (expr[i] === close) {
+          if (close !== ']' && expr[i + 1] === close) {
+            out += expr[i + 1];
+            i += 2;
+            continue;
+          }
+          i++;
+          break;
+        }
+        i++;
+      }
+    } else if (expr.startsWith('//', i) || expr.startsWith('--', i)) {
+      while (i < n && expr[i] !== '\n') i++;
+      out += ' ';
+    } else if (expr.startsWith('/*', i)) {
+      const end = expr.indexOf('*/', i + 2);
+      i = end === -1 ? n : end + 2;
+      out += ' ';
+    } else {
+      out += ch;
+      i++;
+    }
+  }
+  return out;
+}
+
+/** Mirrors pbiscan.rules.dax._normalise_expression. */
+export function normalizeDaxExpression(expr: string): string {
+  return stripDaxComments(expr)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .replace(/\[\s+/g, '[')
+    .replace(/\s+\]/g, ']')
+    .toLowerCase();
+}
+
 export function parseDroppedPbip(files: DroppedFile[], projectName: string = "uploaded_report.pbip"): ScanResult {
   const tables: TableInfo[] = [];
   const relationships: RelationshipInfo[] = [];
@@ -335,7 +389,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   ];
   for (const m of measures) {
     for (const [pattern, description] of SUSPICIOUS_DAX_PATTERNS) {
-      if (pattern.test(m.expression)) {
+      if (pattern.test(stripDaxComments(m.expression))) {
         findings.push({
           ...ruleMeta('DAX_SUSPICIOUS_PATTERN'),
           title: 'Suspicious DAX pattern detected',
@@ -353,7 +407,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   // D003: Duplicate Measures
   const normalizedMap = new Map<string, MeasureInfo[]>();
   for (const m of measures) {
-    const norm = m.expression.replace(/\s+/g, '').toLowerCase();
+    const norm = normalizeDaxExpression(m.expression);
     if (norm.length > 5) {
       const list = normalizedMap.get(norm) || [];
       list.push(m);

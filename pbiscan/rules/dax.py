@@ -18,6 +18,50 @@ from pbiscan.rules.catalog import new_finding
 
 
 # ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+def strip_dax_comments(expr: str) -> str:
+    """Remove ``//``, ``--`` and ``/* */`` comments without touching string literals.
+
+    Walks the expression once so comment markers inside "text" literals
+    (e.g. URLs), 'Table Names' and [Column Names] are preserved. A removed
+    comment is replaced by a single space so adjacent tokens never fuse.
+    """
+    out: list[str] = []
+    i, n = 0, len(expr)
+    while i < n:
+        ch = expr[i]
+        if ch in ('"', "'", "["):
+            close = {'"': '"', "'": "'", "[": "]"}[ch]
+            out.append(ch)
+            i += 1
+            while i < n:
+                out.append(expr[i])
+                if expr[i] == close:
+                    # A doubled quote ("" or '') is an escaped quote, not the end.
+                    if close != "]" and i + 1 < n and expr[i + 1] == close:
+                        out.append(expr[i + 1])
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                i += 1
+        elif expr.startswith("//", i) or expr.startswith("--", i):
+            while i < n and expr[i] != "\n":
+                i += 1
+            out.append(" ")
+        elif expr.startswith("/*", i):
+            end = expr.find("*/", i + 2)
+            i = n if end == -1 else end + 2
+            out.append(" ")
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
+
+
+# ---------------------------------------------------------------------------
 # D001 — Suspicious DAX patterns
 # ---------------------------------------------------------------------------
 
@@ -54,8 +98,10 @@ def check_suspicious_dax(
 
     findings: list[RuleFinding] = []
     for measure in report.dax.measures:
+        # Match against code only: commented-out DAX must not raise findings.
+        code = strip_dax_comments(measure.expression)
         for pattern, description in patterns:
-            if re.search(pattern, measure.expression, re.IGNORECASE | re.DOTALL):
+            if re.search(pattern, code, re.IGNORECASE | re.DOTALL):
                 findings.append(new_finding(
                     "DAX_SUSPICIOUS_PATTERN",
                     evidence=(
@@ -125,10 +171,8 @@ def _normalise_expression(expr: str) -> str:
       4. Strip spaces around ( ) [ ] to make formatting-only diffs identical
       5. Lowercase
     """
-    # Strip // and -- single-line comments
-    expr = re.sub(r"(//|--)[^\n]*", "", expr)
-    # Strip /* */ block comments
-    expr = re.sub(r"/\*.*?\*/", "", expr, flags=re.DOTALL)
+    # Strip comments (string-aware, so "https://x" keeps its //)
+    expr = strip_dax_comments(expr)
     # Collapse whitespace
     expr = re.sub(r"\s+", " ", expr).strip()
     # Remove spaces immediately after ( and [ and before ) and ]
