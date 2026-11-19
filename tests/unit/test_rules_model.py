@@ -2,7 +2,7 @@
 from __future__ import annotations
 from pbiscan.canonical.model import (
     CanonicalReport, Column, DaxDictionary, Measure,
-    ModelGraph, Relationship, ReportDOM, Table,
+    ModelGraph, Relationship, ReportDOM, Table, looks_like_date_table_name,
 )
 from pbiscan.rules.model import (
     check_bidirectional, check_many_to_many, check_no_date_table,
@@ -121,6 +121,19 @@ class TestCheckNoDateTable:
     def test_no_finding_for_calendar_name(self):
         r = _make_report(tables=[_table("Sales"), _table("Calendar")])
         assert check_no_date_table(r) == []
+
+    def test_lookalike_names_do_not_hide_missing_date_table(self):
+        r = _make_report(tables=[
+            _table("Sales"), _table("Sales Updates"), _table("Candidates"),
+            _table("Timesheet"), _table("Datasets"),
+        ])
+        assert len(check_no_date_table(r)) == 1
+
+    def test_word_boundaries_in_date_names(self):
+        for name in ("Dim Date", "DimDate", "dim_date", "Fiscal Calendar", "Calendar2020", "LocalDateTable_1a"):
+            assert looks_like_date_table_name(name), name
+        for name in ("Sales Updates", "Candidates", "Timesheet", "Sometimes", "Datasets"):
+            assert not looks_like_date_table_name(name), name
 
 
 # ---------------------------------------------------------------------------

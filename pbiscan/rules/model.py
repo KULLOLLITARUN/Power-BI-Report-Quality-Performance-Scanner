@@ -11,7 +11,7 @@ Each function:
 from __future__ import annotations
 
 import re
-from pbiscan.canonical.model import CanonicalReport, Column, Table
+from pbiscan.canonical.model import CanonicalReport, Column, Table, looks_like_date_table_name
 from pbiscan.engine.issue import RuleFinding
 from pbiscan.rules.catalog import new_finding
 
@@ -98,12 +98,7 @@ def check_no_date_table(report: CanonicalReport) -> list[RuleFinding]:
 
 def _is_date_candidate(table: Table) -> bool:
     """Heuristic: does the table look like a date dimension?"""
-    name_lower = table.name.lower()
-    date_name_hints = (
-        "date", "dim_date", "dimdate", "calendar",
-        "dim_calendar", "time", "dim_time",
-    )
-    if any(hint in name_lower for hint in date_name_hints):
+    if looks_like_date_table_name(table.name):
         return True
     # Check column data categories
     for col in table.columns:

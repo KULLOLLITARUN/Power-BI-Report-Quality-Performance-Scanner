@@ -107,6 +107,18 @@ export function hasNestedCalculate(expr: string): boolean {
   return false;
 }
 
+const DATE_NAME_WORDS = new Set([
+  'date', 'dates', 'calendar', 'calendars', 'time', 'dimdate', 'dimcalendar', 'dimtime',
+]);
+
+/** Mirrors pbiscan.canonical.model.looks_like_date_table_name: whole-word match, not substring. */
+export function looksLikeDateTableName(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (lower.startsWith('localdatetable') || lower.startsWith('datetabletemplate')) return true;
+  const spaced = name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  return (spaced.match(/[a-z]+|[0-9]+/g) ?? []).some((w) => DATE_NAME_WORDS.has(w));
+}
+
 /** Mirrors pbiscan.rules.dax._normalise_expression. */
 export function normalizeDaxExpression(expr: string): string {
   return stripDaxComments(expr)
@@ -331,10 +343,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
 
   // M003: No dedicated Date table (mirrors pbiscan.rules.model.check_no_date_table)
   if (tables.length > 0) {
-    const dateNameHints = ['date', 'dim_date', 'dimdate', 'calendar', 'dim_calendar', 'time', 'dim_time'];
-    const hasDateTable = tables.some(
-      (t) => t.is_date_table || dateNameHints.some((h) => t.name.toLowerCase().includes(h))
-    );
+    const hasDateTable = tables.some((t) => t.is_date_table || looksLikeDateTableName(t.name));
     if (!hasDateTable) {
       findings.push({
         ...ruleMeta('MODEL_NO_DATE_TABLE'),
@@ -669,7 +678,7 @@ function parseModelBim(
         tables.push({
           name: t.name,
           hidden: t.isHidden || false,
-          is_date_table: t.name.toLowerCase().includes('localdatetable') || t.name.toLowerCase().includes('date'),
+          is_date_table: looksLikeDateTableName(t.name),
           column_count: colList.length,
           columns: colList,
           measures_count: tMeasures,
@@ -873,7 +882,7 @@ function parseTableTmdl(
   tables.push({
     name: currentTable,
     hidden: false,
-    is_date_table: currentTable.toLowerCase().includes('date') || currentTable.toLowerCase().includes('calendar'),
+    is_date_table: looksLikeDateTableName(currentTable),
     column_count: columns.length,
     columns,
     measures_count: fileMeasures.length,

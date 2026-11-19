@@ -30,6 +30,7 @@ GOLDEN_EXPECTATIONS = [
 
     # Structural / heuristic — at least 1 finding, bounded confidence
     ("test_nodatetable",     "MODEL_NO_DATE_TABLE",        1,  70,  70),
+    ("test_nodatetable_lookalike_names", "MODEL_NO_DATE_TABLE", 1, 70, 70),
     ("test_highcardinality", "MODEL_HIGH_CARDINALITY",     1,  87,  87),
     ("test_facttofact",      "MODEL_FACT_TO_FACT",         1,  60,  60),
     ("test_expensive_dax",   "DAX_SUSPICIOUS_PATTERN",     1,   1,  65),

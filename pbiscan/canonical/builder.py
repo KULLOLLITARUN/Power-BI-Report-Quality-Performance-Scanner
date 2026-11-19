@@ -21,6 +21,7 @@ from pbiscan.canonical.model import (
     ModelGraph,
     Page,
     Relationship,
+    looks_like_date_table_name,
     ReportDOM,
     Table,
     Visual,
@@ -244,10 +245,8 @@ class CanonicalBuilder:
         return result
 
     def _is_date_table_by_name(self, name: str) -> bool:
-        """Fallback heuristic: table name strongly suggests a date dimension."""
-        name_lower = name.lower()
-        date_hints = ("date", "dim_date", "dimdate", "calendar", "dim_calendar")
-        return any(h == name_lower or name_lower.startswith(h) for h in date_hints)
+        """Fallback heuristic: table name reads as a date dimension (whole words)."""
+        return looks_like_date_table_name(name)
 
     def _build_columns(
         self,

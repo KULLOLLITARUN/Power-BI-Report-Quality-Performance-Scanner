@@ -7,9 +7,31 @@ Architectural contracts (from build spec):
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 from pbiscan.canonical.dax_graph import DaxDependencyGraph
+
+_DATE_NAME_WORDS = frozenset({
+    "date", "dates", "calendar", "calendars", "time",
+    "dimdate", "dimcalendar", "dimtime",
+})
+_AUTO_DATE_PREFIXES = ("localdatetable", "datetabletemplate")
+
+
+def looks_like_date_table_name(name: str) -> bool:
+    """True when a table name reads as a date dimension, matching whole words.
+
+    Splits camelCase, snake_case and spaces, so ``Dim Date``, ``DimDate`` and
+    ``Calendar`` match but ``Sales Updates``, ``Candidates`` and ``Timesheet`` do
+    not (a plain substring test treated all of those as date tables). Power BI's
+    auto-generated LocalDateTable_* / DateTableTemplate_* tables also match.
+    Mirrored by looksLikeDateTableName in studio-ui/src/engine/clientScanner.ts.
+    """
+    if name.lower().startswith(_AUTO_DATE_PREFIXES):
+        return True
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", name)
+    return any(word in _DATE_NAME_WORDS for word in re.findall(r"[a-z]+|[0-9]+", spaced.lower()))
 
 
 # ---------------------------------------------------------------------------
