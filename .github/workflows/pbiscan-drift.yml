@@ -67,13 +67,14 @@ jobs:
         run: |
           mkdir -p diff_artifacts
 
-          # Scan baseline models in base_repo
-          echo "Scanning baseline models..."
-          python -m pbiscan.cli scan base_repo/tests/golden/test_calc_group_variants --out diff_artifacts/baseline_scan.json --format json --quiet || true
+          # The same project at the base branch and at the PR, so the diff shows what the PR changed.
+          MODEL_DIR="pbip_project"
 
-          # Scan current models in current_repo
-          echo "Scanning current PR models..."
-          python -m pbiscan.cli scan current_repo/tests/golden/test_field_parameter_variants --out diff_artifacts/current_scan.json --format json --quiet || true
+          echo "Scanning baseline model..."
+          python -m pbiscan.cli scan "base_repo/$MODEL_DIR" --out diff_artifacts/baseline_scan.json --format json --quiet || true
+
+          echo "Scanning current PR model..."
+          python -m pbiscan.cli scan "current_repo/$MODEL_DIR" --out diff_artifacts/current_scan.json --format json --quiet || true
 
       - name: Run PBIP Sentinel Diff & Evaluate Quality Gate
         id: run_diff
