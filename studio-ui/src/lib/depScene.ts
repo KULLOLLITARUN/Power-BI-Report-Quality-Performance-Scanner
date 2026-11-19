@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import type { DepEdge, DepLayout, DepNode } from './depLayout';
 import { LEVEL_GAP } from './depLayout';
 import { prefersReducedMotion } from './motion';
+import { applyEnvironment, makeGlow, makeTrails, setGlowBlend, trailParam, type GlowSprite, type TrailLayer } from './fx';
 
 export interface DepSceneCallbacks {
   onSelect?: (name: string | null) => void;
@@ -30,6 +31,14 @@ export class DepScene {
   private selected: string | null = null;
   private hovered: string | null = null;
   private chain: Set<string> | null = null;
+  /** Soft halo behind a node: strong when selected, faint amber on an unused measure. */
+  private glows = new Map<string, { sprite: GlowSprite; base: number; size: number; phase: number }>();
+  private headPts: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  private headPos: Float32Array;
+  private trails: TrailLayer[] = [];
+  /** Indexes of the edges inside the selected chain: data flows along these, from used to user. */
+  private flowEdges: number[] = [];
+  private envFx: { dispose(): void } | null = null;
   private reduce = prefersReducedMotion();
   private raf = 0; private tPrev = performance.now(); private idle = 0; private clock = 0;
   private visible = true;
@@ -64,6 +73,7 @@ export class DepScene {
     const sun = new THREE.DirectionalLight(0xffffff, 0.8);
     sun.position.set(8, 20, 10);
     this.scene.add(sun);
+    this.envFx = applyEnvironment(this.renderer, this.scene, 0.3);
 
     const sphere = new THREE.SphereGeometry(0.34, 20, 14);
     const cube = new THREE.BoxGeometry(0.56, 0.56, 0.56);
@@ -73,12 +83,16 @@ export class DepScene {
       extent = Math.max(extent, Math.abs(n.x), Math.abs(n.z));
       const mesh: NodeMesh = new THREE.Mesh(
         n.kind === 'calculated_column' ? cube : sphere,
-        new THREE.MeshStandardMaterial({ roughness: 0.55, transparent: true }),
+        new THREE.MeshPhysicalMaterial({ roughness: 0.42, metalness: 0.05, clearcoat: 0.3, clearcoatRoughness: 0.35, transparent: true }),
       );
       mesh.position.set(n.x, n.y, n.z);
       mesh.userData.id = n.id;
       this.scene.add(mesh);
       this.meshes.set(n.id, mesh);
+      const sprite = makeGlow();
+      sprite.position.set(n.x, n.y, n.z);
+      this.scene.add(sprite);
+      this.glows.set(n.id, { sprite, base: 0, size: 1.6, phase: this.glows.size * 0.7 });
     }
 
     // one faint floor per depth level, so the stacking reads even with few edges
@@ -104,6 +118,21 @@ export class DepScene {
     geo.setAttribute('color', new THREE.BufferAttribute(this.lineColors, 3));
     this.lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85 }));
     this.scene.add(this.lines);
+
+    // One bright dot per edge inside the selected chain, with a short fading tail.
+    const E = layout.edges.length;
+    this.headPos = new Float32Array(Math.max(1, E) * 3).fill(1e5);
+    const headCol = new Float32Array(Math.max(1, E) * 3);
+    const headGeo = new THREE.BufferGeometry();
+    headGeo.setAttribute('position', new THREE.BufferAttribute(this.headPos, 3));
+    const headColAttr = new THREE.BufferAttribute(headCol, 3);
+    headGeo.setAttribute('color', headColAttr);
+    this.headPts = new THREE.Points(headGeo, new THREE.PointsMaterial({ size: 0.2, vertexColors: true, transparent: true, depthWrite: false }));
+    this.headPts.frustumCulled = false;
+    this.headPts.visible = false;
+    this.scene.add(this.headPts);
+    this.trails = makeTrails(E, headColAttr);
+    this.trails.forEach((tl) => { tl.pos.fill(1e5); tl.points.visible = false; this.scene.add(tl.points); });
 
     const top = (layout.levels - 1) * LEVEL_GAP;
     this.home = { theta: 0.7, phi: 1.12, r: Math.max(14, extent * 2.4 + top * 0.9 + 6), ty: top / 2 };
@@ -155,9 +184,15 @@ export class DepScene {
     return this.col('--t-other');
   }
 
+  private isDark() {
+    const t = document.documentElement.getAttribute('data-theme');
+    return t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
   paint = () => {
     const rule = this.col('--rule-strong'), accent = this.col('--accent'), ink = this.col('--ink');
     const focus = this.chain;
+    const dark = this.isDark();
     for (const [id, mesh] of this.meshes) {
       const n = this.byId.get(id)!;
       const inFocus = !focus || focus.has(id);
@@ -168,14 +203,27 @@ export class DepScene {
       mesh.material.opacity = inFocus ? 1 : 0.14;
       mesh.material.depthWrite = inFocus;
       mesh.scale.setScalar(hot ? 1.35 : n.isRoot ? 1.15 : 1);
+      const g = this.glows.get(id);
+      if (g) {
+        g.sprite.material.color = c;
+        setGlowBlend(g.sprite.material, dark);
+        g.base = id === this.selected ? 0.75 : id === this.hovered ? 0.5 : n.used === false && inFocus ? 0.3 : 0;
+        g.size = id === this.selected ? 2.4 : id === this.hovered ? 2 : 1.7;
+      }
     }
     const inChain = (e: DepEdge) => !focus || (focus.has(e.from) && focus.has(e.to));
+    const headCol = this.headPts.geometry.attributes.color as THREE.BufferAttribute;
+    this.flowEdges = [];
     this.layout.edges.forEach((e, i) => {
       const lit = !!focus && inChain(e);
       const c = !focus ? rule : lit ? accent : rule.clone().lerp(this.col('--paper'), 0.82);
       for (let k = 0; k < 2; k++) this.lineColors.set([c.r, c.g, c.b], i * 6 + k * 3);
+      headCol.setXYZ(i, accent.r, accent.g, accent.b);
+      if (lit) this.flowEdges.push(i);
     });
     this.lines.geometry.attributes.color.needsUpdate = true;
+    headCol.needsUpdate = true;
+    this.trails.forEach((tl) => setGlowBlend(tl.points.material, dark));
     const floor = this.col('--panel-2');
     for (const f of this.floors) (f.material as THREE.MeshBasicMaterial).color = floor;
     this.syncLabels(ink);
@@ -321,6 +369,37 @@ export class DepScene {
       el.style.display = behind ? 'none' : '';
       el.style.transform = `translate(${((this.tmp.x + 1) / 2) * w}px, ${((1 - this.tmp.y) / 2) * h}px) translate(-50%, -100%)`;
     }
+    for (const g of this.glows.values()) {
+      const breathe = this.reduce ? 1 : 0.85 + 0.15 * Math.sin(this.clock * 2 + g.phase);
+      g.sprite.material.opacity = g.base * breathe;
+      g.sprite.scale.setScalar(g.size * breathe);
+    }
+    // Data moves from what a measure uses up to the measure that uses it, along the selected chain only.
+    const flowing = !this.reduce && this.flowEdges.length > 0;
+    this.headPts.visible = flowing;
+    for (const tl of this.trails) tl.points.visible = flowing;
+    if (flowing) {
+      this.headPos.fill(1e5);
+      for (const tl of this.trails) tl.pos.fill(1e5);
+      for (const i of this.flowEdges) {
+        const e = this.layout.edges[i];
+        const a = this.byId.get(e.to), b = this.byId.get(e.from);
+        if (!a || !b) continue;
+        const base = (this.clock * 0.35 + i * 0.137) % 1;
+        const o = i * 3;
+        this.headPos[o] = a.x + (b.x - a.x) * base;
+        this.headPos[o + 1] = a.y + (b.y - a.y) * base;
+        this.headPos[o + 2] = a.z + (b.z - a.z) * base;
+        for (const tl of this.trails) {
+          const t = trailParam(base, false, tl.lag);
+          tl.pos[o] = a.x + (b.x - a.x) * t;
+          tl.pos[o + 1] = a.y + (b.y - a.y) * t;
+          tl.pos[o + 2] = a.z + (b.z - a.z) * t;
+        }
+      }
+      this.headPts.geometry.attributes.position.needsUpdate = true;
+      for (const tl of this.trails) tl.points.geometry.attributes.position.needsUpdate = true;
+    }
     this.renderer.render(this.scene, this.camera);
   };
 
@@ -329,6 +408,7 @@ export class DepScene {
     this.observers.forEach((o) => o.disconnect());
     this.cleanups.forEach((fn) => fn());
     this.labels.forEach((el) => el.remove());
+    this.envFx?.dispose();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       m.geometry?.dispose?.();

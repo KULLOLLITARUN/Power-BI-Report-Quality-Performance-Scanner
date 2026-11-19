@@ -9,6 +9,10 @@ import { cardinalityLabel, isBidirectional, isManySide, relKey, type TableRole }
 import { SEV, type Severity } from './severity';
 import { anime, prefersReducedMotion } from './motion';
 import { boxSize, layoutTables, persistentLabels } from './layout';
+import {
+  applyEnvironment, makeGlow, makeRing, makeTrails, pulsePhase, setGlowBlend, trailParam,
+  type GlowSprite, type TrailLayer,
+} from './fx';
 
 export interface ReportLayer {
   page: PageInfo;
@@ -40,9 +44,13 @@ interface Node {
   mesh: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>;
   edges: THREE.LineSegments<THREE.EdgesGeometry, THREE.LineBasicMaterial>;
   flag: THREE.Mesh<THREE.OctahedronGeometry, THREE.MeshStandardMaterial> | null;
+  /** Floor ring that pulses outward under a table that has findings. */
+  ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> | null;
+  glow: GlowSprite | null;
   label: HTMLDivElement;
   x: number; z: number; w: number; h: number; d: number;
   s: number; L: { v: number };
+  r0: number; inFocus: boolean;
 }
 
 interface Link {
@@ -79,6 +87,8 @@ export class ModelScene {
   private linkFade = { o: 0 };
   private flows: { l: Link; rev: boolean }[] = [];
   private points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  private trails: TrailLayer[] = [];
+  private envFx: { dispose(): void } | null = null;
   private pPos: Float32Array; private pCol: Float32Array;
   private plate: { group: THREE.Group; mesh: THREE.Mesh; edges: THREE.LineSegments; label: HTMLDivElement; y: number; s: { v: number } } | null = null;
   private tiles: Tile[] = [];
@@ -132,6 +142,8 @@ export class ModelScene {
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.bias = -0.0008;
     this.scene.add(sun);
+    // Soft studio reflections: the plain lights above stay, this only adds depth and a faint sheen.
+    this.envFx = applyEnvironment(this.renderer, this.scene, 0.3);
 
     // ---- tables
     const pos = layoutTables(data.tables, data.relationships, data.roles);
@@ -143,7 +155,7 @@ export class ModelScene {
       extent = Math.max(extent, Math.abs(p.x) + w, Math.abs(p.z) + d);
       this.maxH = Math.max(this.maxH, h);
       const geo = new THREE.BoxGeometry(w, h, d); geo.translate(0, h / 2, 0);
-      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.82, metalness: 0, transparent: true }));
+      const mesh = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ roughness: 0.66, metalness: 0.03, clearcoat: 0.22, clearcoatRoughness: 0.45, transparent: true }));
       mesh.castShadow = true; mesh.receiveShadow = true;
       mesh.position.set(p.x, 0, p.z);
       const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ transparent: true }));
@@ -155,6 +167,14 @@ export class ModelScene {
         flag.castShadow = true;
         this.scene.add(flag);
       }
+      let ring: Node['ring'] = null, glow: Node['glow'] = null;
+      if (flag) {
+        ring = makeRing();
+        ring.position.set(p.x, GRID_Y + 0.01, p.z);
+        this.scene.add(ring);
+        glow = makeGlow();
+        this.scene.add(glow);
+      }
       const label = document.createElement('div');
       label.className = 'tlabel' + (role === 'fact' ? ' fact' : '');
       label.textContent = t.name;
@@ -164,7 +184,10 @@ export class ModelScene {
         label.appendChild(small);
       }
       labels.appendChild(label);
-      const node: Node = { t, role, i, mesh, edges, flag, label, x: p.x, z: p.z, w, h, d, s: this.reduce ? 1 : 0, L: { v: 0 } };
+      const node: Node = {
+        t, role, i, mesh, edges, flag, ring, glow, label, x: p.x, z: p.z, w, h, d,
+        s: this.reduce ? 1 : 0, L: { v: 0 }, r0: Math.max(w, d) * 0.62, inFocus: true,
+      };
       mesh.userData.node = node;
       this.nodes.push(node);
       this.byId.set(t.name, node);
@@ -228,6 +251,8 @@ export class ModelScene {
     pGeo.setAttribute('color', new THREE.BufferAttribute(this.pCol, 3));
     this.points = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 0.17, vertexColors: true, transparent: true }));
     this.scene.add(this.points);
+    this.trails = makeTrails(this.flows.length * PER, pGeo.attributes.color as THREE.BufferAttribute);
+    this.trails.forEach((tl) => this.scene.add(tl.points));
 
     // ---- report layer
     if (data.report) this.buildReport(data.report, extent);
@@ -329,7 +354,13 @@ export class ModelScene {
       n.edges.material.color = hot ? ink : this.col(`--t-${base}-edge`);
       n.edges.material.opacity = inFocus ? 1 : 0.22;
       const sev = this.data.tableSeverity.get(n.t.name);
-      if (n.flag && sev) { n.flag.material.color = this.col(SEV[sev].token); n.flag.material.opacity = inFocus ? 1 : 0.25; }
+      n.inFocus = inFocus;
+      if (n.flag && sev) {
+        const sc = this.col(SEV[sev].token);
+        n.flag.material.color = sc; n.flag.material.opacity = inFocus ? 1 : 0.25;
+        if (n.ring) { n.ring.material.color = sc; setGlowBlend(n.ring.material, this.isDark()); }
+        if (n.glow) { n.glow.material.color = sc; setGlowBlend(n.glow.material, this.isDark()); }
+      }
       n.label.classList.toggle('dim', !inFocus);
       n.label.classList.toggle('hot', hot);
       n.label.style.display = n.label.dataset.quiet && !hot ? 'none' : '';
@@ -346,6 +377,7 @@ export class ModelScene {
       for (let k = 0; k < PER; k++) { const o = (fi * PER + k) * 3; this.pCol[o] = c.r; this.pCol[o + 1] = c.g; this.pCol[o + 2] = c.b; }
     });
     this.points.geometry.attributes.color.needsUpdate = true;
+    this.trails.forEach((tl) => setGlowBlend(tl.points.material, this.isDark()));
 
     if (this.plate) {
       (this.plate.mesh.material as THREE.MeshStandardMaterial).color = this.col('--panel-2');
@@ -574,6 +606,18 @@ export class ModelScene {
         n.flag.scale.setScalar(Math.max(0.001, n.s));
         n.flag.position.set(n.x, top + 0.5 + (this.reduce ? 0 : Math.sin(this.clock * 2.2 + n.i) * 0.07), n.z);
         if (!this.reduce) n.flag.rotation.y += dt * 0.9;
+        const grow = Math.max(0.001, n.s);
+        if (n.ring) {
+          const ph = pulsePhase(this.clock, n.i * 0.31, this.reduce);
+          n.ring.scale.setScalar(Math.max(0.001, n.r0 * (1 + ph * 0.9) * n.s));
+          n.ring.material.opacity = (1 - ph) * 0.6 * (n.inFocus ? 1 : 0.12) * n.s;
+        }
+        if (n.glow) {
+          const breathe = this.reduce ? 1 : 1 + Math.sin(this.clock * 2.2 + n.i) * 0.12;
+          n.glow.position.copy(n.flag.position);
+          n.glow.scale.setScalar(1.5 * breathe * grow);
+          n.glow.material.opacity = 0.5 * (n.inFocus ? 1 : 0.1) * n.s;
+        }
       }
       this.tmp.set(n.x, top + (n.flag ? 0.85 : 0.15), n.z);
       this.place(n.label, this.tmp, w, h);
@@ -589,13 +633,25 @@ export class ModelScene {
         for (let k = 0; k < PER; k++) {
           const base = ((this.reduce ? 0 : this.clock * 0.2) + k / PER + fi * 0.13) % 1;
           const o = (fi * PER + k) * 3;
-          if (!f.l.inFocus) { this.pPos[o] = this.pPos[o + 1] = this.pPos[o + 2] = 1e5; continue; }
-          f.l.curve.getPoint(f.rev ? 1 - base : base, this.tmp);
+          if (!f.l.inFocus) {
+            this.pPos[o] = this.pPos[o + 1] = this.pPos[o + 2] = 1e5;
+            for (const tl of this.trails) tl.pos[o] = tl.pos[o + 1] = tl.pos[o + 2] = 1e5;
+            continue;
+          }
+          const head = f.rev ? 1 - base : base;
+          f.l.curve.getPoint(head, this.tmp);
           this.pPos[o] = this.tmp.x; this.pPos[o + 1] = this.tmp.y; this.pPos[o + 2] = this.tmp.z;
+          for (const tl of this.trails) {
+            f.l.curve.getPoint(trailParam(head, f.rev, tl.lag), this.tmp);
+            tl.pos[o] = this.tmp.x; tl.pos[o + 1] = this.tmp.y; tl.pos[o + 2] = this.tmp.z;
+          }
         }
       });
       this.points.geometry.attributes.position.needsUpdate = true;
+      for (const tl of this.trails) tl.points.geometry.attributes.position.needsUpdate = true;
     }
+    // Trails only make sense while the dots move.
+    for (const tl of this.trails) tl.points.visible = this.points.visible && !this.reduce;
     if (this.plate) {
       const s = this.plate.s.v;
       this.plate.group.position.y = this.plate.y + (1 - s) * 3;
@@ -615,6 +671,7 @@ export class ModelScene {
     anime.remove([this.cam, this.linkFade, ...this.nodes, ...this.nodes.map((n) => n.L), ...(this.plate ? [this.plate.s] : [])]);
     this.observers.forEach((o) => o.disconnect());
     this.cleanups.forEach((fn) => fn());
+    this.envFx?.dispose();
     this.scene.traverse((obj) => {
       const o = obj as THREE.Mesh;
       o.geometry?.dispose?.();
