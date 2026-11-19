@@ -50,6 +50,7 @@ class MeasurePatcher(BasePatcher):
             "zero_visual_consumers",
             "target_file_located",
             "clean_syntax_boundary",
+            "zero_model_metadata_references",
         ]
         satisfied: list[str] = []
         violated: list[str] = []
@@ -174,6 +175,15 @@ class MeasurePatcher(BasePatcher):
         else:
             violated.append("clean_syntax_boundary")
 
+        # 7. Perspectives, translations and Q&A metadata name a measure by plain name, with no
+        # [brackets], so the scan above cannot see them. Deleting the measure would leave them
+        # pointing at nothing.
+        metadata_files = self._files_naming_in_model_metadata(model_dir, measure_name)
+        if not metadata_files:
+            satisfied.append("zero_model_metadata_references")
+        else:
+            violated.append("zero_model_metadata_references")
+
         confidence = 0.95 if not violated else 0.0
         affected_files = [str(target_file.relative_to(model_dir))] if target_file else []
         affected_objects = [f"Measure '{measure_name}' in table '{table_name}'"]
@@ -236,6 +246,52 @@ class MeasurePatcher(BasePatcher):
                 f"after confirming zero inbound dependencies across all visual, DAX, RLS, and parameter surfaces."
             ),
         )
+
+    # Folders that hold perspectives, translations and Q&A (linguistic) metadata in a TMDL project.
+    _METADATA_DIRS = frozenset({"perspectives", "cultures", "translations"})
+    _METADATA_KEYS = ("perspectives", "cultures")
+
+    @staticmethod
+    def _strings_in(value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, dict):
+            return [s for v in value.values() for s in MeasurePatcher._strings_in(v)]
+        if isinstance(value, list):
+            return [s for v in value for s in MeasurePatcher._strings_in(v)]
+        return []
+
+    def _files_naming_in_model_metadata(self, model_dir: Path, measure_name: str) -> list[str]:
+        """Files whose perspective, translation or Q&A content names the measure.
+
+        Matches the name as a whole word, quoted or not, so `perspectiveMeasure Revenue`,
+        `perspectiveMeasure 'Net Sales'` and `"ConceptualProperty": "Net Sales"` all count.
+        Over-matching only refuses a deletion; it can never allow one.
+        """
+        name = re.compile(r"(?<!\w)" + re.escape(measure_name) + r"(?!\w)", re.IGNORECASE)
+        found: list[str] = []
+        for p in sorted(model_dir.glob("**/*")):
+            if not p.is_file():
+                continue
+            suffix = p.suffix.lower()
+            try:
+                if suffix == ".tmdl":
+                    text = p.read_text(encoding="utf-8", errors="ignore")
+                    in_metadata_dir = any(part.lower() in self._METADATA_DIRS for part in p.relative_to(model_dir).parts[:-1])
+                    declares_metadata = bool(re.search(r"^\s*(perspective|cultureInfo)\b", text, re.MULTILINE))
+                    if (in_metadata_dir or declares_metadata) and name.search(text):
+                        found.append(str(p.relative_to(model_dir)))
+                elif suffix in (".bim", ".json") and p.name.lower() in ("model.bim", "database.json"):
+                    data = json.loads(p.read_text(encoding="utf-8", errors="ignore").lstrip(_BOM))
+                    model = data.get("model", data) if isinstance(data, dict) else {}
+                    for key in self._METADATA_KEYS:
+                        if any(name.search(s) for s in self._strings_in(model.get(key))):
+                            found.append(f"{p.relative_to(model_dir)} ({key})")
+                            break
+            except (OSError, ValueError):
+                # Cannot inspect it, so cannot prove the measure is absent from it: refuse.
+                found.append(str(p.relative_to(model_dir)))
+        return found
 
     def _target_file_remainder(self, target_file: Path, table_name: str, measure_name: str) -> Optional[str]:
         """The target file's text with the measure's own definition cut out, or None

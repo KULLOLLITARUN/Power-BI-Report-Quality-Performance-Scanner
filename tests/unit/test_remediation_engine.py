@@ -1988,6 +1988,114 @@ class TestMeasurePatcherScansTheWholeModel:
         assert evidence.violated_preconditions, "Total Revenue's expression uses [Margin [%]]]"
 
 
+class TestMeasurePatcherRespectsModelMetadata:
+    """Perspectives, translations and Q&A metadata name a measure by plain name, with no
+    [brackets]. Deleting the measure would leave them pointing at nothing, so `fix` must refuse."""
+
+    @staticmethod
+    def _issue() -> AuditIssue:
+        return AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE", category="dax", severity="ADVISORY", title="t", issue="i",
+            evidence="Measure 'Truly Unused' [Sales]: not referenced", impact="x", recommendation="r",
+            confidence=95, location="Measure: Truly Unused",
+        )
+
+    @staticmethod
+    def _tmdl_project(tmp_path: Path) -> Path:
+        project = tmp_path / "tmdl"
+        shutil.copytree(GOLDEN_DIR / "test_unused_measure_model_expressions_tmdl", project)
+        return project
+
+    @staticmethod
+    def _bim_project(tmp_path: Path) -> Path:
+        project = tmp_path / "bim"
+        shutil.copytree(GOLDEN_DIR / "test_unused_measure_model_expressions_bim", project)
+        return project
+
+    @staticmethod
+    def _edit_bim(project: Path, **model_keys) -> None:
+        bim = project / "fixture.SemanticModel" / "model.bim"
+        data = json.loads(bim.read_text(encoding="utf-8"))
+        data["model"].update(model_keys)
+        bim.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    def _evidence(self, project: Path):
+        report = ScanService.execute_scan(project).report
+        return MeasurePatcher().analyze(self._issue(), report, project)
+
+    def _assert_refused(self, project: Path):
+        evidence = self._evidence(project)
+        assert "zero_model_metadata_references" in evidence.violated_preconditions
+        assert evidence.confidence == 0.0
+        scan = RemediationEngine.analyze(project)
+        plan = RemediationEngine.plan(project, scan, rule_filter="DAX_UNUSED_MEASURE")
+        assert not [o for p in plan.actionable_patches for o in p.evidence.affected_objects if "Truly Unused" in o]
+
+    def test_control_without_metadata_is_still_deletable(self, tmp_path: Path):
+        for project in (self._tmdl_project(tmp_path), self._bim_project(tmp_path)):
+            evidence = self._evidence(project)
+            assert evidence.violated_preconditions == []
+            assert "zero_model_metadata_references" in evidence.satisfied_preconditions
+
+    def test_tmdl_perspective_blocks_deletion(self, tmp_path: Path):
+        project = self._tmdl_project(tmp_path)
+        folder = project / "fixture.SemanticModel" / "definition" / "perspectives"
+        folder.mkdir()
+        (folder / "Overview.tmdl").write_text(
+            "perspective Overview\n\tperspectiveTable Sales\n\t\tperspectiveMeasure 'Truly Unused'\n", encoding="utf-8")
+        self._assert_refused(project)
+
+    def test_tmdl_perspective_naming_an_unquoted_measure_blocks_deletion(self, tmp_path: Path):
+        project = self._tmdl_project(tmp_path)
+        sales = project / "fixture.SemanticModel" / "definition" / "tables" / "Sales.tmdl"
+        sales.write_text(sales.read_text(encoding="utf-8").replace("'Truly Unused'", "Unused"), encoding="utf-8")
+        (project / "fixture.SemanticModel" / "definition" / "perspectives.tmdl").write_text(
+            "perspective Overview\n\tperspectiveTable Sales\n\t\tperspectiveMeasure Unused\n", encoding="utf-8")
+        issue = self._issue()
+        issue.location, issue.evidence = "Measure: Unused", "Measure 'Unused' [Sales]: not referenced"
+        report = ScanService.execute_scan(project).report
+        evidence = MeasurePatcher().analyze(issue, report, project)
+        assert "zero_model_metadata_references" in evidence.violated_preconditions
+
+    def test_tmdl_linguistic_metadata_blocks_deletion(self, tmp_path: Path):
+        project = self._tmdl_project(tmp_path)
+        folder = project / "fixture.SemanticModel" / "definition" / "cultures"
+        folder.mkdir()
+        (folder / "en-US.tmdl").write_text(
+            "cultureInfo en-US\n\n\tlinguisticMetadata =\n\t\t\t{\n"
+            "\t\t\t  \"Entities\": {\"x\": {\"Definition\": {\"Binding\": "
+            "{\"ConceptualEntity\": \"Sales\", \"ConceptualProperty\": \"Truly Unused\"}}}}\n\t\t\t}\n"
+            "\t\tcontentType: json\n", encoding="utf-8")
+        self._assert_refused(project)
+
+    def test_bim_perspective_blocks_deletion(self, tmp_path: Path):
+        project = self._bim_project(tmp_path)
+        self._edit_bim(project, perspectives=[
+            {"name": "Overview", "tables": [{"name": "Sales", "measures": [{"name": "Truly Unused"}]}]}])
+        self._assert_refused(project)
+
+    def test_bim_translation_blocks_deletion(self, tmp_path: Path):
+        project = self._bim_project(tmp_path)
+        self._edit_bim(project, cultures=[{"name": "de-DE", "translations": {"model": {"name": "Model", "tables": [
+            {"name": "Sales", "measures": [{"name": "Truly Unused", "translatedCaption": "Unbenutzt"}]}]}}}])
+        self._assert_refused(project)
+
+    def test_bim_linguistic_metadata_blocks_deletion(self, tmp_path: Path):
+        project = self._bim_project(tmp_path)
+        self._edit_bim(project, cultures=[{"name": "en-US", "linguisticMetadata": {"content": {"Entities": {"x": {
+            "Definition": {"Binding": {"ConceptualEntity": "Sales", "ConceptualProperty": "Truly Unused"}}}}},
+            "contentType": "json"}}])
+        self._assert_refused(project)
+
+    def test_a_name_that_only_contains_the_measure_name_inside_a_longer_word_does_not_block(self, tmp_path: Path):
+        project = self._tmdl_project(tmp_path)
+        folder = project / "fixture.SemanticModel" / "definition" / "perspectives"
+        folder.mkdir()
+        (folder / "Overview.tmdl").write_text(
+            "perspective Overview\n\tperspectiveTable Sales\n\t\tperspectiveMeasure 'Truly Unusedness'\n", encoding="utf-8")
+        assert "zero_model_metadata_references" in self._evidence(project).satisfied_preconditions
+
+
 class TestDataSourceFileName:
     """pathlib.Path on Linux treats '\' as a filename character, so a Windows path's
     'file name' was the whole path there and the BIM patch wrote invalid JSON."""
