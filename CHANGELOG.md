@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Switching a bidirectional relationship to single direction matched by substring (`Sales.Date` also matched `ReturnSales.Date`) in TMDL, and by a 13-line window in `model.bim`, so it could flip a neighbouring relationship instead. Endpoints now match exactly, and a `model.bim` edit is accepted only if it changes that one relationship.
   - Parameterising a hardcoded file path in `model.bim` ignored which table the finding was for and rewrote the first table with a local path.
 - **Patches that would leave a relationship pointing at a removed table are rejected.** Removing Power BI's auto date/time tables does not remove the relationships that wire them to your date columns, which leaves a model Power BI cannot open. Validation and the final post-apply scan now roll such a patch back. Auto date/time cleanup therefore only applies to models without those relationships until the patcher can remove them too.
+- **`DAX_UNUSED_MEASURE` no longer flags measures used only inside the model, so `pbiscan fix` cannot delete them.** Each case below was reproduced: the measure was reported unused and `fix` offered to delete it.
+  - A measure named only in a calculated table's expression (or any partition source).
+  - A measure named only in another measure's dynamic format-string, KPI or detail-rows DAX in `model.bim`. The new `model_expression` reference type covers these, and Studio lists them under "Calculated tables and measure properties".
+  - A measure named only inside the browser engine's TMDL measure body (`formatStringDefinition = ...`), which that engine dropped as metadata.
+  - A measure whose name contains `]`, written `[Margin [%]]]` in DAX; the bracket matcher stopped at the first `]`.
+- **`pbiscan fix` now searches the whole model before deleting a measure.** For a `model.bim` project the file being patched is the whole model, and it was skipped by the safety scan; it is now searched too, minus the measure's own definition.
 - **Backups and rollback are safer.**
   - A backup made in the same second as an earlier one overwrote it, destroying the earlier apply's only restore point. Backup folders now get a unique name and are never replaced.
   - A restore deleted the project folder before copying the backup in, so a failure partway (a file locked by Power BI Desktop or a sync client, a full disk) left it half deleted. The restored copy is now built beside the project and swapped in by rename, so a failed restore changes nothing.

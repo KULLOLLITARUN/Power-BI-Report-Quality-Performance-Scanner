@@ -40,12 +40,14 @@ describe('measureEvidence', () => {
       ref('Total Sales', 'field_parameter_grouped'),
       ref('Total Sales', 'rls_table_permission'),
       ref('Total Sales', 'report_extension_measure'),
+      ref('Total Sales', 'model_expression', { source_object: 'Summary partition' }),
       ref('Other', 'visual_projection'),
       ref('Total Sales', 'visual_projection', { target_type: 'column' }),
     ], ['Total Sales'], [node('Total Sales')]);
     const ev = measureEvidence('Total Sales', s);
     expect(ev.rows.map((r) => [r.id, r.refs.length])).toEqual([
       ['visuals', 1], ['filters', 2], ['report_measures', 1], ['calc_groups', 2], ['field_parameters', 1], ['rls', 1],
+      ['model_expressions', 1],
     ]);
     expect(ev.isRoot).toBe(true);
     expect(ev.used).toBe(true);

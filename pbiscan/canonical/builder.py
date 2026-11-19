@@ -11,6 +11,7 @@ The builder:
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from pbiscan.canonical.model import (
     CanonicalReport,
@@ -29,7 +30,7 @@ from pbiscan.canonical.model import (
 from pbiscan.extraction.pbip_reader import RawExtraction, RawTable, RawRelationship
 
 
-from pbiscan.canonical.dax_graph import build_dax_graph
+from pbiscan.canonical.dax_graph import bracket_names, build_dax_graph
 
 
 # Cardinality string normalisation: model.bim values → canonical strings
@@ -64,6 +65,16 @@ from pbiscan.canonical.references import SemanticReference, SemanticReferenceInd
 from pbiscan.extraction.calc_group_extractor import extract_calc_group_references
 from pbiscan.extraction.field_param_extractor import extract_field_param_references
 from pbiscan.extraction.rls_extractor import extract_rls_tmdl_references, extract_rls_bim_references
+
+
+_NAMEOF_CALL = re.compile(r"\bNAMEOF\s*\(\s*(?:'[^']*'|[A-Za-z_]\w*)?\s*\[(?:[^\]]|\]\])+\]\s*\)", re.IGNORECASE)
+
+# Measure properties that never hold DAX, so number formats like `[Red]` are not read as
+# references. Mirrored by NON_EXPRESSION_MEASURE_KEYS in studio-ui/src/engine/clientScanner.ts.
+_NON_EXPRESSION_MEASURE_KEYS = frozenset({
+    "name", "expression", "_table", "formatString", "description", "displayFolder", "lineageTag",
+    "annotations", "extendedProperties", "dataType", "summarizeBy", "dataCategory", "isHidden",
+})
 
 
 class CanonicalBuilder:
@@ -157,7 +168,7 @@ class CanonicalBuilder:
         model_measure_lookup = {m.name.lower(): m.name for m in measures}
         for ext in raw.report_extension_measures:
             expression = ext.get("expression", "")
-            for raw_ref in re.findall(r"\[([^\]]+)\]", expression):
+            for raw_ref in bracket_names(expression):
                 target = model_measure_lookup.get(raw_ref.strip().lower())
                 if target:
                     index.add(
@@ -210,7 +221,66 @@ class CanonicalBuilder:
             bim_rls_refs = extract_rls_bim_references(raw.roles)
             index.add_many(bim_rls_refs)
 
+        # 5. Model expressions: calculated tables and partition sources, plus the
+        # format-string, KPI and detail-rows DAX a model.bim measure carries. A measure
+        # named there is in use even though no measure's main expression mentions it.
+        # (TMDL folds a measure's property lines into its expression, so the DAX graph
+        # already sees those.) Anything bracketed that matches a measure counts: this
+        # may keep a measure alive that an M query only seems to name, never the reverse.
+        index.add_many(self._model_expression_references(raw, model_measure_lookup))
+
         return index
+
+    @staticmethod
+    def _strings_in(value: Any) -> list[str]:
+        """Every string nested anywhere in a JSON-like value."""
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, dict):
+            return [s for v in value.values() for s in CanonicalBuilder._strings_in(v)]
+        if isinstance(value, list):
+            return [s for v in value for s in CanonicalBuilder._strings_in(v)]
+        return []
+
+    def _model_expression_references(
+        self,
+        raw: RawExtraction,
+        measure_lookup: dict[str, str],
+    ) -> list[SemanticReference]:
+        found: list[SemanticReference] = []
+        seen: set[tuple[str, str]] = set()
+
+        def scan(text: str, source_object: str, source_file: str, owner: str = "") -> None:
+            # NAMEOF('Table'[Name]) entries belong to the field-parameter extractor, which decides
+            # which of them confirm a measure; do not count them a second time here.
+            for name in bracket_names(_NAMEOF_CALL.sub(" ", text)):
+                target = measure_lookup.get(name.strip().lower())
+                if not target or target.lower() == owner.lower() or (target, source_object) in seen:
+                    continue
+                seen.add((target, source_object))
+                found.append(SemanticReference(
+                    target_name=target,
+                    target_type="measure",
+                    source_type="model_expression",
+                    source_object=source_object,
+                    source_file=source_file,
+                    source_expression=text[:200],
+                    activates_root=True,
+                ))
+
+        for raw_tbl in raw.tables:
+            if raw_tbl.partition_source:
+                scan(raw_tbl.partition_source, f"{raw_tbl.name} partition", raw_tbl.source_file)
+            for measure in raw_tbl.measures:
+                owner = str(measure.get("name", ""))
+                extra = [
+                    s for key, value in measure.items()
+                    if key not in _NON_EXPRESSION_MEASURE_KEYS
+                    for s in self._strings_in(value)
+                ]
+                for text in extra:
+                    scan(text, f"{raw_tbl.name}[{owner}] properties", raw_tbl.source_file, owner)
+        return found
 
     # ------------------------------------------------------------------
     # Model graph

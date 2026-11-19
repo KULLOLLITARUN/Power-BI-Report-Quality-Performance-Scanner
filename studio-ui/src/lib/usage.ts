@@ -3,7 +3,7 @@
 // anything the rule (pbiscan.rules.dax.check_unused_measures) has not already decided.
 import type { ReferenceSourceType, ScanResult, SemanticReferenceInfo } from '../types';
 
-export type UsageGroupId = 'visuals' | 'filters' | 'report_measures' | 'calc_groups' | 'field_parameters' | 'rls';
+export type UsageGroupId = 'visuals' | 'filters' | 'report_measures' | 'calc_groups' | 'field_parameters' | 'rls' | 'model_expressions';
 
 /** Display groups for reference source types. tests/unit/test_client_scanner_parity.py keeps a copy. */
 export const USAGE_GROUPS: { id: UsageGroupId; label: string; sources: ReferenceSourceType[] }[] = [
@@ -13,6 +13,7 @@ export const USAGE_GROUPS: { id: UsageGroupId; label: string; sources: Reference
   { id: 'calc_groups', label: 'Calculation groups', sources: ['calc_item_dax', 'calc_item_predicate'] },
   { id: 'field_parameters', label: 'Field parameters', sources: ['field_parameter', 'field_parameter_grouped'] },
   { id: 'rls', label: 'Row-level security roles', sources: ['rls_table_permission'] },
+  { id: 'model_expressions', label: 'Calculated tables and measure properties', sources: ['model_expression'] },
 ];
 
 export interface UsageRow {

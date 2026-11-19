@@ -1,0 +1,118 @@
+{
+  "_comment": "GOLDEN FIXTURE (blind spots): each Orphan measure is used only inside the model itself. Orphan Format: a measure's formatStringDefinition. Orphan KPI: a KPI target expression. Orphan Detail: detailRowsDefinition. Orphan Calc Table: a calculated table. Margin [%]: named with the ]] escape. Truly Unused is the true-positive control.",
+  "model": {
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {
+            "name": "Amount",
+            "dataType": "decimal",
+            "sourceColumn": "Amount"
+          }
+        ],
+        "measures": [
+          {
+            "name": "Total Revenue",
+            "expression": "SUM(Sales[Amount]) * [Margin [%]]]",
+            "formatStringDefinition": {
+              "expression": "IF([Orphan Format] > 0, \"0.0\", \"0\")"
+            },
+            "detailRowsDefinition": {
+              "expression": "FILTER(Sales, [Orphan Detail] > 0)"
+            }
+          },
+          {
+            "name": "Revenue Filtered",
+            "expression": "CALCULATE(SUM(Sales[Amount]), Sales[Amount] > 0)",
+            "kpi": {
+              "targetExpression": "[Orphan KPI]",
+              "statusExpression": "1"
+            }
+          },
+          {
+            "name": "Margin [%]",
+            "expression": "1"
+          },
+          {
+            "name": "Orphan Format",
+            "expression": "1"
+          },
+          {
+            "name": "Orphan KPI",
+            "expression": "2"
+          },
+          {
+            "name": "Orphan Detail",
+            "expression": "3"
+          },
+          {
+            "name": "Orphan Calc Table",
+            "expression": "4"
+          },
+          {
+            "name": "Truly Unused",
+            "expression": "42"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Sales",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": "let Source = Table.FromRows({}) in Source"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Summary",
+        "columns": [
+          {
+            "name": "v",
+            "dataType": "int64",
+            "type": "calculatedTableColumn"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Summary",
+            "mode": "import",
+            "source": {
+              "type": "calculated",
+              "expression": "ROW(\"v\", [Orphan Calc Table])"
+            }
+          }
+        ]
+      },
+      {
+        "name": "DimDate",
+        "columns": [
+          {
+            "name": "Date",
+            "dataType": "dateTime",
+            "sourceColumn": "Date"
+          }
+        ],
+        "annotations": [
+          {
+            "name": "PBI_IsDateTable",
+            "value": "true"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "DimDate",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": "let Source = Table.FromRows({}) in Source"
+            }
+          }
+        ]
+      }
+    ],
+    "relationships": []
+  }
+}

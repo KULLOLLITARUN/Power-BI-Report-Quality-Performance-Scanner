@@ -10,7 +10,7 @@ import {
   extractRlsBimReferences,
   extractMeasureNamesFromExprTree,
 } from './semanticReferences';
-import { buildDaxGraph, serializeDaxGraph } from './daxGraph';
+import { bracketNames, buildDaxGraph, serializeDaxGraph } from './daxGraph';
 import { SUPPRESSIONS_FILENAME, applySuppressions, loadSuppressions } from './suppressions';
 
 export interface DroppedFile {
@@ -25,6 +25,31 @@ type ReportRefSink = (target: string, sourceType: ReferenceSourceType, sourceObj
 interface CalcGroupEntry {
   table: string;
   items: CalcItem[];
+}
+
+/** DAX/M text that can name a measure without being a measure's main expression: a table's
+ * partition source, or a format-string, KPI or detail-rows expression carried by a model.bim
+ * measure. Mirrors CanonicalBuilder._model_expression_references. */
+interface ModelExprSource {
+  table: string;
+  text: string;
+  /** Set for measure properties; a measure's own property text never counts as a use of itself. */
+  owner?: string;
+}
+
+const NAMEOF_CALL = /\bNAMEOF\s*\(\s*(?:'[^']*'|[A-Za-z_]\w*)?\s*\[(?:[^\]]|\]\])+\]\s*\)/gi;
+
+/** Measure keys that never hold DAX, so number formats like `[Red]` are not read as references. */
+const NON_EXPRESSION_MEASURE_KEYS = new Set([
+  'name', 'expression', '_table', 'formatString', 'description', 'displayFolder', 'lineageTag',
+  'annotations', 'extendedProperties', 'dataType', 'summarizeBy', 'dataCategory', 'isHidden',
+]);
+
+function stringsIn(value: unknown): string[] {
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.flatMap(stringsIn);
+  if (value && typeof value === 'object') return Object.values(value as Record<string, unknown>).flatMap(stringsIn);
+  return [];
 }
 
 /**
@@ -138,6 +163,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   const calcCols: CalculatedColumnInfo[] = [];
   const pages: PageInfo[] = [];
   const mSources: { table: string; source: string }[] = [];
+  const modelExprSources: ModelExprSource[] = [];
   const calcGroupEntries: CalcGroupEntry[] = [];
   const roleReferences: ReturnType<typeof extractRlsTmdlReferences> = [];
 
@@ -157,7 +183,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   const bimFile = validFiles.find(f => f.name.toLowerCase() === 'model.bim' || f.name.toLowerCase() === 'database.json');
   let bimRoles: any[] = [];
   if (bimFile) {
-    const roles = parseModelBim(bimFile.content, tables, relationships, measures, calcCols, mSources, calcGroupEntries);
+    const roles = parseModelBim(bimFile.content, tables, relationships, measures, calcCols, mSources, calcGroupEntries, modelExprSources);
     if (roles === null) unreadFiles.push(bimFile.path);
     else bimRoles = roles;
   }
@@ -182,7 +208,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     // Table TMDL
     // An empty table file (e.g. one emptied by `pbiscan fix`) defines and uses nothing.
     if (lowerPath.endsWith('.tmdl') && lowerPath.includes('/tables/') && file.content.trim()) {
-      if (!parseTableTmdl(file.content, tables, measures, calcCols, mSources, calcGroupEntries)) {
+      if (!parseTableTmdl(file.content, tables, measures, calcCols, mSources, calcGroupEntries, modelExprSources)) {
         unreadFiles.push(file.path);
       }
     }
@@ -240,6 +266,29 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     semanticRefs.addMany(
       extractFieldParamReferences(src.table, src.source, knownMeasureNames, knownColumnNames, `${src.table} partition`)
     );
+  }
+
+  // Model expressions (mirrors CanonicalBuilder._model_expression_references): a measure named in a
+  // calculated table, a partition source or a measure's format-string/KPI/detail-rows DAX is in use.
+  {
+    const lookup = new Map([...knownMeasureNames].map((n) => [n.toLowerCase(), n]));
+    const seen = new Set<string>();
+    for (const src of modelExprSources) {
+      const sourceObject = src.owner !== undefined ? `${src.table}[${src.owner}] properties` : `${src.table} partition`;
+      // NAMEOF('Table'[Name]) entries belong to the field-parameter extractor; do not count them twice.
+      for (const name of bracketNames(src.text.replace(NAMEOF_CALL, ' '))) {
+        const target = lookup.get(name.trim().toLowerCase());
+        if (!target || (src.owner !== undefined && target.toLowerCase() === src.owner.toLowerCase())) continue;
+        const key = `${target}|${sourceObject}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        semanticRefs.add({
+          target_name: target, target_type: 'measure', source_type: 'model_expression',
+          source_object: sourceObject, source_file: '', source_expression: src.text.slice(0, 200),
+          activates_root: true, confidence: 100,
+        });
+      }
+    }
   }
 
   semanticRefs.addMany(roleReferences);
@@ -603,7 +652,8 @@ function parseModelBim(
   measures: MeasureInfo[],
   calcCols: CalculatedColumnInfo[],
   mSources: { table: string; source: string }[],
-  calcGroupEntries: CalcGroupEntry[]
+  calcGroupEntries: CalcGroupEntry[],
+  modelExprSources: ModelExprSource[]
 ): any[] | null {
   try {
     const data = JSON.parse(content);
@@ -646,16 +696,22 @@ function parseModelBim(
               expression: Array.isArray(m.expression) ? m.expression.join('\n') : (m.expression || ""),
               hidden: m.isHidden || false,
             });
+            for (const [key, value] of Object.entries(m)) {
+              if (NON_EXPRESSION_MEASURE_KEYS.has(key)) continue;
+              for (const text of stringsIn(value)) modelExprSources.push({ table: t.name, text, owner: m.name });
+            }
           }
         }
 
         if (t.partitions && Array.isArray(t.partitions)) {
-          for (const part of t.partitions) {
+          t.partitions.forEach((part: any, partIndex: number) => {
             if (part.source && part.source.expression) {
               const expr = Array.isArray(part.source.expression) ? part.source.expression.join('\n') : part.source.expression;
               mSources.push({ table: t.name, source: expr });
+              // pbiscan's BIM extractor reads only the first partition's source.
+              if (partIndex === 0) modelExprSources.push({ table: t.name, text: expr });
             }
-          }
+          });
         }
 
         // Calculation Group items (TMSL: table.calculationGroup.calculationItems[]).
@@ -789,7 +845,8 @@ function parseTableTmdl(
   measures: MeasureInfo[],
   calcCols: CalculatedColumnInfo[],
   mSources: { table: string; source: string }[],
-  calcGroupEntries: CalcGroupEntry[]
+  calcGroupEntries: CalcGroupEntry[],
+  modelExprSources: ModelExprSource[]
 ): boolean {
   const lines = content.split(/\r\n|\r|\n/);
   let currentTable = '';
@@ -832,7 +889,10 @@ function parseTableTmdl(
       // measure's DAX into the current one's expression.)
       const { body } = tmdlCollectBody(
         lines, i + 1, _leadingTabDepth(rawLine), inlineExpr,
-        (l) => l.startsWith('lineageTag') || l.startsWith('formatString') || l.startsWith('//'),
+        // Mirrors tmdl_parser: only these `key:` properties are metadata. Anything else under the
+        // measure, including `formatStringDefinition = ...`, stays in the DAX so the references it
+        // makes (a dynamic format string calling another measure) are seen.
+        (l) => /^(formatString|lineageTag|dataType|summarizeBy|displayFolder|isHidden)\s*:/.test(l) || l.startsWith('//'),
       );
       fileMeasures.push({
         name: measureName,
@@ -874,6 +934,7 @@ function parseTableTmdl(
   calcCols.push(...fileCalcCols.map((c) => ({ ...c, table: currentTable })));
   if (partitionSource) {
     mSources.push({ table: currentTable, source: partitionSource });
+    modelExprSources.push({ table: currentTable, text: partitionSource });
   }
   if (calcItems.length) {
     calcGroupEntries.push({ table: currentTable, items: calcItems });
@@ -1154,8 +1215,8 @@ function processReportLevelReferences(
 
   const measureLookup = new Map([...knownMeasureNames].map((n) => [n.toLowerCase(), n]));
   for (const ext of extensionMeasures) {
-    for (const match of ext.expression.matchAll(/\[([^\]]+)\]/g)) {
-      const target = measureLookup.get(match[1].trim().toLowerCase());
+    for (const name of bracketNames(ext.expression)) {
+      const target = measureLookup.get(name.trim().toLowerCase());
       if (target) {
         visualMeasureRefs.add(target);
         reportRef(target, 'report_extension_measure', `${ext.table}[${ext.name}]`);

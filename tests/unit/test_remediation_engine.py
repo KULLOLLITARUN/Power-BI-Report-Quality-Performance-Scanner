@@ -1937,6 +1937,57 @@ class TestRollbackIsReportedHonestly:
         assert any("Restore failed" in r and manifest.backup_location in r for r in manifest.rejection_reasons)
 
 
+class TestMeasurePatcherScansTheWholeModel:
+    """Defence in depth: even if the scan's reference index misses a use, the patcher's own
+    disk scan must see it. In a model.bim the target file IS the whole model, so it has to be
+    searched too, minus the measure's own definition."""
+
+    @staticmethod
+    def _issue(measure: str) -> AuditIssue:
+        return AuditIssue(
+            rule_id="DAX_UNUSED_MEASURE", category="dax", severity="ADVISORY", title="t", issue="i",
+            evidence=f"Measure '{measure}' [Sales]: not referenced", impact="x", recommendation="r",
+            confidence=95, location=f"Measure: {measure}",
+        )
+
+    @pytest.mark.parametrize("fixture, measure", [
+        ("test_unused_measure_model_expressions_bim", "Orphan KPI"),
+        ("test_unused_measure_model_expressions_bim", "Orphan Format"),
+        ("test_unused_measure_model_expressions_bim", "Orphan Detail"),
+        ("test_unused_measure_model_expressions_bim", "Orphan Calc Table"),
+        ("test_unused_measure_model_expressions_tmdl", "Orphan Calc Table"),
+        ("test_unused_measure_model_expressions_tmdl", "Orphan Format"),
+    ])
+    def test_hidden_use_blocks_deletion_even_without_the_reference_index(self, tmp_path: Path, fixture: str, measure: str):
+        project = tmp_path / fixture
+        shutil.copytree(GOLDEN_DIR / fixture, project)
+        report = ScanService.execute_scan(project).report
+        report.semantic_references = None
+        report.dax_graph = None
+
+        evidence = MeasurePatcher().analyze(self._issue(measure), report, project)
+        assert "clean_syntax_boundary" in evidence.violated_preconditions or \
+            "zero_transitive_measure_dependents" in evidence.violated_preconditions, evidence.violated_preconditions
+        assert evidence.confidence == 0.0
+
+    def test_a_genuinely_unused_measure_is_still_deletable(self, tmp_path: Path):
+        for fixture in ("test_unused_measure_model_expressions_bim", "test_unused_measure_model_expressions_tmdl"):
+            project = tmp_path / fixture
+            shutil.copytree(GOLDEN_DIR / fixture, project)
+            report = ScanService.execute_scan(project).report
+            evidence = MeasurePatcher().analyze(self._issue("Truly Unused"), report, project)
+            assert evidence.violated_preconditions == [], (fixture, evidence.violated_preconditions)
+
+    def test_name_with_a_closing_bracket_is_searched_in_its_escaped_form(self, tmp_path: Path):
+        project = tmp_path / "bim"
+        shutil.copytree(GOLDEN_DIR / "test_unused_measure_model_expressions_bim", project)
+        report = ScanService.execute_scan(project).report
+        report.semantic_references = None
+        report.dax_graph = None
+        evidence = MeasurePatcher().analyze(self._issue("Margin [%]"), report, project)
+        assert evidence.violated_preconditions, "Total Revenue's expression uses [Margin [%]]]"
+
+
 class TestDataSourceFileName:
     """pathlib.Path on Linux treats '\' as a filename character, so a Windows path's
     'file name' was the whole path there and the BIM patch wrote invalid JSON."""

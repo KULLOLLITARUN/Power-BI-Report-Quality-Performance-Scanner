@@ -21,6 +21,7 @@ ReferenceSourceType = Literal[
     "rls_table_permission",    # Measure in roles/Role.tmdl or model.bim tablePermission DAX
     "report_filter",           # Measure in report-level filters, report config or bookmarks
     "report_extension_measure",  # Model measure referenced by a report-level (thin report) measure's DAX
+    "model_expression",        # Measure named in a calculated table / partition expression or a measure's format-string, KPI or detail-rows DAX
 ]
 
 ReferenceTargetType = Literal[

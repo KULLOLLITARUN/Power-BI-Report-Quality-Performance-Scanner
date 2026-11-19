@@ -12,6 +12,18 @@ if TYPE_CHECKING:
     from pbiscan.canonical.model import DaxDictionary
 
 
+_BRACKET_NAME = re.compile(r"\[((?:[^\]]|\]\])+)\]")
+
+
+def bracket_names(expression: str) -> list[str]:
+    """Every [Name] in a DAX expression, with the `]]` escape for a literal `]` undone.
+
+    `[Margin [%]]]` names the object `Margin [%]`. Mirrored by bracketNames in
+    studio-ui/src/engine/daxGraph.ts.
+    """
+    return [raw.replace("]]", "]") for raw in _BRACKET_NAME.findall(expression)]
+
+
 @dataclass
 class DaxNode:
     """A single measure or calculated column as a graph node."""
@@ -153,8 +165,7 @@ def _extract_edges_for_expr(
         return
 
     # Extract all bracketed identifiers [Identifier]
-    matches = re.findall(r"\[([^\]]+)\]", expression)
-    for raw_ref in matches:
+    for raw_ref in bracket_names(expression):
         ref_clean = raw_ref.strip()
         ref_lower = ref_clean.lower()
         if ref_lower in name_lookup:

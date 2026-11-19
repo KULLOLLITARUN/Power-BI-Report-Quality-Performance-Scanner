@@ -100,7 +100,8 @@ export type ReferenceSourceType =
   | 'field_parameter_grouped'
   | 'rls_table_permission'
   | 'report_filter'
-  | 'report_extension_measure';
+  | 'report_extension_measure'
+  | 'model_expression';
 
 /** One semantic reference, as pbiscan.service.semantic_reference_to_dict writes it. */
 export interface SemanticReferenceInfo {

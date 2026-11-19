@@ -1,0 +1,8 @@
+table Summary
+
+	column v
+		dataType: int64
+
+	partition Summary = calculated
+		mode: import
+		source = ROW("v", [Orphan Calc Table])

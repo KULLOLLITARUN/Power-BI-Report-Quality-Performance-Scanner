@@ -196,6 +196,7 @@ _USAGE_GROUP = {
     "field_parameter": "field_parameters",
     "field_parameter_grouped": "field_parameters",
     "rls_table_permission": "rls",
+    "model_expression": "model_expressions",
 }
 
 

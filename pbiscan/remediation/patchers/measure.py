@@ -127,17 +127,32 @@ class MeasurePatcher(BasePatcher):
 
         # 6. Check for unindexed / unknown consumer surfaces across disk
         unknown_surface_found = False
-        target_token_unqualified = f"[{measure_name}]".lower()
-        target_token_qualified = f"'{table_name}'[{measure_name}]".lower() if table_name else ""
-        
-        # Scan all non-target TMDL/BIM files on disk for unmapped references
+        # `]` inside a DAX name is written `]]`, so look for both spellings.
+        escaped_name = measure_name.replace("]", "]]")
+        target_token_unqualified = f"[{escaped_name}]".lower()
+        target_token_qualified = f"'{table_name}'[{escaped_name}]".lower() if table_name else ""
+        plain_token = f"[{measure_name}]".lower()
+
+        # Scan every TMDL/BIM/JSON file on disk for unmapped references. The target file is
+        # scanned too, minus the measure's own definition: a model.bim holds the whole
+        # model, so calculated tables or KPI expressions there would otherwise go unseen.
         for p in model_dir.glob("**/*"):
             if p.is_file() and p.suffix.lower() in (".tmdl", ".json", ".bim", ".dax"):
-                if target_file and p.resolve() == target_file.resolve():
-                    continue
+                is_target = bool(target_file and p.resolve() == target_file.resolve())
                 try:
-                    text = p.read_text(encoding="utf-8", errors="ignore").lower()
-                    if target_token_unqualified in text or (target_token_qualified and target_token_qualified in text):
+                    if is_target:
+                        remainder = self._target_file_remainder(p, table_name, measure_name)
+                        if remainder is None:  # cannot tell the definition from other text
+                            unknown_surface_found = True
+                            break
+                        text = remainder.lower()
+                    else:
+                        text = p.read_text(encoding="utf-8", errors="ignore").lower()
+                    if (
+                        target_token_unqualified in text
+                        or plain_token in text
+                        or (target_token_qualified and target_token_qualified in text)
+                    ):
                         # Verify whether this occurrence is in known semantic reference list
                         found_in_known_refs = False
                         if sem_refs and hasattr(sem_refs, "find_by_target"):
@@ -221,6 +236,21 @@ class MeasurePatcher(BasePatcher):
                 f"after confirming zero inbound dependencies across all visual, DAX, RLS, and parameter surfaces."
             ),
         )
+
+    def _target_file_remainder(self, target_file: Path, table_name: str, measure_name: str) -> Optional[str]:
+        """The target file's text with the measure's own definition cut out, or None
+        when that definition cannot be isolated (the patch could not be built either)."""
+        text = target_file.read_text(encoding="utf-8", errors="ignore")
+        suffix = target_file.suffix.lower()
+        chunk: Optional[PatchChunk] = None
+        if suffix == ".tmdl":
+            chunk = self._patch_tmdl(text, measure_name)
+        elif suffix in (".bim", ".json"):
+            chunk = self._patch_bim(text, table_name, measure_name)
+        if chunk is None:
+            return None
+        lines = text.splitlines(keepends=True)
+        return "".join(lines[: chunk.start_line - 1] + lines[chunk.end_line:])
 
     def _parse_issue_location(self, issue: AuditIssue) -> Tuple[str, str]:
         """Extract measure name and table name from issue location or evidence."""

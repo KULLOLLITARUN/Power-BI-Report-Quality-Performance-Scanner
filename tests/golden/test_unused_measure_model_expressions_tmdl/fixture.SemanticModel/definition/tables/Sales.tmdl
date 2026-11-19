@@ -1,0 +1,20 @@
+table Sales
+
+	/// Used by the card. Its dynamic format string is the only use of 'Orphan Format'.
+	measure Revenue = SUM(Sales[Amount])
+		formatStringDefinition = IF([Orphan Format] > 0, "0.0", "0")
+
+	measure 'Orphan Format' = 1
+
+	/// Only used by the calculated table Summary.
+	measure 'Orphan Calc Table' = 2
+
+	/// True-positive control: referenced by nothing.
+	measure 'Truly Unused' = 42
+
+	column Amount
+		dataType: double
+
+	partition Sales = m
+		mode: import
+		source = let Source = Table.FromRows({}) in Source

@@ -100,6 +100,14 @@ interface DaxObject {
   expression: string;
 }
 
+/**
+ * Every [Name] in a DAX expression, with the `]]` escape for a literal `]` undone, so
+ * `[Margin [%]]]` names `Margin [%]`. Mirrors pbiscan.canonical.dax_graph.bracket_names.
+ */
+export function bracketNames(expression: string): string[] {
+  return [...expression.matchAll(/\[((?:[^\]]|\]\])+)\]/g)].map((m) => m[1].replace(/\]\]/g, ']'));
+}
+
 export function buildDaxGraph(measures: DaxObject[], calcColumns: DaxObject[]): DaxDependencyGraph {
   const graph = new DaxDependencyGraph();
 
@@ -119,9 +127,8 @@ export function buildDaxGraph(measures: DaxObject[], calcColumns: DaxObject[]): 
 
   const extractEdges = (sourceName: string, expression: string) => {
     if (!expression) return;
-    const matches = expression.matchAll(/\[([^\]]+)\]/g);
-    for (const m of matches) {
-      const refClean = m[1].trim();
+    for (const name of bracketNames(expression)) {
+      const refClean = name.trim();
       const targetName = nameLookup.get(refClean.toLowerCase());
       if (targetName && targetName !== sourceName) {
         graph.edges.get(sourceName)!.add(targetName);
