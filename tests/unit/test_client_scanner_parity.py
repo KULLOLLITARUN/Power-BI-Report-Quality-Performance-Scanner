@@ -52,21 +52,29 @@ pytestmark = pytest.mark.skipif(
     reason="Node or studio-ui node_modules (esbuild) not available — skipping cross-engine parity test",
 )
 
+def _esbuild_command() -> list[str]:
+    """How to start esbuild: through `node` when bin/esbuild is a JavaScript file (as on Windows),
+    directly when it is the native binary npm installs there on Linux and macOS."""
+    with ESBUILD_SCRIPT.open("rb") as handle:
+        is_script = handle.read(2) == b"#!"
+    return ["node", str(ESBUILD_SCRIPT)] if is_script else [str(ESBUILD_SCRIPT)]
+
+
 @pytest.fixture(scope="module", autouse=True)
 def build_harness():
     """Bundle parityHarness.ts once per test session with esbuild.
 
-    Invokes node_modules/esbuild/bin/esbuild directly via `node` rather than
+    Invokes node_modules/esbuild/bin/esbuild directly rather than
     through `npm run` — npm/npx's own package-bin resolution breaks when the
     repo path contains an `&` (as this one does), even though the underlying
-    esbuild script runs fine when invoked directly.
+    esbuild runs fine when invoked directly.
     """
     assert NODE_AVAILABLE and NODE_MODULES_PRESENT, (
         "PBISCAN_REQUIRE_PARITY=1 but Node or studio-ui/node_modules is missing; run `npm ci` in studio-ui/"
     )
     subprocess.run(
         [
-            "node", str(ESBUILD_SCRIPT),
+            *_esbuild_command(),
             str(HARNESS_SRC.relative_to(STUDIO_UI_DIR)),
             "--bundle", "--platform=node", "--format=cjs",
             f"--outfile={HARNESS_BUNDLE.relative_to(STUDIO_UI_DIR)}",
