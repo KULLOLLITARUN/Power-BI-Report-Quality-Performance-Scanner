@@ -153,7 +153,8 @@ def parse_pbir_visual(raw: dict[str, Any]) -> Optional[RawVisual]:
         measure_refs=sorted(set(query_measures) | ast_measures),
         table_refs=sorted(extract_entity_names(visual_node.get("query", {}))),
         is_slicer=(visual_type.lower() == "slicer"),
-        hidden=raw.get("hidden", False),
+        # PBIR visualContainer marks a hidden visual with "isHidden": true.
+        hidden=bool(raw.get("isHidden", raw.get("hidden", False))),
     )
 
 

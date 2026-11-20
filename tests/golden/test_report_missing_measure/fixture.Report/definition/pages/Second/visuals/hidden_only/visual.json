@@ -1,0 +1,28 @@
+{
+  "name": "hidden_only",
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Sales"
+                    }
+                  },
+                  "Property": "Revealed By Bookmark"
+                }
+              },
+              "queryRef": "Sales.Revealed By Bookmark"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "isHidden": true
+}

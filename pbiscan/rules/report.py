@@ -76,17 +76,15 @@ def check_slicer_bloat(
 # R003 — Visual or page filter uses a measure the model does not have
 # ---------------------------------------------------------------------------
 
-# Only places where a missing field visibly breaks the report. Report-level filters, bookmarks and
-# conditional-format references are left out: they are mixed together at extraction time.
-_VISIBLE_REFERENCE_SOURCES = frozenset({"visual_projection", "visual_filter"})
-
-
 def check_missing_measures(report: CanonicalReport) -> list[RuleFinding]:
     """R003 — Detect visuals and page filters that use a measure no model or report defines.
 
     The match is by name, case-insensitively, against every model measure and every report-level
     measure, so it flags only measures that exist nowhere. A measure that exists on another table
-    is not flagged.
+    is not flagged. Only visuals and page filters count: report-level filters, bookmarks and
+    conditional-format references are mixed together at extraction time, so they are left out.
+    Hidden visuals are flagged too (a bookmark or button can reveal them), and the evidence says
+    when every use is hidden.
 
     Not checked (returns nothing) when it could not be decided:
       - the project has no semantic model (a thin report bound to a published model), or
@@ -100,30 +98,39 @@ def check_missing_measures(report: CanonicalReport) -> list[RuleFinding]:
     known = {m.name.lower() for m in report.dax.measures}
     known |= {name.lower() for name in report.report_extension_measure_names}
 
-    places: dict[str, tuple[str, list[str]]] = {}  # lowercase name -> (name as written, places in use)
-    for ref in report.semantic_references.references:
-        if ref.target_type != "measure" or ref.source_type not in _VISIBLE_REFERENCE_SOURCES:
-            continue
-        key = ref.target_name.lower()
-        if key in known:
-            continue
-        # source_object is "<page label>.<visual type>" or "<page label>.filters"
-        where = ref.source_object.rsplit(".", 1)[0] if ref.source_object else "the report"
-        name, seen = places.setdefault(key, (ref.target_name, []))
-        if where not in seen:
-            seen.append(where)
+    # lowercase name -> (name as written, pages in use, one hidden flag per use)
+    uses: dict[str, tuple[str, list[str], list[bool]]] = {}
+
+    def note(name: str, where: str, hidden: bool) -> None:
+        _, pages, flags = uses.setdefault(name.lower(), (name, [], []))
+        if where not in pages:
+            pages.append(where)
+        flags.append(hidden)
+
+    # Visuals come from the page model, which knows whether each one is hidden.
+    for page in report.report.pages:
+        for visual in page.visuals:
+            for ref in visual.measure_refs:
+                if ref.lower() not in known:
+                    note(ref, page.label, visual.hidden)
+    # Page filter panes have no hidden state: a missing measure there always shows.
+    for sref in report.semantic_references.references:
+        if sref.target_type == "measure" and sref.source_type == "visual_filter" and sref.target_name.lower() not in known:
+            # source_object is "<page label>.filters"
+            note(sref.target_name, sref.source_object.rsplit(".", 1)[0] if sref.source_object else "the report", False)
 
     findings: list[RuleFinding] = []
-    for name, seen in places.values():
-        shown = ", ".join(f"'{p}'" for p in seen[:3]) + (f" and {len(seen) - 3} more" if len(seen) > 3 else "")
-        findings.append(new_finding(
-            "REPORT_MISSING_MEASURE",
-            evidence=(
-                f"Measure '{name}' is used on {'page' if len(seen) == 1 else 'pages'} {shown}, "
-                "but the model and the report define no measure with that name."
-            ),
-            location=f"Measure: {name}",
-        ))
+    for name, pages, flags in uses.values():
+        shown = ", ".join(f"'{p}'" for p in pages[:3]) + (f" and {len(pages) - 3} more" if len(pages) > 3 else "")
+        evidence = (
+            f"Measure '{name}' is used on {'page' if len(pages) == 1 else 'pages'} {shown}, "
+            "but the model and the report define no measure with that name."
+        )
+        if all(flags):
+            evidence += " Every visual that uses it is hidden, so no error shows until one is revealed, for example by a bookmark."
+        elif any(flags):
+            evidence += " Some of these visuals are hidden."
+        findings.append(new_finding("REPORT_MISSING_MEASURE", evidence=evidence, location=f"Measure: {name}"))
     return findings
 
 

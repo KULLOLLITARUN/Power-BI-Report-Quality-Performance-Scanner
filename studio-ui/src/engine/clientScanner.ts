@@ -611,26 +611,40 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   // model (a thin report) or with unreadable files, where the measure list may be incomplete.
   if (tables.length > 0 && unreadFiles.length === 0) {
     const known = new Set<string>([...measures.map((m) => m.name.toLowerCase()), ...[...extensionNames].map((n) => n.toLowerCase())]);
-    const missing = new Map<string, { name: string; seen: string[] }>();
-    for (const ref of semanticRefs.references) {
-      if (ref.target_type !== 'measure' || (ref.source_type !== 'visual_projection' && ref.source_type !== 'visual_filter')) continue;
-      const key = ref.target_name.toLowerCase();
-      if (known.has(key)) continue;
-      // source_object is "<page label>.<visual type>" or "<page label>.filters"
-      const dot = ref.source_object ? ref.source_object.lastIndexOf('.') : -1;
-      const where = ref.source_object ? (dot >= 0 ? ref.source_object.slice(0, dot) : ref.source_object) : 'the report';
-      let entry = missing.get(key);
-      if (!entry) { entry = { name: ref.target_name, seen: [] }; missing.set(key, entry); }
-      if (!entry.seen.includes(where)) entry.seen.push(where);
+    // lowercase name -> name as written, pages in use, one hidden flag per use
+    const missing = new Map<string, { name: string; pages: string[]; flags: boolean[] }>();
+    const note = (name: string, where: string, hidden: boolean) => {
+      let entry = missing.get(name.toLowerCase());
+      if (!entry) { entry = { name, pages: [], flags: [] }; missing.set(name.toLowerCase(), entry); }
+      if (!entry.pages.includes(where)) entry.pages.push(where);
+      entry.flags.push(hidden);
+    };
+    // Visuals come from the page model, which knows whether each one is hidden.
+    for (const p of pages) {
+      for (const v of p.visuals || []) {
+        for (const ref of v.measure_refs) {
+          if (!known.has(ref.toLowerCase())) note(ref, p.display_name || p.name, !!v.hidden);
+        }
+      }
     }
-    for (const { name, seen } of missing.values()) {
+    // Page filter panes have no hidden state: a missing measure there always shows.
+    for (const ref of semanticRefs.references) {
+      if (ref.target_type !== 'measure' || ref.source_type !== 'visual_filter' || known.has(ref.target_name.toLowerCase())) continue;
+      // source_object is "<page label>.filters"
+      const dot = ref.source_object ? ref.source_object.lastIndexOf('.') : -1;
+      note(ref.target_name, ref.source_object ? (dot >= 0 ? ref.source_object.slice(0, dot) : ref.source_object) : 'the report', false);
+    }
+    for (const { name, pages: seen, flags } of missing.values()) {
       const shown = seen.slice(0, 3).map((p) => `'${p}'`).join(', ') + (seen.length > 3 ? ` and ${seen.length - 3} more` : '');
+      let evidence = `Measure '${name}' is used on ${seen.length === 1 ? 'page' : 'pages'} ${shown}, but the model and the report define no measure with that name.`;
+      if (flags.every(Boolean)) evidence += ' Every visual that uses it is hidden, so no error shows until one is revealed, for example by a bookmark.';
+      else if (flags.some(Boolean)) evidence += ' Some of these visuals are hidden.';
       findings.push({
         ...ruleMeta('REPORT_MISSING_MEASURE'),
         title: 'Visual uses a measure the model does not have',
         issue: 'A visual or page filter uses a measure that no longer exists in the semantic model, and no report-level measure has that name either.',
-        evidence: `Measure '${name}' is used on ${seen.length === 1 ? 'page' : 'pages'} ${shown}, but the model and the report define no measure with that name.`,
-        impact: 'Power BI cannot resolve a field that is not in the model, so the visual typically shows an error instead of data. The measure was most likely deleted or renamed in the model while the report kept the old name.',
+        evidence,
+        impact: "Power BI cannot resolve a field that is not in the model. A visible visual shows \"Something's wrong with one or more fields\" instead of data, and a hidden visual fails the same way when it is revealed, for example by a bookmark or button. The measure was most likely deleted or renamed in the model while the report kept the old name.",
         recommendation: 'Open the report in Power BI Desktop, select the affected visual, and either re-point it to the measure it should use or restore the measure in the model.',
         location: `Measure: ${name}`,
       });
@@ -1399,7 +1413,7 @@ function processModernPbirPages(
         fields_used: [...ownMeasures].sort(),
         table_refs: [...extractEntityNames(visualNode.query || {})].sort(),
         is_slicer: visualType === 'slicer',
-        hidden: !!raw.hidden,
+        hidden: !!(raw.isHidden ?? raw.hidden), // PBIR visualContainer: "isHidden": true
       });
     } catch {
       // Malformed visual.json — counted above; its measure refs are unknown.

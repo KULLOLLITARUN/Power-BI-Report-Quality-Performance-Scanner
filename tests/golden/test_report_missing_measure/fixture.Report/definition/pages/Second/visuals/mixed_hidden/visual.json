@@ -1,0 +1,28 @@
+{
+  "name": "mixed_hidden",
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Sales"
+                    }
+                  },
+                  "Property": "Half Hidden"
+                }
+              },
+              "queryRef": "Sales.Half Hidden"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "isHidden": true
+}

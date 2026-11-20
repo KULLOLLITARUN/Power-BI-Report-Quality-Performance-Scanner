@@ -298,11 +298,12 @@ RECOMMENDATIONS: dict[str, dict[str, str]] = {
             "semantic model, and no report-level measure has that name either."
         ),
         "impact": (
-            "Power BI cannot resolve a field that is not in the model, so the visual "
-            "typically shows an error instead of data. The measure was most likely "
-            "deleted or renamed in the model while the report kept the old name. "
-            "pbiscan's other checks do not catch this, so the report can look healthy "
-            "in a scan while a visual is broken."
+            "Power BI cannot resolve a field that is not in the model. A visible visual "
+            "shows \"Something's wrong with one or more fields\" instead of data, and a "
+            "hidden visual fails the same way when it is revealed, for example by a "
+            "bookmark or button. The measure was most likely deleted or renamed in the "
+            "model while the report kept the old name. pbiscan's other checks do not "
+            "catch this, so the report can look healthy in a scan while a visual is broken."
         ),
         "recommendation": (
             "Open the report in Power BI Desktop and select the affected visual. "
