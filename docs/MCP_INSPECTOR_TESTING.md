@@ -1,6 +1,6 @@
 # Testing the MCP server in the browser (MCP Inspector)
 
-**Verification status: PENDING for the Inspector check below; the rest is verified.**
+**Verification status: the checklist below passes through the Inspector CLI. Still not done: the browser UI click-through, the Groq check, and the Claude Desktop and Cursor steps.**
 
 Verified on 2026-11-20:
 - The automated MCP tests pass (`tests/unit/test_mcp_server.py` and
@@ -12,9 +12,13 @@ Verified on 2026-11-20:
 - A real agent (Claude Code in VS Code, with the server added through a project `.mcp.json`) scanned,
   planned and applied fixes, and Studio then showed the same score, history entry and counts.
 
-Not verified: the manual browser check below (MCP Inspector), and the Claude Desktop and Cursor
-set-up steps on the Agent & MCP screen. Tick each box as you go, and change the status line to
-**PASSED** once every box is ticked.
+Also verified on 2026-11-20: checks 2 and 6 to 15 in the checklist below, run through the Inspector's
+own command-line client (`--cli`, Inspector v0.15.0), which is the same MCP client the browser UI uses.
+It drove `pbiscan mcp` over stdio against copies of `test_bidirectional`.
+
+Not verified: clicking through the Inspector's browser UI, the optional check 16 (it needs your own
+Groq key), and the Claude Desktop and Cursor set-up steps on the Agent & MCP screen. The guide's steps
+were compared with Claude's and Cursor's current documentation, but not run in the apps.
 
 MCP Inspector is the official browser UI for MCP servers. It starts `pbiscan mcp` as a separate
 process and lets you call each tool by hand, the same way an agent such as Claude or Cursor would.
@@ -161,25 +165,25 @@ Remove-Item -Recurse -Force C:\Users\TARUN\mcp-test.bak_*
 
 ## Verification checklist
 
-**Status: PENDING**
+**Status: PASSED through the Inspector CLI (headless, same MCP client). Not done: clicking through the Inspector browser UI, and the optional check 16 (needs your own Groq key).**
 
 | # | Check | Status |
 |---|---|---|
 | 1 | Inspector starts and connects; the server shows as **PBIP Sentinel** | ✅ Passed (2026-10-07, Inspector v0.15.0, Node 20.18) |
-| 2 | 8 tools listed with correct read-only and writes-files annotations | ⏳ Pending |
+| 2 | 8 tools listed with correct read-only and writes-files annotations | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
 | 3 | `pbiscan://rules` and `pbiscan://rules/MODEL_BIDIRECTIONAL` return JSON | ✅ Passed (after the `%20` fix; see Notes) |
 | 4 | 3 prompts listed, and `audit-model` renders | ✅ Passed |
 | 5 | `scan_model` returns 98.7 and one `MODEL_BIDIRECTIONAL` finding | ✅ Passed (overall 98.7, model 97, dax 100, report 100) |
-| 6 | `get_measure_lineage` shows `Total Revenue` used by a visual | ⏳ Pending |
-| 7 | `list_suppressions` returns 0 | ⏳ Pending |
-| 8 | `diff_models` of a folder against itself shows no drift | ⏳ Pending |
-| 9 | `plan_remediation` proposes 1 accepted patch (98.7 → 100.0) | ⏳ Pending |
-| 10 | Read-only calls left `mcp-test` unchanged, with no `.bak_` folder | ⏳ Pending |
-| 11 | `suggest_dax_rewrite` without a key returns an advisory result, not an error | ⏳ Pending |
-| 12 | `apply_remediation` applies the patch, creates a backup and writes a manifest | ⏳ Pending |
-| 13 | A rescan after the apply shows 100.0, and a new plan has 0 proposals | ⏳ Pending |
-| 14 | `add_suppression` writes `pbiscan.suppressions.json`, and the finding stops showing as active | ⏳ Pending |
-| 15 | Bad inputs return errors without crashing the server | ⏳ Pending |
+| 6 | `get_measure_lineage` shows `Total Revenue` used by a visual | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
+| 7 | `list_suppressions` returns 0 | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
+| 8 | `diff_models` of a folder against itself shows no drift | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
+| 9 | `plan_remediation` proposes 1 accepted patch (98.7 → 100.0) | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
+| 10 | Read-only calls left `mcp-test` unchanged, with no `.bak_` folder | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
+| 11 | `suggest_dax_rewrite` without a key returns an advisory result, not an error | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
+| 12 | `apply_remediation` applies the patch, creates a backup and writes a manifest | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
+| 13 | A rescan after the apply shows 100.0, and a new plan has 0 proposals | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
+| 14 | `add_suppression` writes `pbiscan.suppressions.json`, and the finding stops showing as active | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
+| 15 | Bad inputs return errors without crashing the server | ✅ Passed (2026-11-20, Inspector CLI v0.15.0, headless) |
 | 16 | (Optional) `suggest_dax_rewrite` with a Groq key returns a specific rewrite | ⏳ Pending |
 
 Mark each row ✅ Passed or ❌ Failed. For a failure, add a note below with the tool, the inputs you
