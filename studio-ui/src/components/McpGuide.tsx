@@ -113,7 +113,7 @@ export const McpGuide: React.FC<{ launch: Launch; exact: boolean }> = ({ launch,
                 <CodeBlock text={json} />
               </Step>
               <Step title="Turn it on">
-                <p>Open <b>Cursor Settings → MCP</b>. <b>pbiscan</b> should be listed. Switch it on, and wait for a green dot. Then use it from Cursor's chat in agent mode.</p>
+                <p>Open <b>Customize</b> in Cursor's sidebar. <b>pbiscan</b> should be listed. Use its toggle to switch it on, then use it from Cursor's chat in agent mode. Menu names change between Cursor versions, so look for the page that lists your MCP servers. If pbiscan is not listed, restart Cursor. If it fails to start, open the Output panel (<b>Ctrl+Shift+U</b>) and choose <b>MCP Logs</b> to see why.</p>
               </Step>
             </>
           )}
