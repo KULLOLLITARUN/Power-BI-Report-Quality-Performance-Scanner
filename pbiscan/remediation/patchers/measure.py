@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
@@ -20,6 +22,22 @@ from pbiscan.remediation.models import (
 from pbiscan.remediation.patchers.base import BasePatcher
 
 _BOM = chr(0xFEFF)  # patchers read files as plain UTF-8, which keeps a byte-order mark as text
+_SCANNED_SUFFIXES = (".tmdl", ".json", ".bim", ".dax")
+
+
+@dataclass
+class _ModelFile:
+    """One model file, read once: its lower-cased text and any perspective/translation content."""
+    path: Path
+    resolved: Path
+    rel: str
+    text: str = ""
+    lower: str = ""
+    unreadable: bool = False
+    metadata_error: bool = False
+    metadata_text: Optional[str] = None  # a .tmdl that holds perspectives, translations or Q&A
+    metadata_lower: str = ""
+    metadata_strings: dict[str, list[str]] = field(default_factory=dict)  # model.bim: key -> strings
 
 
 class MeasurePatcher(BasePatcher):
@@ -35,6 +53,10 @@ class MeasurePatcher(BasePatcher):
     """
 
     rule_id = "DAX_UNUSED_MEASURE"
+
+    # Files read once per model (see _model_files); only trusted without re-checking inside a plan.
+    _plan_active: bool = False
+    _files_cache: Optional[tuple[Path, tuple[Any, ...], list["_ModelFile"]]] = None
 
     def analyze(self, issue: AuditIssue, report: CanonicalReport, model_dir: Path) -> PatchEvidence:
         """Verify the measure has no consumer on any surface this scanner can see.
@@ -137,38 +159,41 @@ class MeasurePatcher(BasePatcher):
         # Scan every TMDL/BIM/JSON file on disk for unmapped references. The target file is
         # scanned too, minus the measure's own definition: a model.bim holds the whole
         # model, so calculated tables or KPI expressions there would otherwise go unseen.
-        for p in model_dir.glob("**/*"):
-            if p.is_file() and p.suffix.lower() in (".tmdl", ".json", ".bim", ".dax"):
-                is_target = bool(target_file and p.resolve() == target_file.resolve())
-                try:
-                    if is_target:
-                        remainder = self._target_file_remainder(p, table_name, measure_name)
-                        if remainder is None:  # cannot tell the definition from other text
-                            unknown_surface_found = True
-                            break
-                        text = remainder.lower()
-                    else:
-                        text = p.read_text(encoding="utf-8", errors="ignore").lower()
-                    if (
-                        target_token_unqualified in text
-                        or plain_token in text
-                        or (target_token_qualified and target_token_qualified in text)
-                    ):
-                        # Verify whether this occurrence is in known semantic reference list
-                        found_in_known_refs = False
-                        if sem_refs and hasattr(sem_refs, "find_by_target"):
-                            for ref in sem_refs.find_by_target(measure_name):
-                                if ref.source_file and Path(ref.source_file).name.lower() == p.name.lower():
-                                    found_in_known_refs = True
-                                    break
-                        if not found_in_known_refs:
-                            unknown_surface_found = True
-                            break
-                except Exception:
-                    # Deliberately broad: any failure to inspect a file means we can't
-                    # prove the measure is unused there, so refuse deletion.
+        # Files are read once per plan (see _model_files), not once per measure.
+        target_resolved = target_file.resolve() if target_file else None
+        for mf in self._model_files(model_dir):
+            try:
+                if mf.unreadable:
                     unknown_surface_found = True
                     break
+                if target_resolved is not None and mf.resolved == target_resolved:
+                    remainder = self._target_file_remainder(mf.path, table_name, measure_name)
+                    if remainder is None:  # cannot tell the definition from other text
+                        unknown_surface_found = True
+                        break
+                    text = remainder.lower()
+                else:
+                    text = mf.lower
+                if (
+                    target_token_unqualified in text
+                    or plain_token in text
+                    or (target_token_qualified and target_token_qualified in text)
+                ):
+                    # Verify whether this occurrence is in known semantic reference list
+                    found_in_known_refs = False
+                    if sem_refs and hasattr(sem_refs, "find_by_target"):
+                        for ref in sem_refs.find_by_target(measure_name):
+                            if ref.source_file and Path(ref.source_file).name.lower() == mf.path.name.lower():
+                                found_in_known_refs = True
+                                break
+                    if not found_in_known_refs:
+                        unknown_surface_found = True
+                        break
+            except Exception:
+                # Deliberately broad: any failure to inspect a file means we can't
+                # prove the measure is unused there, so refuse deletion.
+                unknown_surface_found = True
+                break
 
         if not unknown_surface_found:
             satisfied.append("clean_syntax_boundary")
@@ -270,28 +295,113 @@ class MeasurePatcher(BasePatcher):
         """
         name = re.compile(r"(?<!\w)" + re.escape(measure_name) + r"(?!\w)", re.IGNORECASE)
         found: list[str] = []
-        for p in sorted(model_dir.glob("**/*")):
-            if not p.is_file():
-                continue
-            suffix = p.suffix.lower()
-            try:
-                if suffix == ".tmdl":
-                    text = p.read_text(encoding="utf-8", errors="ignore")
-                    in_metadata_dir = any(part.lower() in self._METADATA_DIRS for part in p.relative_to(model_dir).parts[:-1])
-                    declares_metadata = bool(re.search(r"^\s*(perspective|cultureInfo)\b", text, re.MULTILINE))
-                    if (in_metadata_dir or declares_metadata) and name.search(text):
-                        found.append(str(p.relative_to(model_dir)))
-                elif suffix in (".bim", ".json") and p.name.lower() in ("model.bim", "database.json"):
-                    data = json.loads(p.read_text(encoding="utf-8", errors="ignore").lstrip(_BOM))
-                    model = data.get("model", data) if isinstance(data, dict) else {}
-                    for key in self._METADATA_KEYS:
-                        if any(name.search(s) for s in self._strings_in(model.get(key))):
-                            found.append(f"{p.relative_to(model_dir)} ({key})")
-                            break
-            except (OSError, ValueError):
+        needle = measure_name.casefold()
+        for mf in self._model_files(model_dir):
+            if mf.metadata_error:
                 # Cannot inspect it, so cannot prove the measure is absent from it: refuse.
-                found.append(str(p.relative_to(model_dir)))
+                found.append(mf.rel)
+            elif mf.metadata_text is not None:
+                if self._names_whole_word(mf.metadata_lower, needle):
+                    found.append(mf.rel)
+            else:
+                for key, strings in mf.metadata_strings.items():
+                    if any(name.search(s) for s in strings):
+                        found.append(f"{mf.rel} ({key})")
+                        break
         return found
+
+    @staticmethod
+    def _names_whole_word(folded_text: str, folded_name: str) -> bool:
+        """True when folded_name occurs in folded_text with no letter, digit or underscore next to it.
+
+        Both arguments are casefolded. A case-insensitive regex does the same job but is far slower
+        on the large translation files, and this errs only towards finding a match, which refuses a
+        deletion and never allows one.
+        """
+        if not folded_name:
+            return False
+        start = folded_text.find(folded_name)
+        while start != -1:
+            end = start + len(folded_name)
+            before = folded_text[start - 1] if start > 0 else ""
+            after = folded_text[end] if end < len(folded_text) else ""
+            if not (before and (before.isalnum() or before == "_")) and not (after and (after.isalnum() or after == "_")):
+                return True
+            start = folded_text.find(folded_name, start + 1)
+        return False
+
+    def _model_files(self, model_dir: Path) -> list["_ModelFile"]:
+        """Every TMDL/BIM/JSON/DAX file under model_dir, read and parsed once.
+
+        A plan checks every unused measure against every file; reading them per measure made
+        a model with ~1,000 measures take minutes. The cache is rebuilt whenever any file's
+        size or modified time changes, so a stale read can never allow a deletion.
+        """
+        cached = getattr(self, "_files_cache", None)
+        if cached is not None and cached[0] == model_dir:
+            # Inside a plan nothing is written, so the cache is valid without looking at the disk.
+            if getattr(self, "_plan_active", False):
+                return cached[2]
+            if cached[1] == self._files_signature(model_dir):
+                return cached[2]
+        signature = self._files_signature(model_dir)
+        files = [self._load_model_file(model_dir, p) for p in sorted(model_dir.glob("**/*"))
+                 if p.is_file() and p.suffix.lower() in _SCANNED_SUFFIXES]
+        self._files_cache = (model_dir, signature, files)
+        return files
+
+    def begin_plan(self) -> None:
+        self._plan_active = True
+        self._files_cache = None
+
+    def end_plan(self) -> None:
+        self._plan_active = False
+        self._files_cache = None
+
+    @staticmethod
+    def _files_signature(model_dir: Path) -> tuple:
+        # DirEntry.stat() reuses what the directory listing already returned (on Windows, with no
+        # extra system call per file), so this stays cheap even when it runs once per measure.
+        sig: list[tuple[str, int, int]] = []
+        pending = [str(model_dir)]
+        while pending:
+            with os.scandir(pending.pop()) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(entry.path)
+                    elif os.path.splitext(entry.name)[1].lower() in _SCANNED_SUFFIXES:
+                        st = entry.stat()
+                        sig.append((entry.path, st.st_mtime_ns, st.st_size))
+        sig.sort()
+        return tuple(sig)
+
+    def _load_model_file(self, model_dir: Path, p: Path) -> "_ModelFile":
+        suffix = p.suffix.lower()
+        mf = _ModelFile(path=p, resolved=p.resolve(), rel=str(p.relative_to(model_dir)))
+        try:
+            text = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            mf.unreadable = True
+            mf.metadata_error = suffix == ".tmdl" or (
+                suffix in (".bim", ".json") and p.name.lower() in ("model.bim", "database.json")
+            )
+            return mf
+        mf.text = text
+        mf.lower = text.lower()
+        if suffix == ".tmdl":
+            in_metadata_dir = any(part.lower() in self._METADATA_DIRS for part in p.relative_to(model_dir).parts[:-1])
+            declares_metadata = bool(re.search(r"^\s*(perspective|cultureInfo)\b", text, re.MULTILINE))
+            if in_metadata_dir or declares_metadata:
+                mf.metadata_text = text
+                mf.metadata_lower = text.casefold()
+        elif suffix in (".bim", ".json") and p.name.lower() in ("model.bim", "database.json"):
+            try:
+                data = json.loads(text.lstrip(_BOM))
+                model = data.get("model", data) if isinstance(data, dict) else {}
+                mf.metadata_strings = {key: self._strings_in(model.get(key)) for key in self._METADATA_KEYS}
+            except ValueError:
+                mf.metadata_error = True
+        return mf
 
     def _target_file_remainder(self, target_file: Path, table_name: str, measure_name: str) -> Optional[str]:
         """The target file's text with the measure's own definition cut out, or None
@@ -348,32 +458,26 @@ class MeasurePatcher(BasePatcher):
                 if candidate.exists() and candidate.is_file():
                     return candidate
 
-            for p in model_dir.glob(f"**/{table_name}.tmdl"):
-                if p.exists() and p.is_file():
-                    return p
+            for mf in self._model_files(model_dir):
+                if mf.path.name == f"{table_name}.tmdl":
+                    return mf.path
 
         # Search any TMDL file declaring this measure
-        for p in model_dir.glob("**/*.tmdl"):
-            if p.is_file():
-                try:
-                    text = p.read_text(encoding="utf-8")
-                    if f"measure '{measure_name}'" in text or f"measure {measure_name} " in text or f"measure {measure_name}=" in text:
-                        return p
-                except (OSError, UnicodeDecodeError):
-                    continue
+        for mf in self._model_files(model_dir):
+            if mf.path.suffix.lower() == ".tmdl" and not mf.unreadable:
+                text = mf.text
+                if f"measure '{measure_name}'" in text or f"measure {measure_name} " in text or f"measure {measure_name}=" in text:
+                    return mf.path
 
         # 2. BIM model.bim / database.json
-        for p in model_dir.glob("**/model.bim"):
-            if p.exists() and p.is_file():
-                return p
+        for wanted in ("model.bim", "database.json"):
+            for mf in self._model_files(model_dir):
+                if mf.path.name == wanted:
+                    return mf.path
 
-        for p in model_dir.glob("**/database.json"):
-            if p.exists() and p.is_file():
-                return p
-
-        for p in model_dir.glob("**/*.bim"):
-            if p.exists() and p.is_file():
-                return p
+        for mf in self._model_files(model_dir):
+            if mf.path.suffix.lower() == ".bim":
+                return mf.path
 
         return None
 

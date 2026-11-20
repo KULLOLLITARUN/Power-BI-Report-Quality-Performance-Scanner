@@ -14,6 +14,13 @@ class BasePatcher(ABC):
 
     rule_id: str
 
+    def begin_plan(self) -> None:
+        """Called before a planner runs this patcher over every finding. Files do not change
+        until the plan is done, so a patcher may cache what it reads until end_plan()."""
+
+    def end_plan(self) -> None:
+        """Called when the plan is finished. Drop anything cached in begin_plan()."""
+
     @abstractmethod
     def analyze(self, issue: AuditIssue, report: CanonicalReport, model_dir: Path) -> PatchEvidence:
         """Phase 1: Examine topology and dependencies; produce auditable PatchEvidence."""

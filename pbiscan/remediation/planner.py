@@ -36,6 +36,21 @@ class RemediationPlanner:
         scan_result: ScanResult,
         rule_filter: Optional[str] = None,
     ) -> RemediationPlan:
+        """Generate full remediation plan for findings in scan_result (see _plan)."""
+        for patcher in self._patchers.values():
+            patcher.begin_plan()
+        try:
+            return self._plan(model_path, scan_result, rule_filter)
+        finally:
+            for patcher in self._patchers.values():
+                patcher.end_plan()
+
+    def _plan(
+        self,
+        model_path: Path,
+        scan_result: ScanResult,
+        rule_filter: Optional[str] = None,
+    ) -> RemediationPlan:
         """Generate full remediation plan for findings in scan_result.
 
         `model_path` may be the project folder or its .pbip file (as with scan); patches, the
