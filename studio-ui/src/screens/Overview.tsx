@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { TriangleAlert } from 'lucide-react';
+import { TriangleAlert, Wrench } from 'lucide-react';
 import type { AuditFinding, ScanResult } from '../types';
 import type { Severity } from '../lib/severity';
 import { sortFindings } from '../lib/severity';
 import { findingTargets } from '../lib/model';
 import type { HistoryPoint } from '../lib/history';
 import { Ledger } from '../components/Ledger';
-import { FindingDetail, FindingsList, findingKey } from '../components/Findings';
+import { FIXABLE_RULES, FindingDetail, FindingsList, findingKey } from '../components/Findings';
+import { groupByRule } from '../lib/groups';
 import { ModelMap, type MapFocus } from '../components/ModelMap';
 import { Sheet, useMobile } from '../components/ui';
 import { UsageEvidence } from '../components/UsageEvidence';
@@ -15,7 +16,7 @@ interface Props {
   scan: ScanResult;
   history: HistoryPoint[];
   canSuppress: boolean;
-  onSuppress: (f: AuditFinding) => Promise<void>;
+  onSuppress: (findings: AuditFinding[]) => Promise<void>;
   onOpenFixes: () => void;
   onOpenMeasure: (name: string) => void;
   onOpenPage: (name: string) => void;
@@ -32,7 +33,6 @@ export const Overview: React.FC<Props> = ({ scan, history, canSuppress, onSuppre
   const [sev, setSev] = useState<Severity | null>(null);
   const [table, setTable] = useState<string | null>(null);
   const [showSuppressed, setShowSuppressed] = useState(false);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const filtered = useMemo(() => {
@@ -46,29 +46,43 @@ export const Overview: React.FC<Props> = ({ scan, history, canSuppress, onSuppre
     }));
   }, [all, open, showSuppressed, area, sev, table, query, scan]);
 
-  // Keep a valid selection: first visible finding unless the user picked one that is still visible.
-  useEffect(() => {
-    if (!filtered.length) return;
-    if (!selectedKey || !all.some((f) => findingKey(f) === selectedKey)) setSelectedKey(findingKey(filtered[0]));
-  }, [filtered, all, selectedKey]);
+  const groups = useMemo(() => groupByRule(filtered, (r) => FIXABLE_RULES.has(r)), [filtered]);
+  const [selectedRule, setSelectedRule] = useState<string | null>(null);
+  const [memberKey, setMemberKey] = useState<string | null>(null);
 
-  const selected = all.find((f) => findingKey(f) === selectedKey) ?? null;
+  // Keep a valid selection: the first group unless the user picked one that is still visible.
+  useEffect(() => {
+    if (!groups.length) return;
+    if (!selectedRule || !groups.some((g) => g.rule_id === selectedRule)) { setSelectedRule(groups[0].rule_id); setMemberKey(null); }
+  }, [groups, selectedRule]);
+
+  const group = groups.find((g) => g.rule_id === selectedRule) ?? null;
+  const member = group && memberKey ? group.members.find((m) => findingKey(m) === memberKey) ?? null : null;
+  const wholeGroup = !!group && !member && group.members.length > 1;
+  const selected = member ?? group?.members[0] ?? null;
   const targets = selected ? findingTargets(selected, scan) : null;
 
+  // A whole group highlights every table its findings touch; one finding highlights its own.
   const focus: MapFocus | null = useMemo(() => {
-    if (!selected || !targets) return null;
-    if (targets.tables.length) return { tables: targets.tables, rels: targets.rels };
+    if (!group || !selected || !targets) return null;
+    const list = wholeGroup ? group.members : [selected];
+    const tables = [...new Set(list.flatMap((f) => findingTargets(f, scan).tables))];
+    const rels = [...new Set(list.flatMap((f) => findingTargets(f, scan).rels))];
+    if (tables.length) return { tables, rels };
     return {
       tables: [], rels: [],
       caption: selected.category === 'report' ? 'This finding is on a report page, not in the model.' : 'This finding is a model-wide setting, so no single table is highlighted.',
     };
-  }, [selected, targets?.tables.join('|'), targets?.rels.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [group, selected, wholeGroup, scan]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const select = useCallback((f: AuditFinding) => {
-    setSelectedKey(findingKey(f));
+  const select = useCallback((g: { rule_id: string }) => {
+    setSelectedRule(g.rule_id);
+    setMemberKey(null);
     setSheetOpen(true);
   }, []);
   const closeSheet = useCallback(() => setSheetOpen(false), []);
+  const fixable = useMemo(() => open.filter((f) => FIXABLE_RULES.has(f.rule_id)), [open]);
+  const fixableRules = new Set(fixable.map((f) => f.rule_id)).size;
 
   return (
     <>
@@ -85,10 +99,19 @@ export const Overview: React.FC<Props> = ({ scan, history, canSuppress, onSuppre
         </div>
       )}
       <Ledger scores={scan.scores} findings={open} suppressedCount={suppressedCount} history={history} sev={sev} onSev={setSev} />
+      {fixable.length > 0 && (
+        <button className="fixbar" onClick={onOpenFixes}>
+          <Wrench aria-hidden="true" />
+          <span className="fixbar-t">{fixableRules === 1 ? '1 fix is ready to review' : `${fixableRules} fixes are ready to review`}</span>
+          <span className="muted fixbar-s">They resolve {fixable.length} finding{fixable.length === 1 ? '' : 's'}. Every change is backed up first.</span>
+          <span className="grow" />
+          <span className="btn btn-primary">Review fixes</span>
+        </button>
+      )}
       <div className="work">
         <FindingsList
-          findings={filtered} total={showSuppressed ? all.length : open.length}
-          selected={selectedKey} onSelect={select}
+          groups={groups} shown={filtered.length} total={showSuppressed ? all.length : open.length}
+          selectedRule={selectedRule} onSelect={select}
           query={query} onQuery={setQuery} area={area} onArea={setArea}
           sev={sev} onClearSev={() => setSev(null)} table={table} onClearTable={() => setTable(null)}
           suppressedCount={suppressedCount} showSuppressed={showSuppressed} onShowSuppressed={setShowSuppressed}
@@ -97,13 +120,13 @@ export const Overview: React.FC<Props> = ({ scan, history, canSuppress, onSuppre
           <ModelMap scan={scan} findings={open} focus={focus} marked={table} onTableClick={setTable} />
           <Sheet open={sheetOpen && mobile} onClose={closeSheet} label="Finding details" className="panel panel-raised">
             <FindingDetail
-              finding={selected}
+              group={group} finding={selected} wholeGroup={wholeGroup} onPickMember={(f) => setMemberKey(f ? findingKey(f) : null)}
               canSuppress={canSuppress}
-              onSuppress={async (f) => { await onSuppress(f); setSheetOpen(false); }}
+              onSuppress={async (list) => { await onSuppress(list); setSheetOpen(false); }}
               onOpenFixes={onOpenFixes}
               onOpenMeasure={targets?.measure ? () => onOpenMeasure(targets.measure!.name) : null}
               onOpenPage={targets?.page ? () => onOpenPage(targets.page!) : null}
-              evidence={selected?.rule_id === 'DAX_UNUSED_MEASURE' && targets?.measure ? <UsageEvidence name={targets.measure.name} scan={scan} /> : null}
+              evidence={!wholeGroup && selected?.rule_id === 'DAX_UNUSED_MEASURE' && targets?.measure ? <UsageEvidence name={targets.measure.name} scan={scan} /> : null}
             />
           </Sheet>
         </aside>

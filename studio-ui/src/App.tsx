@@ -236,15 +236,27 @@ const Studio: React.FC = () => {
   }, [tab]);
 
   // ---- actions on a loaded scan
-  const suppress = async (f: AuditFinding) => {
+  const suppress = async (list: AuditFinding[]) => {
     try {
-      const res = await apiFetch('/api/suppress', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_path: path, rule_id: f.rule_id, location: f.location || '', reason: 'Suppressed in pbiscan Studio' }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || `Suppressing failed (${res.status}).`);
-      toast(`Suppressed ${f.rule_id}. ${data.message ?? ''}`.trim());
+      // One request per finding, then a single rescan, so a group of 13 does not rescan 13 times.
+      let message = '';
+      let saved = 0;
+      try {
+      for (const f of list) {
+        const res = await apiFetch('/api/suppress', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_path: path, rule_id: f.rule_id, location: f.location || '', reason: 'Suppressed in pbiscan Studio' }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || `Suppressing failed (${res.status}).`);
+        message = data.message ?? '';
+        saved += 1;
+      }
+      } finally {
+        // Show what was saved even if a later request failed.
+        if (saved > 0 && saved < list.length) await scanPath(path, true);
+      }
+      toast(list.length === 1 ? `Suppressed ${list[0].rule_id}. ${message}`.trim() : `Suppressed ${list.length} findings of ${list[0].rule_id}.`);
       await scanPath(path, true);
     } catch (e) {
       toast(errorMessage(e), 'error');

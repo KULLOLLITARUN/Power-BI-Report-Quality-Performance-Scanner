@@ -23,9 +23,8 @@ export const SevTag: React.FC<{ sev: string }> = ({ sev }) => (
 );
 
 export const Confidence: React.FC<{ value: number; label?: boolean }> = ({ value, label }) => (
-  <span className="conf" title="Confidence">
-    {label ? `confidence ${Math.round(value)}%` : `${Math.round(value)}%`}
-    <i style={{ '--w': `${Math.max(0, Math.min(100, value))}%` }} />
+  <span className="conf num" title="How sure pbiscan is that this is a real problem">
+    {label ? `Confidence ${Math.round(value)}%` : `${Math.round(value)}% sure`}
   </span>
 );
 
@@ -38,16 +37,13 @@ export const Cube: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-/** 20 blocks of 5 points; the last one fills partially. */
-export const Blocks: React.FC<{ value: number; target?: number; label: string }> = ({ value, target, label }) => (
-  <div className="blocks" role="img" aria-label={`${label} ${value.toFixed(1)} of 100`}>
-    {Array.from({ length: 20 }, (_, k) => {
-      const fill = Math.max(0, Math.min(1, (value - k * 5) / 5));
-      return fill >= 1 ? <i key={k} className="on" />
-        : fill > 0 ? <i key={k} className="part" style={{ '--p': `${Math.round(fill * 100)}%` }} />
-        : <i key={k} />;
-    })}
-    {target !== undefined && <span className="target" style={{ '--t': `${target}%` }} />}
+/** A score bar out of 100 with a tick at the target. Below the target it turns orange. */
+export const ScoreBar: React.FC<{ value: number; target: number; label: string }> = ({ value, target, label }) => (
+  <div className="barwrap">
+    <div className={`bar${value < target ? ' bad' : ''}`} role="img" aria-label={`${label} score ${value.toFixed(1)} of 100, target ${target}`}>
+      <b style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    </div>
+    <i className="target" style={{ left: `${target}%` }} />
   </div>
 );
 

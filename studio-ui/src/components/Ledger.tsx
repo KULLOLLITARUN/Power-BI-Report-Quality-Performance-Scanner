@@ -3,7 +3,7 @@ import type { AuditFinding, ScoreData } from '../types';
 import { SEV_ORDER, grade, sevMeta, type Severity } from '../lib/severity';
 import { animate } from '../lib/motion';
 import { shortDate, type HistoryPoint } from '../lib/history';
-import { Blocks, SevMarker } from './ui';
+import { ScoreBar, SevMarker } from './ui';
 
 const TARGET = 80;
 
@@ -30,7 +30,7 @@ export const Ledger: React.FC<Props> = ({ scores, findings, suppressedCount, his
     const el = scoreRef.current;
     const o = { v: 0 };
     animate({ targets: o, v: overall, duration: 1100, easing: 'easeOutExpo', update: () => { if (el) el.textContent = o.v.toFixed(1); } });
-    animate({ targets: catsRef.current?.querySelectorAll('.blocks i.on, .blocks i.part'), opacity: [0, 1], scaleY: [0.2, 1], delay: (_: unknown, i: number) => 150 + i * 18, duration: 300, easing: 'easeOutQuad' });
+    animate({ targets: catsRef.current?.querySelectorAll('.bar > b'), scaleX: [0, 1], delay: (_: unknown, i: number) => 150 + i * 90, duration: 700, easing: 'easeOutQuart' });
     animate({ targets: stripRef.current?.querySelectorAll('button'), scaleX: [0, 1], delay: (_: unknown, i: number) => 300 + i * 70, duration: 600, easing: 'easeOutQuart' });
   }, [overall]);
 
@@ -39,43 +39,43 @@ export const Ledger: React.FC<Props> = ({ scores, findings, suppressedCount, his
     ['DAX', scores?.category_scores?.dax ?? 100],
     ['Report', scores?.category_scores?.report ?? 100],
   ];
+  const g = grade(overall);
 
   return (
-    <div className="ledger panel">
-      <section aria-label="Overall score">
-        <div className="label">Model health</div>
+    <div className="ledger">
+      <section className="panel" aria-label="Overall score">
+        <h2 className="card-label">Model health</h2>
         <div className="score-row">
-          <div className="score" ref={scoreRef}>{overall.toFixed(1)}</div>
-          <div className="score-of">/ 100</div>
-          <div className="grade" title="Grade">{grade(overall)}</div>
+          <div className="score"><span ref={scoreRef}>{overall.toFixed(1)}</span><small> / 100</small></div>
+          <div className="grade" title={`Grade ${g}: ${g === 'A' ? '90 and above' : g === 'B' ? '80 to 89' : g === 'C' ? '70 to 79' : g === 'D' ? '60 to 69' : 'below 60'}`}>{g}</div>
         </div>
         {delta !== null && prev ? (
           <div className={`delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}`}>
-            {delta > 0 ? '▲' : delta < 0 ? '▼' : '='} {Math.abs(delta).toFixed(1)} <span>since {shortDate(prev.t)} scan</span>
+            <b>{delta > 0 ? '▲' : delta < 0 ? '▼' : '='} {Math.abs(delta).toFixed(1)}</b> since {shortDate(prev.t)} scan
           </div>
         ) : (
-          <div className="delta"><span>First scan of this project here</span></div>
+          <div className="delta">First scan of this project here</div>
         )}
       </section>
-      <section aria-label="Category scores">
-        <div className="label">By area</div>
+      <section className="panel" aria-label="Category scores">
+        <h2 className="card-label">By area</h2>
         <div className="cats" ref={catsRef}>
           {cats.map(([name, v]) => (
             <div className="cat" key={name}>
               <span className="cat-name">{name}</span>
-              <Blocks value={v} target={TARGET} label={name} />
-              <b className="num">{v.toFixed(1)}</b>
+              <ScoreBar value={v} target={TARGET} label={name} />
+              <b className="num">{Math.round(v)}</b>
             </div>
           ))}
         </div>
-        <div className="cat-note"><i />target {TARGET}</div>
+        <div className="cat-note"><i />Target {TARGET}</div>
       </section>
-      <section aria-label="Score history">
-        <div className="label">{history.length >= 2 ? `Last ${history.length} scans` : 'Score trend'}</div>
+      <section className="panel" aria-label="Score history">
+        <h2 className="card-label">{history.length >= 2 ? `Last ${history.length} scans` : 'Score trend'}</h2>
         <Sparkline history={history} />
       </section>
-      <section aria-label="Findings by severity">
-        <div className="label">{findings.length} open finding{findings.length === 1 ? '' : 's'}{suppressedCount ? ` · ${suppressedCount} suppressed` : ''}</div>
+      <section className="panel" aria-label="Findings by severity">
+        <h2 className="card-label">{findings.length} open finding{findings.length === 1 ? '' : 's'}{suppressedCount ? `, ${suppressedCount} suppressed` : ''}</h2>
         <div className="sevstrip" ref={stripRef}>
           {findings.length === 0 ? <span className="none" title="No open findings" /> :
             SEV_ORDER.filter((s) => counts[s]).map((s) => (
@@ -109,11 +109,11 @@ const Sparkline: React.FC<{ history: HistoryPoint[] }> = ({ history }) => {
     return (
       <div className="spark-empty">
         <span>The trend appears after your next scan.</span>
-        <span className="mono" style={{ fontSize: 11 }}>Scores are kept in this browser only.</span>
+        <span style={{ fontSize: 12 }}>Scores are kept in this browser only.</span>
       </div>
     );
   }
-  const W = 240, x0 = 6, x1 = 200, yTop = 8, yBot = 58;
+  const W = 240, x0 = 6, x1 = 228, yTop = 22, yBot = 58;
   const vals = history.map((h) => h.overall);
   let lo = Math.floor((Math.min(...vals) - 2) / 5) * 5;
   let hi = Math.ceil((Math.max(...vals) + 2) / 5) * 5;
@@ -124,20 +124,15 @@ const Sparkline: React.FC<{ history: HistoryPoint[] }> = ({ history }) => {
   const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
   const area = `${line} L${x1} ${yBot} L${x0} ${yBot} Z`;
   const last = pts[pts.length - 1];
-  const ticks = [lo + (hi - lo) / 2, hi].map((v) => Math.round(v));
   return (
     <svg className="spark" viewBox={`0 0 ${W} 72`} role="img" aria-label={`Overall score went from ${vals[0].toFixed(1)} to ${vals[vals.length - 1].toFixed(1)} over ${vals.length} scans`}>
-      {ticks.map((v) => (
-        <g key={v}>
-          <line x1={x0} x2={x1} y1={Y(v)} y2={Y(v)} stroke="var(--rule)" strokeWidth="1" />
-          <text x={x1 + 6} y={Y(v) + 3} fontFamily="var(--f-mono)" fontSize="9" fill="var(--ink-3)">{v}</text>
-        </g>
-      ))}
       <path d={area} fill="var(--accent-soft)" />
       <path ref={lineRef} d={line} fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinejoin="round" />
       <circle cx={last[0]} cy={last[1]} r="3.5" fill="var(--accent)" />
-      <text x={x0} y="71" fontFamily="var(--f-mono)" fontSize="9" fill="var(--ink-3)">{shortDate(history[0].t)}</text>
-      <text x={x1} y="71" textAnchor="end" fontFamily="var(--f-mono)" fontSize="9" fill="var(--ink-3)">{shortDate(history[history.length - 1].t)}</text>
+      <text x={x0} y={Math.max(11, pts[0][1] - 8)} fontFamily="var(--f-body)" fontSize="11" fontWeight="500" fill="var(--muted)">{vals[0].toFixed(1)}</text>
+      <text x={x1} y={Math.max(11, last[1] - 9)} textAnchor="end" fontFamily="var(--f-body)" fontSize="11" fontWeight="600" fill="var(--ink)">{vals[vals.length - 1].toFixed(1)}</text>
+      <text x={x0} y="71" fontFamily="var(--f-body)" fontSize="10.5" fill="var(--muted)">{shortDate(history[0].t)}</text>
+      <text x={x1} y="71" textAnchor="end" fontFamily="var(--f-body)" fontSize="10.5" fill="var(--muted)">{shortDate(history[history.length - 1].t)}</text>
     </svg>
   );
 };
