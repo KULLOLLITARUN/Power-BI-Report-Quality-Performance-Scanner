@@ -21,17 +21,22 @@ export type Counts = Partial<Record<TabId, number | null>>;
 
 export const Rail: React.FC<{
   tab: TabId; onTab: (t: TabId) => void; counts: Counts; hasBackend: boolean; onHome: () => void; ruleCount: number | null;
-}> = ({ tab, onTab, counts, hasBackend, onHome, ruleCount }) => (
+  projectName: string; projectPath: string;
+}> = ({ tab, onTab, counts, hasBackend, onHome, ruleCount, projectName, projectPath }) => (
   <aside className="rail">
     <button className="brand" onClick={onHome} aria-label="pbiscan Studio home">
-      <Cube /><b>pbiscan</b><span>studio</span>
+      <Cube /><b>pbiscan</b><span>Studio</span>
     </button>
+    <div className="project-card" title={projectPath}>
+      <span className="project-name">{projectName}</span>
+      <span className="mono muted">{projectPath}</span>
+    </div>
     <nav className="nav" aria-label="Studio sections">
       {TABS.map((t, i) => (
         <React.Fragment key={t.id}>
           {i === 4 && <div className="nav-sep" />}
           <button aria-current={tab === t.id ? 'page' : undefined} onClick={() => onTab(t.id)}>
-            <t.icon aria-hidden="true" />{t.label}<span className="count">{counts[t.id] ?? ''}</span>
+            <t.icon aria-hidden="true" />{t.label}<span className={`count${t.id === 'overview' && (counts.overview ?? 0) > 0 ? ' hot' : ''}`}>{counts[t.id] ?? ''}</span>
           </button>
         </React.Fragment>
       ))}
@@ -47,10 +52,10 @@ export const Rail: React.FC<{
 );
 
 export const TopBar: React.FC<{
-  scan: ScanResult | null; path: string; mode: 'local' | 'browser' | 'demo' | null; scannedAt: string | null;
+  tab: TabId; scan: ScanResult | null; mode: 'local' | 'browser' | 'demo' | null; scannedAt: string | null;
   hasBackend: boolean; loading: boolean; theme: 'light' | 'dark';
   onOpen: () => void; onRescan: () => void; onExport: (fmt: string) => void; onToggleTheme: () => void; onHome: () => void;
-}> = ({ scan, path, mode, scannedAt, hasBackend, loading, theme, onOpen, onRescan, onExport, onToggleTheme, onHome }) => {
+}> = ({ tab, scan, mode, scannedAt, hasBackend, loading, theme, onOpen, onRescan, onExport, onToggleTheme, onHome }) => {
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -64,18 +69,14 @@ export const TopBar: React.FC<{
   const canRescan = hasBackend && mode === 'local';
   return (
     <header className="topbar">
-      <button className="btn-ghost m-brand" onClick={onHome} aria-label="Home" style={{ border: 0, background: 'none', padding: 0 }}><Cube className="m-brand" /></button>
-      <div className="project">
-        <h1>
-          <span className="name">{scan ? scan.report_name.replace(/\.pbip$/i, '') : 'pbiscan Studio'}</span>
-          {mode === 'demo' && <span className="chip">Sample project</span>}
-          {mode === 'browser' && <span className="chip">Scanned in browser</span>}
-        </h1>
-        <div className="path">{scan ? (path || scan.source_path) : 'Power BI model and report checks'}</div>
-      </div>
+      <button className="btn-quiet m-brand" onClick={onHome} aria-label="Home" style={{ border: 0, background: 'none', padding: 0 }}><Cube className="m-brand" /></button>
+      <h1 className="view-title">{scan ? TABS.find((t) => t.id === tab)?.label ?? 'Overview' : 'pbiscan Studio'}</h1>
+      {mode === 'demo' && <span className="chip">Sample project</span>}
+      {mode === 'browser' && <span className="chip">Scanned in browser</span>}
+      {scannedAt && <span className="chip">Scanned {scannedAt}</span>}
+      <span className="grow" />
       <div className="top-actions">
-        {scannedAt && <span className="meta">Scanned {scannedAt}</span>}
-        <button className="btn d-only" onClick={onOpen}><FolderOpen aria-hidden="true" />Open project</button>
+        <button className="btn btn-quiet d-only" onClick={onOpen}><FolderOpen aria-hidden="true" />Open project</button>
         {canRescan && (
           <div className="menu d-only" ref={menuRef}>
             <button className="btn" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}><Download aria-hidden="true" />Export</button>
@@ -89,11 +90,11 @@ export const TopBar: React.FC<{
           </div>
         )}
         {canRescan && (
-          <button className="btn btn-primary" onClick={onRescan} disabled={loading} aria-label="Rescan">
+          <button className="btn" onClick={onRescan} disabled={loading} aria-label="Rescan">
             <RefreshCw className={loading ? 'spin' : ''} aria-hidden="true" /><span className="btn-text">Rescan</span>
           </button>
         )}
-        <button className="btn btn-ghost icon-btn" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
+        <button className="btn btn-quiet icon-btn" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
           {theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
         </button>
       </div>
@@ -101,11 +102,13 @@ export const TopBar: React.FC<{
   );
 };
 
-export const TabBar: React.FC<{ tab: TabId; onTab: (t: TabId) => void; findings: number; onOpen: () => void }> = ({ tab, onTab, findings, onOpen }) => {
+export const TabBar: React.FC<{
+  tab: TabId; onTab: (t: TabId) => void; findings: number; onOpen: () => void;
+  projectName: string; scannedAt: string | null; theme: 'light' | 'dark'; onToggleTheme: () => void;
+}> = ({ tab, onTab, findings, onOpen, projectName, scannedAt, theme, onToggleTheme }) => {
   const [more, setMore] = useState(false);
   const mobileTabs = TABS.filter((t) => t.mobile);
-  const moreTabs = TABS.filter((t) => !t.mobile);
-  const inMore = moreTabs.some((t) => t.id === tab);
+  const inMore = TABS.some((t) => !t.mobile && t.id === tab);
   return (
     <>
       <nav className="tabbar" aria-label="Studio sections">
@@ -119,12 +122,28 @@ export const TabBar: React.FC<{ tab: TabId; onTab: (t: TabId) => void; findings:
           <MoreHorizontal aria-hidden="true" />More
         </button>
       </nav>
-      <Sheet open={more} onClose={() => setMore(false)} label="More sections" className="panel" inlineOnDesktop={false}>
-        <div className="more-list">
-          {moreTabs.map((t) => (
-            <button key={t.id} onClick={() => { setMore(false); onTab(t.id); }}><t.icon aria-hidden="true" />{t.label}</button>
-          ))}
-          <button onClick={() => { setMore(false); onOpen(); }}><FolderOpen aria-hidden="true" />Open another project</button>
+      <Sheet open={more} onClose={() => setMore(false)} label="All views" className="panel" inlineOnDesktop={false}>
+        <div className="more-menu">
+          <div className="project-card">
+            <span className="muted">Project</span>
+            <span className="project-name">{projectName}</span>
+            {scannedAt && <span className="mono muted">Scanned {scannedAt}</span>}
+          </div>
+          <nav className="menu-grid" aria-label="All views">
+            {TABS.map((t) => (
+              <button key={t.id} aria-current={tab === t.id ? 'page' : undefined} onClick={() => { setMore(false); onTab(t.id); }}>
+                <t.icon aria-hidden="true" />{t.label}
+              </button>
+            ))}
+          </nav>
+          <button className="btn" onClick={() => { setMore(false); onOpen(); }}><FolderOpen aria-hidden="true" />Open another project</button>
+          <div className="project-card theme-row">
+            <span className="grow">Theme</span>
+            <div className="seg" role="group" aria-label="Theme">
+              <button aria-pressed={theme === 'light'} onClick={() => theme !== 'light' && onToggleTheme()}>Light</button>
+              <button aria-pressed={theme === 'dark'} onClick={() => theme !== 'dark' && onToggleTheme()}>Dark</button>
+            </div>
+          </div>
         </div>
       </Sheet>
     </>

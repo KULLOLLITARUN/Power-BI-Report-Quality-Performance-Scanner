@@ -282,6 +282,8 @@ const Studio: React.FC = () => {
     document.title = scan ? `${scan.report_name.replace(/\.pbip$/i, '')} · pbiscan Studio` : 'pbiscan Studio';
   }, [scan]);
 
+  const projectName = scan ? scan.report_name.replace(/\.pbip$/i, '') : '';
+
   const standalone = !scan && (tab === 'compare' || tab === 'agent');
 
   let body: React.ReactNode;
@@ -320,14 +322,14 @@ const Studio: React.FC = () => {
     <div className={`shell${scan ? '' : ' no-rail'}`}>
       <input ref={folderInput} type="file" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={onFolderPicked}
              webkitdirectory="" directory="" multiple />
-      {scan && <Rail tab={tab} onTab={setTab} counts={counts} hasBackend={hasBackend} onHome={goHome} ruleCount={ruleCount} />}
+      {scan && <Rail tab={tab} onTab={setTab} counts={counts} hasBackend={hasBackend} onHome={goHome} ruleCount={ruleCount} projectName={projectName} projectPath={path || scan.source_path} />}
       <div className="main-col">
         {mode === 'demo' && (
           <div className="demo-banner">Sample project with made-up data. Open your own project to scan it.
             <button className="btn" onClick={goHome}>Close sample</button>
           </div>
         )}
-        <TopBar scan={scan} path={path} mode={mode} scannedAt={scannedAt} hasBackend={hasBackend} loading={loading} theme={theme}
+        <TopBar tab={tab} scan={scan} mode={mode} scannedAt={scannedAt} hasBackend={hasBackend} loading={loading} theme={theme}
                 onOpen={openProject} onRescan={() => scanPath(path, true)} onExport={exportAs} onToggleTheme={toggleTheme} onHome={goHome} />
         <main className="content" id="main">
           {error && (
@@ -340,7 +342,7 @@ const Studio: React.FC = () => {
           {body}
         </main>
       </div>
-      {scan && <TabBar tab={tab} onTab={setTab} findings={openFindings.length} onOpen={openProject} />}
+      {scan && <TabBar tab={tab} onTab={setTab} findings={openFindings.length} onOpen={openProject} projectName={projectName} scannedAt={scannedAt} theme={theme} onToggleTheme={toggleTheme} />}
       <FileBrowserModal open={browserOpen} onClose={() => setBrowserOpen(false)} onSelect={(p) => scanPath(p)} />
       {/* The landing page's drop box shows its own state; elsewhere the whole window is the target. */}
       {dragging && scan && tab !== 'compare' && (
