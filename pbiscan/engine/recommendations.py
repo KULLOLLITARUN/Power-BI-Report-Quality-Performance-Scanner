@@ -290,6 +290,28 @@ RECOMMENDATIONS: dict[str, dict[str, str]] = {
             "some filters can be applied at the page or report level instead."
         ),
     },
+
+    "REPORT_MISSING_MEASURE": {
+        "title": "Visual uses a measure the model does not have",
+        "issue": (
+            "A visual or page filter uses a measure that no longer exists in the "
+            "semantic model, and no report-level measure has that name either."
+        ),
+        "impact": (
+            "Power BI cannot resolve a field that is not in the model, so the visual "
+            "typically shows an error instead of data. The measure was most likely "
+            "deleted or renamed in the model while the report kept the old name. "
+            "pbiscan's other checks do not catch this, so the report can look healthy "
+            "in a scan while a visual is broken."
+        ),
+        "recommendation": (
+            "Open the report in Power BI Desktop and select the affected visual. "
+            "Either re-point it to the measure it should use, or restore the measure "
+            "in the model. If the measure was renamed, use the new name. If it is a "
+            "report-level measure, check that the report's reportExtensions.json is "
+            "part of this project."
+        ),
+    },
 }
 
 

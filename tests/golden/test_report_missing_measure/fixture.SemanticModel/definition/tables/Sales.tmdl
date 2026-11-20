@@ -1,0 +1,6 @@
+table Sales
+
+	measure Revenue = SUM(Sales[Amount])
+
+	column Amount
+		dataType: double

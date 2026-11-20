@@ -39,7 +39,7 @@ class TestMcpResources:
         catalog_raw = get_rules_catalog_json()
         data = json.loads(catalog_raw)
         assert "rules" in data
-        assert data["total_rules"] == 13
+        assert data["total_rules"] == 14
         assert "MODEL_BIDIRECTIONAL" in data["rules"]
         assert "DAX_UNUSED_MEASURE" in data["rules"]
         assert "REPORT_VISUAL_BLOAT" in data["rules"]
@@ -64,7 +64,7 @@ class TestMcpResources:
         data = json.loads(detail_raw)
         assert "error" in data
         assert "available_rules" in data
-        assert len(data["available_rules"]) == 13
+        assert len(data["available_rules"]) == 14
 
 
 class TestMcpPrompts:

@@ -35,6 +35,7 @@ from pbiscan.rules.dax import (
 from pbiscan.rules.model import MODEL_RULES
 from pbiscan.rules.report import (
     check_visual_bloat,
+    check_missing_measures,
     check_slicer_bloat,
 )
 
@@ -365,6 +366,7 @@ class ScanService:
 
         findings.extend(check_visual_bloat(report, max_visuals=max_visuals))              # R001
         findings.extend(check_slicer_bloat(report, max_slicers=max_slicers))              # R002
+        findings.extend(check_missing_measures(report))                                    # R003
 
         # Step 4: Issue Generation
         gen = IssueGenerator()
@@ -378,6 +380,10 @@ class ScanService:
                 f"DAX_UNUSED_MEASURE was not checked: {len(raw.unread_files)} project file(s) "
                 "could not be read, and any of them could use a measure that would "
                 "otherwise look unused."
+            )
+            scan_warnings.append(
+                f"REPORT_MISSING_MEASURE was not checked: {len(raw.unread_files)} project file(s) "
+                "could not be read, so the list of measures the model defines may be incomplete."
             )
         suppressions = load_suppressions(supp_dir, warnings=scan_warnings)
         issues = apply_suppressions(issues, suppressions)

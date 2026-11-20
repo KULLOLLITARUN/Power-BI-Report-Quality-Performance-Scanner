@@ -1,4 +1,4 @@
-"""Report layout quality rules — R001 and R002.
+"""Report quality rules — R001, R002 and R003.
 
 Each function:
   - accepts a CanonicalReport (and optional threshold from config)
@@ -73,10 +73,66 @@ def check_slicer_bloat(
 
 
 # ---------------------------------------------------------------------------
+# R003 — Visual or page filter uses a measure the model does not have
+# ---------------------------------------------------------------------------
+
+# Only places where a missing field visibly breaks the report. Report-level filters, bookmarks and
+# conditional-format references are left out: they are mixed together at extraction time.
+_VISIBLE_REFERENCE_SOURCES = frozenset({"visual_projection", "visual_filter"})
+
+
+def check_missing_measures(report: CanonicalReport) -> list[RuleFinding]:
+    """R003 — Detect visuals and page filters that use a measure no model or report defines.
+
+    The match is by name, case-insensitively, against every model measure and every report-level
+    measure, so it flags only measures that exist nowhere. A measure that exists on another table
+    is not flagged.
+
+    Not checked (returns nothing) when it could not be decided:
+      - the project has no semantic model (a thin report bound to a published model), or
+      - some project file could not be read, so the measure list may be incomplete.
+
+    Confidence: 90% (deterministic name match; depends on extraction being complete).
+    """
+    if not report.model.tables or report.unread_files:
+        return []
+
+    known = {m.name.lower() for m in report.dax.measures}
+    known |= {name.lower() for name in report.report_extension_measure_names}
+
+    places: dict[str, tuple[str, list[str]]] = {}  # lowercase name -> (name as written, places in use)
+    for ref in report.semantic_references.references:
+        if ref.target_type != "measure" or ref.source_type not in _VISIBLE_REFERENCE_SOURCES:
+            continue
+        key = ref.target_name.lower()
+        if key in known:
+            continue
+        # source_object is "<page label>.<visual type>" or "<page label>.filters"
+        where = ref.source_object.rsplit(".", 1)[0] if ref.source_object else "the report"
+        name, seen = places.setdefault(key, (ref.target_name, []))
+        if where not in seen:
+            seen.append(where)
+
+    findings: list[RuleFinding] = []
+    for name, seen in places.values():
+        shown = ", ".join(f"'{p}'" for p in seen[:3]) + (f" and {len(seen) - 3} more" if len(seen) > 3 else "")
+        findings.append(new_finding(
+            "REPORT_MISSING_MEASURE",
+            evidence=(
+                f"Measure '{name}' is used on {'page' if len(seen) == 1 else 'pages'} {shown}, "
+                "but the model and the report define no measure with that name."
+            ),
+            location=f"Measure: {name}",
+        ))
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # Rule registry
 # ---------------------------------------------------------------------------
 
 REPORT_RULES = [
     check_visual_bloat,
     check_slicer_bloat,
+    check_missing_measures,
 ]

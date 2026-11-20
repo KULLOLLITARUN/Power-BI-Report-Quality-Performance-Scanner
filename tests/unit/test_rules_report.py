@@ -92,4 +92,4 @@ class TestCheckSlicerBloat:
 # Registry
 # ---------------------------------------------------------------------------
 def test_report_rules_registry():
-    assert len(REPORT_RULES) == 2
+    assert len(REPORT_RULES) == 3

@@ -95,6 +95,10 @@ if (process.argv[3] === '--verbose') {
         .filter((f) => f.rule_id === 'DAX_UNUSED_MEASURE')
         .map((f) => f.location)
         .sort(),
+      missing_measures: result.findings
+        .filter((f) => f.rule_id === 'REPORT_MISSING_MEASURE')
+        .map((f) => [f.location, f.evidence])
+        .sort(),
       warnings: result.warnings,
       page_layout: pageLayout(result.pages),
       ...referenceSummary(result),

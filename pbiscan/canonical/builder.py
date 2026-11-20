@@ -113,6 +113,7 @@ class CanonicalBuilder:
             source_path=raw.source_path,
             report_name=raw.report_name,
             unread_files=list(raw.unread_files),
+            report_extension_measure_names=[str(e.get("name", "")) for e in raw.report_extension_measures if e.get("name")],
         )
 
     def _build_semantic_references(

@@ -54,7 +54,7 @@ These figures describe this 11-model corpus only. They are evidence, not a guara
 
 ---
 
-## 🔍 Built-in Rule Catalog (13 Rules)
+## 🔍 Built-in Rule Catalog (14 Rules)
 
 ### Model & Data Source Architecture (7 Rules)
 | Code | Rule ID | Severity | Confidence | Description & Impact |
@@ -75,11 +75,12 @@ These figures describe this 11-model corpus only. They are evidence, not a guara
 | `D003` | `DAX_DUPLICATE_MEASURE` | `MEDIUM` | 90% | Identifies duplicate normalized DAX formulas across different measures. |
 | `D004` | `DAX_UNUSED_MEASURE` | `ADVISORY` | 95% | Multi-hop transitive scan flagging measures not bound to visuals, filters, bookmarks, report-level measures, calc groups, field params, or RLS. |
 
-### Report Layout & Density (2 Rules)
+### Report Layout & Density (3 Rules)
 | Code | Rule ID | Severity | Confidence | Description & Impact |
 |:---|:---|:---:|:---:|:---|
 | `R001` | `REPORT_VISUAL_BLOAT` | `MEDIUM` | 100% | Detects report pages with >15 visuals that trigger excessive concurrent queries. |
 | `R002` | `REPORT_SLICER_BLOAT` | `MEDIUM` | 100% | Flags pages with >6 slicers causing redundant query evaluation overhead. |
+| `R003` | `REPORT_MISSING_MEASURE` | `MEDIUM` | 90% | Flags a visual or page filter that uses a measure neither the model nor a report-level measure defines, which usually shows as a broken visual. Skipped for thin reports with no local model. |
 
 ---
 

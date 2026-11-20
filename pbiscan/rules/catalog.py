@@ -36,6 +36,7 @@ RULE_CATALOG: tuple[RuleSpec, ...] = (
     RuleSpec("D004", "DAX_UNUSED_MEASURE", "dax", "ADVISORY", 95),
     RuleSpec("R001", "REPORT_VISUAL_BLOAT", "report", "MEDIUM", 100),
     RuleSpec("R002", "REPORT_SLICER_BLOAT", "report", "MEDIUM", 100),
+    RuleSpec("R003", "REPORT_MISSING_MEASURE", "report", "MEDIUM", 90),
 )
 
 RULES_BY_ID: dict[str, RuleSpec] = {spec.rule_id: spec for spec in RULE_CATALOG}

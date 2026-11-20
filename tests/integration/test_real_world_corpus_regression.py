@@ -43,8 +43,8 @@ class TestRealWorldCorpusRegression:
         result = ScanService.execute_scan(model_path)
         assert result is not None
         assert result.report is not None
-        assert len(result.issues) == 17
-        assert result.overall_score == 54.1
+        assert len(result.issues) == 18  # 17 plus REPORT_MISSING_MEASURE for "Total Sugars Measure"
+        assert result.overall_score == 52.8
         assert len(result.report.model.tables) == 15
         assert len(result.report.dax.measures) == 6
 

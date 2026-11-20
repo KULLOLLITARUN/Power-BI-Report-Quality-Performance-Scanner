@@ -1,0 +1,27 @@
+{
+  "name": "broken",
+  "visual": {
+    "visualType": "barChart",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Sales"
+                    }
+                  },
+                  "Property": "Total Sugars"
+                }
+              },
+              "queryRef": "Sales.Total Sugars"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

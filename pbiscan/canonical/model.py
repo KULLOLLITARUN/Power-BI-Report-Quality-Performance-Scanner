@@ -319,4 +319,7 @@ class CanonicalReport:
     # Project files that could not be read. Any of them could define or use
     # measures, so "unused" cannot be decided while this is non-empty.
     unread_files: list[str] = field(default_factory=list)
+    # Names of report-level ("thin report") measures. They live in the report, not the model,
+    # so a visual using one is not a broken reference.
+    report_extension_measure_names: list[str] = field(default_factory=list)
 

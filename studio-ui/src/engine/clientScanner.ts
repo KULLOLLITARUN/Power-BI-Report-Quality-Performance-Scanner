@@ -327,7 +327,8 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   processModernPbirPages(pageJsonFiles, visualJsonFiles, pages, visualMeasureRefs, unreadFiles, reportRef);
   // Page/report-level filters, bookmarks and report-level ("thin report") measures
   // (mirrors PBIPReader._parse_report_level + CanonicalBuilder steps 1b-1d)
-  processReportLevelReferences(reportJsonFiles, reportLevelFiles, knownMeasureNames, visualMeasureRefs, unreadFiles, reportRef);
+  const extensionNames = new Set<string>(); // report-level measures: not part of the model, but not broken either
+  processReportLevelReferences(reportJsonFiles, reportLevelFiles, knownMeasureNames, visualMeasureRefs, unreadFiles, reportRef, extensionNames);
   // Visual bindings and report-side references go first, in CanonicalBuilder._build_semantic_references order.
   const visualRefs: SemanticReference[] = pages.flatMap((p) => (p.visuals || []).flatMap((v) =>
     v.measure_refs.map((target): SemanticReference => ({
@@ -555,6 +556,10 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
       `DAX_UNUSED_MEASURE was not checked: ${unreadFiles.length} project file(s) could not be read, ` +
       'and any of them could use a measure that would otherwise look unused.'
     );
+    warnings.push(
+      `REPORT_MISSING_MEASURE was not checked: ${unreadFiles.length} project file(s) could not be read, ` +
+      'so the list of measures the model defines may be incomplete.'
+    );
   }
   for (const m of unreadFiles.length ? [] : measures) {
     const isUsed = daxGraph.isReachableFromVisual(m.name, activeRootMeasures);
@@ -596,6 +601,38 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
         impact: 'Excessive slicers generate redundant query overhead on initial page load.',
         recommendation: 'Use the native Power BI Filter Pane or sync slicers across pages.',
         location: `Page: ${p.display_name}`,
+      });
+    }
+  }
+
+  // R003: a visual or page filter uses a measure that no model measure and no report-level measure
+  // defines (mirrors pbiscan.rules.report.check_missing_measures). Matched by name, case-insensitively,
+  // so a measure that exists on another table is not flagged. Not checked for a project with no local
+  // model (a thin report) or with unreadable files, where the measure list may be incomplete.
+  if (tables.length > 0 && unreadFiles.length === 0) {
+    const known = new Set<string>([...measures.map((m) => m.name.toLowerCase()), ...[...extensionNames].map((n) => n.toLowerCase())]);
+    const missing = new Map<string, { name: string; seen: string[] }>();
+    for (const ref of semanticRefs.references) {
+      if (ref.target_type !== 'measure' || (ref.source_type !== 'visual_projection' && ref.source_type !== 'visual_filter')) continue;
+      const key = ref.target_name.toLowerCase();
+      if (known.has(key)) continue;
+      // source_object is "<page label>.<visual type>" or "<page label>.filters"
+      const dot = ref.source_object ? ref.source_object.lastIndexOf('.') : -1;
+      const where = ref.source_object ? (dot >= 0 ? ref.source_object.slice(0, dot) : ref.source_object) : 'the report';
+      let entry = missing.get(key);
+      if (!entry) { entry = { name: ref.target_name, seen: [] }; missing.set(key, entry); }
+      if (!entry.seen.includes(where)) entry.seen.push(where);
+    }
+    for (const { name, seen } of missing.values()) {
+      const shown = seen.slice(0, 3).map((p) => `'${p}'`).join(', ') + (seen.length > 3 ? ` and ${seen.length - 3} more` : '');
+      findings.push({
+        ...ruleMeta('REPORT_MISSING_MEASURE'),
+        title: 'Visual uses a measure the model does not have',
+        issue: 'A visual or page filter uses a measure that no longer exists in the semantic model, and no report-level measure has that name either.',
+        evidence: `Measure '${name}' is used on ${seen.length === 1 ? 'page' : 'pages'} ${shown}, but the model and the report define no measure with that name.`,
+        impact: 'Power BI cannot resolve a field that is not in the model, so the visual typically shows an error instead of data. The measure was most likely deleted or renamed in the model while the report kept the old name.',
+        recommendation: 'Open the report in Power BI Desktop, select the affected visual, and either re-point it to the measure it should use or restore the measure in the model.',
+        location: `Measure: ${name}`,
       });
     }
   }
@@ -1213,7 +1250,8 @@ function processReportLevelReferences(
   knownMeasureNames: Set<string>,
   visualMeasureRefs: Set<string>,
   unreadFiles: string[],
-  reportRef: ReportRefSink
+  reportRef: ReportRefSink,
+  extensionNames: Set<string>
 ) {
   const extensionMeasures: ExtensionMeasure[] = [];
   const reportLevel = (m: string) => { visualMeasureRefs.add(m); reportRef(m, 'report_filter', 'report'); };
@@ -1250,6 +1288,7 @@ function processReportLevelReferences(
     }
   }
 
+  for (const ext of extensionMeasures) extensionNames.add(ext.name);
   const measureLookup = new Map([...knownMeasureNames].map((n) => [n.toLowerCase(), n]));
   for (const ext of extensionMeasures) {
     for (const name of bracketNames(ext.expression)) {
@@ -1400,6 +1439,7 @@ export const RULE_CATALOG: Record<string, RuleMeta> = {
   DAX_UNUSED_MEASURE: { category: 'dax', severity: 'ADVISORY', confidence: 95 },
   REPORT_VISUAL_BLOAT: { category: 'report', severity: 'MEDIUM', confidence: 100 },
   REPORT_SLICER_BLOAT: { category: 'report', severity: 'MEDIUM', confidence: 100 },
+  REPORT_MISSING_MEASURE: { category: 'report', severity: 'MEDIUM', confidence: 90 },
 };
 
 function ruleMeta(ruleId: string): RuleMeta & { rule_id: string } {

@@ -1,0 +1,27 @@
+{
+  "name": "ext",
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Sales"
+                    }
+                  },
+                  "Property": "Margin Ext"
+                }
+              },
+              "queryRef": "Sales.Margin Ext"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

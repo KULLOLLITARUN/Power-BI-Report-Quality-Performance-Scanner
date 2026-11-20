@@ -1,0 +1,13 @@
+{
+  "entities": [
+    {
+      "name": "Sales",
+      "measures": [
+        {
+          "name": "Margin Ext",
+          "expression": "DIVIDE([Revenue], 2)"
+        }
+      ]
+    }
+  ]
+}
