@@ -798,7 +798,7 @@ function parseModelBim(
         tables.push({
           name: t.name,
           hidden: t.isHidden || false,
-          is_date_table: looksLikeDateTableName(t.name),
+          is_date_table: looksLikeDateTableName(t.name) || ['time', 'date'].includes(String(t.dataCategory ?? '').toLowerCase()),
           column_count: colList.length,
           columns: colList,
           measures_count: tMeasures,
@@ -939,14 +939,20 @@ function parseTableTmdl(
   let inPartition = false;
   let partitionSource = "";
   let calcItems: CalcItem[] = [];
+  // Table-level `dataCategory: Time` marks a date table; only before the first child declaration.
+  let tableIsDate = false;
+  let seenChild = false;
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
     const line = rawLine.trim();
     const tableSig = tmdlKeyword(line, 'table');
+    if (/^(column|measure|calculationItem|partition)[ \t]/.test(line)) seenChild = true;
     // `table` is a top-level declaration; an indented one only counts as the first.
     if (tableSig !== null && (!/^[ \t]/.test(rawLine) || !currentTable)) {
       currentTable = tmdlUnquote(tableSig);
+    } else if (!seenChild && /^dataCategory\s*:\s*(time|date)$/i.test(line)) {
+      tableIsDate = true;
     } else if (line.startsWith('partition ') || line.startsWith('partition\t')) {
       inPartition = true;
     } else if (inPartition) {
@@ -1031,7 +1037,7 @@ function parseTableTmdl(
   tables.push({
     name: currentTable,
     hidden: false,
-    is_date_table: looksLikeDateTableName(currentTable),
+    is_date_table: looksLikeDateTableName(currentTable) || tableIsDate,
     column_count: columns.length,
     columns,
     measures_count: fileMeasures.length,

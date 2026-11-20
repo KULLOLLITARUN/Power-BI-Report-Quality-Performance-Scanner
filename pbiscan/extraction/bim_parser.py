@@ -44,7 +44,7 @@ def parse_tables(raw_tables: list[dict[str, Any]]) -> list[RawTable]:
             continue
 
         annotations = raw.get("annotations", [])
-        is_date_table = is_date_table_annotation(annotations)
+        is_date_table = is_date_table_annotation(annotations) or str(raw.get("dataCategory", "")).lower() in ("time", "date")
 
         raw_columns = []
         raw_measures = []

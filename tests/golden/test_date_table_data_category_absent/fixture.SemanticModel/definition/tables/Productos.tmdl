@@ -1,0 +1,4 @@
+table Productos
+	column Codigo
+		dataType: string
+		sourceColumn: Codigo

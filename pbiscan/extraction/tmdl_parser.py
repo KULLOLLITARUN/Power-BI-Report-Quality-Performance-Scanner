@@ -212,6 +212,13 @@ def parse_tmdl_table_text(content: str, source_file: str = "") -> Optional[RawTa
                 is_date_table = True
         elif current_item_type is None and stripped in ("isHidden", "isHidden: true"):
             hidden = True
+        elif (
+            current_item_type is None
+            and not in_partition_source
+            and re.fullmatch(r"dataCategory\s*:\s*(time|date)", stripped, re.IGNORECASE)
+        ):
+            # Table-level `dataCategory: Time` is how "Mark as date table" is saved.
+            is_date_table = True
         elif (item_sig := _keyword(stripped, "calculationItem")) is not None:
             flush_current()
             in_partition_source = False

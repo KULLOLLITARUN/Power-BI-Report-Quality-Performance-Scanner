@@ -1,0 +1,8 @@
+table Ventas
+	column Importe
+		dataType: double
+		sourceColumn: Importe
+	column Fecha
+		dataType: dateTime
+		sourceColumn: Fecha
+	measure 'Total Importe' = SUM(Ventas[Importe])
