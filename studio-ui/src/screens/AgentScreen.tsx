@@ -3,6 +3,8 @@ import { ChevronRight, CircleCheck, CircleAlert, ShieldAlert, ShieldCheck, Termi
 import { apiFetch } from '../utils/api';
 import { copyText, useToast } from '../components/ui';
 import { errorMessage } from '../lib/errors';
+import { McpGuide } from '../components/McpGuide';
+import { DEFAULT_LAUNCH, configJson, launchFromStatus } from '../lib/mcpConfig';
 
 interface McpStatus { mcp_installed: boolean; mcp_version: string | null; python_executable: string; server_command: string; server_args: string[]; groq_configured?: boolean; groq_model?: string }
 interface McpTool { name: string; description: string; read_only: boolean; destructive: boolean }
@@ -33,7 +35,8 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
     })();
   }, [hasBackend, onRuleCount]);
 
-  const config = status ? JSON.stringify({ mcpServers: { pbiscan: { command: status.server_command, args: status.server_args } } }, null, 2) : '';
+  const launch = launchFromStatus(status);
+  const config = status ? configJson(launch) : '';
 
   if (!hasBackend) {
     return (
@@ -41,6 +44,7 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
         <div className="page-head"><div><p>pbiscan can run as a Model Context Protocol server, so coding agents can scan projects and read findings.</p></div></div>
         <div className="notice"><Terminal aria-hidden="true" /><div className="grow"><strong>Tool status needs the local engine.</strong> Start the MCP server with:
           <pre className="code" style={{ marginTop: 8 }}>pip install "pbiscan[mcp]"{'\n'}pbiscan mcp</pre></div></div>
+        <McpGuide launch={DEFAULT_LAUNCH} exact={false} />
       </>
     );
   }
@@ -55,6 +59,8 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
         </div>
       </div>
       {error && <div className="notice error"><CircleAlert aria-hidden="true" /><span className="grow">{error}</span></div>}
+
+      <McpGuide launch={launch} exact={!!status?.python_executable} />
 
       <div className="grid-2">
         <section className="panel">
