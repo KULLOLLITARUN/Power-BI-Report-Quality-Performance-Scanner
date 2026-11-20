@@ -127,7 +127,7 @@ export const TabBar: React.FC<{
           <div className="project-card">
             <span className="muted">Project</span>
             <span className="project-name">{projectName}</span>
-            {scannedAt && <span className="mono muted">Scanned {scannedAt}</span>}
+            {scannedAt && <span className="muted">Scanned {scannedAt}</span>}
           </div>
           <nav className="menu-grid" aria-label="All views">
             {TABS.map((t) => (
