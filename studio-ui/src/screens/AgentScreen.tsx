@@ -42,8 +42,8 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
     return (
       <>
         <div className="page-head"><div><p>pbiscan can run as a Model Context Protocol server, so coding agents can scan projects and read findings.</p></div></div>
-        <div className="notice"><Terminal aria-hidden="true" /><div className="grow"><strong>Tool status needs the local engine.</strong> Start the MCP server with:
-          <pre className="code" style={{ marginTop: 8 }}>pip install "pbiscan[mcp]"{'\n'}pbiscan mcp</pre></div></div>
+        <div className="notice"><Terminal aria-hidden="true" /><div className="grow"><strong>The live tool list needs the local engine.</strong> The steps below work without it. To also see your install's tools and rules here, start Studio from a terminal:
+          <pre className="code" style={{ marginTop: 8 }}>pbiscan studio</pre></div></div>
         <McpGuide launch={DEFAULT_LAUNCH} exact={false} />
       </>
     );
@@ -74,7 +74,7 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
               </>
             ) : (
               <>
-                <p className="ink-2" style={{ margin: 0, fontSize: 13 }}>Install the MCP extra, then run <span className="mono">pbiscan mcp</span>.</p>
+                <p className="ink-2" style={{ margin: 0, fontSize: 13 }}>Install the MCP extra, then follow the steps above to connect your agent.</p>
                 <pre className="code">pip install "pbiscan[mcp]"</pre>
               </>
             )}
