@@ -1,9 +1,20 @@
 # Testing the MCP server in the browser (MCP Inspector)
 
-**Verification status: PENDING.** The automated MCP tests pass
-(`tests/unit/test_mcp_server.py` and `tests/integration/test_mcp_client_e2e.py`, 46 passed on 2026-10-07).
-The manual browser check below has not been done yet. Tick each box as you go, and change the
-status line to **PASSED** once every box is ticked.
+**Verification status: PENDING for the Inspector check below; the rest is verified.**
+
+Verified on 2026-11-20:
+- The automated MCP tests pass (`tests/unit/test_mcp_server.py` and
+  `tests/integration/test_mcp_client_e2e.py`, which now includes applying a whole multi-file plan
+  with a suppression that has to survive the apply).
+- A scripted MCP client drove all 8 tools over stdio against a copy of a real project: scan,
+  lineage, plan, suppress, apply (score 54.1 to 98.7) and diff, plus a fake patch id (no change), a
+  missing path and an unknown measure (clean errors).
+- A real agent (Claude Code in VS Code, with the server added through a project `.mcp.json`) scanned,
+  planned and applied fixes, and Studio then showed the same score, history entry and counts.
+
+Not verified: the manual browser check below (MCP Inspector), and the Claude Desktop and Cursor
+set-up steps on the Agent & MCP screen. Tick each box as you go, and change the status line to
+**PASSED** once every box is ticked.
 
 MCP Inspector is the official browser UI for MCP servers. It starts `pbiscan mcp` as a separate
 process and lets you call each tool by hand, the same way an agent such as Claude or Cursor would.

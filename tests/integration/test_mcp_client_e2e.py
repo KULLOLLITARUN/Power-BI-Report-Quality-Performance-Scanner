@@ -267,3 +267,62 @@ class TestMcpClientE2E:
 
         asyncio.run(_run())
 
+    def test_e2e_mcp_apply_whole_plan_and_suppression_survives(
+        self,
+        mcp_server_params: StdioServerParameters,
+        tmp_path: Path,
+    ):
+        """Apply every patch of a multi-file plan over JSON-RPC, with a suppression added first.
+
+        Covers what the single-patch lifecycle test does not: one apply that edits several
+        files and creates a new parameter file, and a suppression that must stay in force
+        after the model has been rewritten.
+        """
+
+        async def _run():
+            async with stdio_client(mcp_server_params) as (read_stream, write_stream):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
+
+                    model = tmp_path / "multi_patch_model"
+                    shutil.copytree(GOLDEN_DIR / "test_model_auto_datetime_bloat", model)
+
+                    async def scan() -> dict:
+                        call = await session.call_tool("scan_model", arguments={"path": str(model)})
+                        assert not call.isError
+                        return json.loads(call.content[0].text)  # type: ignore[attr-defined]
+
+                    before = await scan()
+                    assert any(f["rule_id"] == "MODEL_AUTO_DATETIME_BLOAT" for f in before["findings"])
+
+                    # Suppress one unrelated finding first, so we can check it is still hidden afterwards.
+                    other = next((f for f in before["findings"] if f["rule_id"] != "MODEL_AUTO_DATETIME_BLOAT"), None)
+                    assert other is not None, "the fixture needs a second finding to suppress"
+                    supp = await session.call_tool("add_suppression", arguments={
+                        "path": str(model), "rule_id": other["rule_id"],
+                        "location": other.get("location") or "", "reason": "kept across apply",
+                    })
+                    assert not supp.isError
+
+                    plan_call = await session.call_tool("plan_remediation", arguments={"path": str(model)})
+                    assert not plan_call.isError
+                    plan = json.loads(plan_call.content[0].text)  # type: ignore[attr-defined]
+                    ids = [p["patch_id"] for p in plan["plan"]["patches"]]
+                    assert len(ids) >= 2, "the fixture should need more than one patch"
+                    files = {p["file_path"] for p in plan["plan"]["patches"]}
+                    assert len(files) >= 2, "the patches should touch more than one file"
+
+                    apply_call = await session.call_tool("apply_remediation", arguments={"path": str(model), "patch_ids": ids})
+                    assert not apply_call.isError
+                    applied = json.loads(apply_call.content[0].text)  # type: ignore[attr-defined]
+                    assert applied["status"] == "APPLIED"
+                    assert applied["applied_count"] == len(ids)
+                    assert Path(applied["backup_location"]).exists()
+
+                    after = await scan()
+                    assert not any(f["rule_id"] == "MODEL_AUTO_DATETIME_BLOAT" and not f.get("suppressed") for f in after["findings"])
+                    assert after["scores"]["overall"] > before["scores"]["overall"]
+                    still = [f for f in after["findings"] if f["rule_id"] == other["rule_id"] and f.get("location") == other.get("location")]
+                    assert still and all(f.get("suppressed") for f in still), "the suppression must survive the apply"
+
+        asyncio.run(_run())
