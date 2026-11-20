@@ -1,343 +1,214 @@
-# PBIP Sentinel (`pbiscan`)
+# pbiscan
 
-[![Live Studio](https://img.shields.io/badge/Live_Studio-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://power-bi-report-quality-performance.onrender.com/)
-[![Live Demo](https://img.shields.io/badge/Live_Workbench-pbip--sentinel.netlify.app-C88B3A?style=for-the-badge&logo=netlify&logoColor=white)](https://pbip-sentinel.netlify.app/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![CI](https://img.shields.io/github/actions/workflow/status/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner/ci.yml?branch=main&label=CI&style=for-the-badge)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner/actions/workflows/ci.yml)
-[![Python: 3.10 | 3.11 | 3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue?style=for-the-badge&logo=python&logoColor=white)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner)
-[![SARIF: OASIS v2.1.0](https://img.shields.io/badge/SARIF-OASIS%20v2.1.0-blueviolet?style=for-the-badge)](https://sarifweb.azurewebsites.net/)
+**Static analysis for Power BI projects (`.pbip`).** pbiscan reads your semantic model, DAX and report files, and reports the problems that usually cause slow reports, broken refreshes and dead weight, before they reach production. It can also fix some of them safely.
 
-**PBIP Sentinel** is an enterprise static analysis diagnostic engine, CI/CD quality gate, and interactive developer studio for Microsoft Power BI Projects (`.pbip`).
+[![CI](https://img.shields.io/github/actions/workflow/status/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner/ci.yml?branch=main&label=CI)](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
 
-👉 **Live Cloud Studio Workbench:** **[https://power-bi-report-quality-performance.onrender.com/](https://power-bi-report-quality-performance.onrender.com/)**  
-👉 **Interactive API Documentation:** **[https://power-bi-report-quality-performance.onrender.com/docs](https://power-bi-report-quality-performance.onrender.com/docs)**  
-👉 **In-Browser Client-Only Workbench:** **[https://pbip-sentinel.netlify.app/](https://pbip-sentinel.netlify.app/)**  
-*(100% In-Browser & Private — drag & drop any `.pbip` folder locally in browser memory, zero files uploaded to any server)*
+**Try it without installing anything:**
+[in-browser Studio](https://pbip-sentinel.netlify.app/) (drop a `.pbip` folder on it; scanning happens in your browser and nothing is uploaded) ·
+[hosted Studio](https://power-bi-report-quality-performance.onrender.com/) (the free host can take a minute to wake up)
 
-It inspects semantic model definitions (**TMDL** / **TMSL**), DAX calculation expressions, and report layout schemas (**PBIR** / JSON) to detect anti-patterns, orphaned measures, gateway refresh blockers, and memory bloat before reports are merged or deployed to production.
+## What it does
 
----
+- **Scans** a `.pbip` project against 14 rules for the model, DAX and report layout, and gives a health score from 0 to 100.
+- **Gates CI.** Fail a build when the score drops or a severity appears. Output as HTML, JSON, SARIF (GitHub Code Scanning) or JUnit XML.
+- **Fixes** four kinds of finding with a reviewable plan, a sandbox check and a backup (`pbiscan fix`).
+- **Compares** two scans and reports what is new, resolved or worse (`pbiscan diff`).
+- **Opens a local Studio** with a findings view, a measure dependency graph, a model map and before/after diffs (`pbiscan studio`).
+- **Connects to AI agents** such as Claude and Cursor through an MCP server (`pbiscan mcp`).
 
-## ⚡ Key Capabilities
+pbiscan works on the files in the project folder. It never connects to Power BI or to a dataset, and it runs on Windows, macOS and Linux.
 
-- 🛡️ **OASIS SARIF v2.1.0 & JUnit XML Native**: Integrates directly with **GitHub Code Scanning** security alerts, **Azure DevOps**, and **Jenkins**.
-- 🚦 **CI/CD Quality Gates**: Enforce automated branch-merge policies with `--fail-under <score>` and `--fail-on <severity>`.
-- 🩹 **Safe Remediation Engine** (`pbiscan fix`): Plans and, on request, applies reversible fixes for `MODEL_BIDIRECTIONAL`, `DAX_UNUSED_MEASURE`, `M_HARDCODED_DATA_SOURCE`, and `MODEL_AUTO_DATETIME_BLOAT` — with automatic timestamped backups, an interactive review mode, and a `--fail-on-remediation-available` CI gate.
-- 🔀 **Historical Scan Diff** (`pbiscan diff`): Compares two scans and reports new/resolved/persistent findings plus score drift, with `--fail-on-regression` and related quality-gate flags for PR checks.
-- 🕸️ **Transitive DAX Graph Reachability**: Cycle-safe dependency DAG that distinguishes truly unreferenced measures from internal calculation building blocks.
-- 📑 **Unified Semantic Reference Index**: Tracks measure usage across visuals (PBIR and legacy), visual/page/report filters, bookmarks, report-level measures, Calculation Groups (`SELECTEDMEASURE`), Field Parameters, and Row-Level Security (RLS) filters.
-- 💻 **Interactive Studio Web UI**: Fast local web application (`pbiscan studio`) featuring an interactive DAX canvas DAG, Model Topology explorer, before/after TMDL remediation diff previews, and 1-click suppressions.
-- 🔕 **Transparent Suppressions**: Suppress approved business exceptions via `pbiscan.suppressions.json` without altering findings auditability.
-- 🐍 **Zero-Prerequisite Pure Python**: Runs headlessly on Linux, macOS, and Windows with zero external binary or .NET dependencies.
+## Install
 
----
-
-## 📊 Real-World Empirical Baseline (11-Model Corpus)
-
-PBIP Sentinel follows a strict **Observation $\to$ Proof $\to$ Implementation** governance gate:
-
-| Metric | Result | Description |
-| :--- | :--- | :--- |
-| **Real-World Models Audited** | **11 Models** | PBIP models across Sales, HR, Finance, and Retail |
-| **Classified Findings** | **94 / 94 True Positives** | Every finding on this corpus was manually classified; none were false positives |
-| **Crash Rate** | **0 / 11** | No crashes or unhandled exceptions across the corpus |
-| **Automated Test Suite** | **Runs on every push** | Unit tests, golden fixtures, cross-engine parity, and API contracts (~1 min) |
-
-These figures describe this 11-model corpus only. They are evidence, not a guarantee: other models can exercise patterns the corpus does not contain. If you hit a false positive, please [open an issue](.github/ISSUE_TEMPLATE/bug_report.md).
-
-### Known limitations
-
-- **Static analysis only.** pbiscan reads project files; it never connects to a dataset, so it cannot measure real query performance or VertiPaq memory. Performance rules flag *patterns* worth reviewing.
-- **"Unused" means unused in this project.** `DAX_UNUSED_MEASURE` cannot see other reports, Excel workbooks, paginated reports or external tools that query the same semantic model. Review before letting `pbiscan fix` delete a measure from a shared model; `pbiscan fix` repeats this warning whenever its plan deletes a measure.
-- **Unreadable files switch off unused-measure detection.** A table, role, bookmark or other project file that can't be read or parsed is skipped and named in the scan warnings. Because it could be the only place a measure is used, `DAX_UNUSED_MEASURE` reports nothing for that scan.
-- **Heuristic rules are labelled.** Rules with confidence below 100% (e.g. `MODEL_FACT_TO_FACT`, `DAX_SUSPICIOUS_PATTERN`) are heuristics and will sometimes flag intentional designs; suppress those with `pbiscan.suppressions.json`.
-
----
-
-## 🔍 Built-in Rule Catalog (14 Rules)
-
-### Model & Data Source Architecture (7 Rules)
-| Code | Rule ID | Severity | Confidence | Description & Impact |
-|:---|:---|:---:|:---:|:---|
-| `M001` | `MODEL_BIDIRECTIONAL` | `WARNING` | 100% | Detects bidirectional relationship cross-filtering that risks ambiguous filter paths. |
-| `M002` | `MODEL_MANY_TO_MANY` | `WARNING` | 100% | Flags many-to-many cardinality relationships that degrade VertiPaq performance. |
-| `M003` | `MODEL_NO_DATE_TABLE` | `WARNING` | 70% | Warns if the model lacks a dedicated marked Date dimension table. |
-| `M004` | `MODEL_HIGH_CARDINALITY` | `ADVISORY` | 87% | Identifies high-cardinality string columns inflating memory footprint. |
-| `M005` | `MODEL_FACT_TO_FACT` | `ADVISORY` | 60% | Heuristic detection of direct relationships between transactional fact tables. |
-| `M006` | `M_HARDCODED_DATA_SOURCE` | `HIGH` | 95% | Detects hardcoded developer machine file paths (`C:\Users\...`) in M-partitions that break scheduled gateway refresh. |
-| `M007` | `MODEL_AUTO_DATETIME_BLOAT` | `MEDIUM` | 100% | Detects hidden `LocalDateTable_*` tables generated by default Auto Date/Time. |
-
-### DAX & Calculations (4 Rules)
-| Code | Rule ID | Severity | Confidence | Description & Impact |
-|:---|:---|:---:|:---:|:---|
-| `D001` | `DAX_SUSPICIOUS_PATTERN` | `ADVISORY` | 65% | Flags suboptimal DAX patterns (e.g. `FILTER(ALL(...))`) needing review. |
-| `D002` | `DAX_EXCESSIVE_CALC_COLUMNS` | `MEDIUM` | 100% | Warns on tables with >4 calculated columns consuming uncompressed memory. |
-| `D003` | `DAX_DUPLICATE_MEASURE` | `MEDIUM` | 90% | Identifies duplicate normalized DAX formulas across different measures. |
-| `D004` | `DAX_UNUSED_MEASURE` | `ADVISORY` | 95% | Multi-hop transitive scan flagging measures not bound to visuals, filters, bookmarks, report-level measures, calc groups, field params, or RLS. |
-
-### Report Layout & Density (3 Rules)
-| Code | Rule ID | Severity | Confidence | Description & Impact |
-|:---|:---|:---:|:---:|:---|
-| `R001` | `REPORT_VISUAL_BLOAT` | `MEDIUM` | 100% | Detects report pages with >15 visuals that trigger excessive concurrent queries. |
-| `R002` | `REPORT_SLICER_BLOAT` | `MEDIUM` | 100% | Flags pages with >6 slicers causing redundant query evaluation overhead. |
-| `R003` | `REPORT_MISSING_MEASURE` | `MEDIUM` | 90% | Flags a visual or page filter that uses a measure neither the model nor a report-level measure defines, which usually shows as a broken visual. Skipped for thin reports with no local model. |
-
----
-
-## 🚀 Quick Start
-
-### Installation
+pbiscan is not on PyPI yet, so install it from source (Python 3.10 or newer):
 
 ```bash
-# Install from source or repository
 git clone https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner.git
 cd Power-BI-Report-Quality-Performance-Scanner
-pip install -e .
+pip install -e ".[studio,mcp]"
 ```
 
----
+The base install is enough for `scan`, `fix` and `diff`. The `studio` extra adds the local web app, and the `mcp` extra adds the agent server.
 
-## 🖥️ Usage
-
-### 1. Launch Interactive Studio Workbench
-```bash
-pbiscan studio "path/to/my_report.pbip"
-```
-Opens the local developer workspace at `http://127.0.0.1:8000`:
-- **Overview Dashboard**: Radial health score gauge and severity breakdown.
-- **Findings & Remediation**: Interactive cards with before/after TMDL diffs and 1-click suppression.
-- **Interactive DAX DAG**: Canvas-based dependency visualizer with zoom/pan and measure inspector.
-- **Model Topology & Provenance**: Table schema inspector, relationships, and RLS/Calc Group bindings.
-- **Instant Export**: 1-click download of HTML, SARIF, JUnit XML, or JSON reports.
-
-Studio only answers on loopback by default, rejects requests from other websites, and generates a random access token on every run. The browser is opened at a URL containing that token; API calls without it are refused, so other processes on the machine can't use Studio to browse or modify your files. If you open Studio in a new tab, use the full URL printed in the terminal. To pin the token (for example when running the Vite dev server), set `PBISCAN_STUDIO_TOKEN`.
-
-### 2. Standard Terminal Scan
-```bash
-pbiscan scan "path/to/my_report.pbip"
-```
-
-### 3. Generate Standalone HTML Report
-```bash
-pbiscan scan "path/to/my_report.pbip" --format html --out "audit_report.html"
-```
-
-### 4. CI/CD Quality Gates & Automation
-```bash
-# Fail CI build if score is below 85 or any HIGH/CRITICAL finding is detected
-pbiscan scan "path/to/my_report.pbip" \
-  --format sarif \
-  --out "results.sarif" \
-  --fail-under 85 \
-  --fail-on HIGH
-```
-
-### 5. Historical Diff Between Two Scans
-```bash
-# Fail if the overall score regresses, or a new HIGH+ finding was introduced
-pbiscan diff "baseline_scan.json" "path/to/my_report.pbip" \
-  --fail-on-regression \
-  --fail-on-new HIGH \
-  --format markdown --out "pr_comment.md"
-```
-
-### 6. Safe Remediation (`pbiscan fix`)
-```bash
-# Preview a remediation plan (dry-run, no files touched)
-pbiscan fix "path/to/my_report.pbip"
-
-# Interactively review and apply only the patches you approve
-pbiscan fix "path/to/my_report.pbip" --interactive --apply
-
-# CI governance gate: fail the build if any safe fix is available but unapplied
-pbiscan fix "path/to/my_report.pbip" --fail-on-remediation-available --quiet
-```
-Supports `MODEL_BIDIRECTIONAL`, `DAX_UNUSED_MEASURE`, `M_HARDCODED_DATA_SOURCE`, and `MODEL_AUTO_DATETIME_BLOAT`. Every plan is first applied to a sandbox copy and rescanned. Each edited file is re-parsed and compared with the original: JSON must still load, and a TMDL table must keep its columns and every remaining measure's expression. A patch is rejected if it leaves any project file unreadable. Applying creates a timestamped backup first, writes all files or none, and restores the backup if the final rescan fails.
-
-### 7. Model Context Protocol (MCP) Server
-Connect PBIP Sentinel to AI agents (Claude Desktop, Cursor, Claude Code, Antigravity) with standard stdio JSON-RPC. Allows agents to inspect quality scores, query measure DAG lineage, and propose remediation plans:
+## Quick start
 
 ```bash
-# Start MCP server over stdio
-pbiscan mcp
+pbiscan scan path/to/Report.pbip                      # score and findings in the terminal
+pbiscan scan path/to/Report.pbip --format html --out report.html
+pbiscan studio path/to/Report.pbip                    # local web app
 ```
 
-**Claude Desktop Configuration (`claude_desktop_config.json`)**:
-```json
-{
-  "mcpServers": {
-    "pbip-sentinel": {
-      "command": "pbiscan",
-      "args": ["mcp"]
-    }
-  }
-}
+You can pass either the `.pbip` file or the project folder.
+
+## Rules
+
+| Rule | Severity | Confidence | What it flags |
+|:---|:---:|:---:|:---|
+| `MODEL_BIDIRECTIONAL` | Warning | 100% | Relationships that filter in both directions, which can make filter paths ambiguous. |
+| `MODEL_MANY_TO_MANY` | Warning | 100% | Many-to-many relationships. |
+| `MODEL_NO_DATE_TABLE` | Warning | 70% | No table is marked as a date table, and none is named like a calendar. |
+| `MODEL_HIGH_CARDINALITY` | Advisory | 87% | Columns likely to have very many distinct values, which inflate memory. |
+| `MODEL_FACT_TO_FACT` | Advisory | 60% | A many-to-many or one-to-one link between two tables that both hold measures. |
+| `M_HARDCODED_DATA_SOURCE` | High | 95% | File paths such as `C:\Users\...` in Power Query, which break scheduled refresh. |
+| `MODEL_AUTO_DATETIME_BLOAT` | Medium | 100% | Hidden `LocalDateTable_*` tables created by Auto Date/Time. |
+| `DAX_SUSPICIOUS_PATTERN` | Advisory | 65% | Patterns worth a second look, such as `FILTER(ALL(...))` and nested `CALCULATE`. |
+| `DAX_EXCESSIVE_CALC_COLUMNS` | Medium | 100% | Tables with many calculated columns. |
+| `DAX_DUPLICATE_MEASURE` | Medium | 90% | Measures with the same formula. |
+| `DAX_UNUSED_MEASURE` | Advisory | 95% | Measures that no visual, filter, bookmark, calculation group, field parameter, role or other measure uses. |
+| `REPORT_VISUAL_BLOAT` | Medium | 100% | Pages with too many visuals. |
+| `REPORT_SLICER_BLOAT` | Medium | 100% | Pages with too many slicers. |
+| `REPORT_MISSING_MEASURE` | Medium | 90% | A visual or page filter that uses a measure nothing defines. |
+
+Rules below 100% confidence are heuristics. They can flag a design that is intentional. Suppress those (see [Suppressions](#suppressions)) rather than ignoring the report.
+
+## Use it in CI
+
+```bash
+# Fail the build if the score is under 85 or any High finding exists
+pbiscan scan path/to/Report.pbip --format sarif --out results.sarif --fail-under 85 --fail-on HIGH
 ```
 
-**Cursor Configuration (`.cursor/mcp.json`)**:
-```json
-{
-  "mcpServers": {
-    "pbip-sentinel": {
-      "command": "pbiscan",
-      "args": ["mcp"]
-    }
-  }
-}
-```
+GitHub Actions, with results shown in Code Scanning:
 
-### Privacy: what stays on your machine
-
-Scanning, `pbiscan fix`, `diff`, Studio and the MCP server run locally and make no network calls.
-
-The one exception is the optional DAX rewrite advisor, available as the MCP tool `suggest_dax_rewrite` and in Studio (Measures screen, `/api/dax/rewrite`). If, and only if, you set your own `GROQ_API_KEY` (in the environment or a `.env` file), the DAX expression you ask it to rewrite is sent to Groq's API to get a suggestion. Without the key nothing is sent and the built-in recommendation text is returned. Do not set the key when your DAX must not leave your network.
-
----
-
-## ⚙️ CI/CD Integration Examples
-
-### GitHub Actions (with Code Scanning Alerts)
 ```yaml
-name: Power BI Quality Gate
+name: Power BI quality gate
 on: [push, pull_request]
 
 jobs:
-  pbi-audit:
+  pbiscan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      - name: Install PBIP Sentinel
-        run: pip install .
-
-      - name: Scan PBIP Model
-        run: |
-          pbiscan scan my_project.pbip \
-            --format sarif \
-            --out results.sarif \
-            --fail-under 80
-
-      - name: Upload SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
+          python-version: "3.11"
+      - run: pip install "git+https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner.git"
+      - run: pbiscan scan path/to/Report.pbip --format sarif --out results.sarif --fail-under 80
+      - uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: results.sarif
 ```
 
-### Azure DevOps Pipelines
-```yaml
-trigger:
-  - main
+For Azure DevOps or Jenkins, use `--format junit --out test-results.xml` and publish the file as test results.
 
-pool:
-  vmImage: 'ubuntu-latest'
+## Fix findings: `pbiscan fix`
 
-steps:
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '3.11'
-
-  - script: |
-      pip install .
-      pbiscan scan my_project.pbip --format junit --out test-results.xml --fail-under 85
-    displayName: 'Run PBIP Sentinel Quality Gate'
-
-  - task: PublishTestResults@2
-    condition: always()
-    inputs:
-      testResultsFormat: 'JUnit'
-      testResultsFiles: 'test-results.xml'
+```bash
+pbiscan fix path/to/Report.pbip                       # plan only, nothing is written
+pbiscan fix path/to/Report.pbip --interactive --apply # review each patch, then apply
+pbiscan fix path/to/Report.pbip --fail-on-remediation-available --quiet   # CI: fail if a safe fix is waiting
 ```
 
----
+It can fix `MODEL_BIDIRECTIONAL`, `DAX_UNUSED_MEASURE`, `M_HARDCODED_DATA_SOURCE` and `MODEL_AUTO_DATETIME_BLOAT`.
 
-## 🔕 Suppression System (`pbiscan.suppressions.json`)
+Every plan is applied to a copy first and rescanned. A patch is rejected if any file would no longer parse. Applying makes a timestamped backup, writes all files or none, and restores the backup if the final rescan fails. A plan exits with code 3 when there are patches to review.
 
-To mark an approved architectural exception without disabling rules or deleting findings:
+Before it deletes an unused measure, pbiscan checks the model files again for any other mention of it, including perspectives and translations. If a file cannot be read, it refuses to delete.
+
+## Compare two scans: `pbiscan diff`
+
+```bash
+pbiscan scan path/to/Report.pbip --format json --out baseline.json
+# ... change the report ...
+pbiscan diff baseline.json path/to/Report.pbip --fail-on-regression --fail-on-new HIGH
+```
+
+## Studio
+
+`pbiscan studio path/to/Report.pbip` opens a local app at `http://127.0.0.1:8000` with an overview of findings grouped by rule, the fixes with before/after diffs, a measure dependency graph, a model map, a page-by-page report view and a scan comparison. You can export HTML, SARIF, JUnit or JSON from it.
+
+Studio answers only on your own machine, rejects requests from other websites, and uses a random access token that is part of the URL it prints.
+
+## Use it from an AI agent (MCP)
+
+```bash
+claude mcp add pbiscan -- python -m pbiscan mcp
+```
+
+For Claude Desktop or Cursor, add this to the client's MCP config file (`claude_desktop_config.json`, or `.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "pbiscan": { "command": "python", "args": ["-m", "pbiscan", "mcp"] }
+  }
+}
+```
+
+If `python` is not the Python where you installed pbiscan, use the full path to that Python. Studio's **Agent & MCP** screen has a step-by-step guide that fills this in for you.
+
+The server has 8 tools. Six only read: `scan_model`, `diff_models`, `get_measure_lineage`, `plan_remediation`, `list_suppressions` and `suggest_dax_rewrite`. Two change files: `apply_remediation` and `add_suppression`. Try them on a copy of a project first.
+
+## Suppressions
+
+To accept a finding on purpose, add it to `pbiscan.suppressions.json` next to the project. The finding stays in the audit trail and is marked suppressed.
 
 ```json
 {
   "suppressions": [
     {
-      "rule_id": "M_HARDCODED_DATA_SOURCE",
-      "location": "Table: LocalDevLookup",
-      "reason": "Approved local lookup for isolated dev environment"
-    },
-    {
       "rule_id": "DAX_UNUSED_MEASURE",
       "location": "Measure: StagedKPI",
-      "reason": "Staged for upcoming Q4 executive release"
+      "reason": "Staged for the Q4 release"
     }
   ]
 }
 ```
 
----
+## Limits worth knowing
 
-## 🏗️ Architecture
+- **Static analysis only.** pbiscan cannot measure real query speed or memory. Its performance rules point at patterns worth reviewing.
+- **"Unused" means unused in this project.** Other reports, Excel workbooks and tools that use the same semantic model are invisible to it. Check before you delete a measure from a shared model.
+- **A file that cannot be read turns off unused-measure detection** for that scan, because the unread file might be the only place a measure is used. The scan warnings name the file.
+- **Heuristic rules are labelled** by their confidence below 100%. Expect some false positives and use suppressions.
+- It has been run against about 75 public PBIP projects from GitHub. That turned up several false positives, which are fixed and covered by tests. Others may remain. If you find one, please [open an issue](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner/issues).
+
+## Privacy
+
+Scanning, `fix`, `diff`, Studio and the MCP server run on your machine and make no network calls. The one exception is the optional DAX rewrite advisor (the `suggest_dax_rewrite` tool, and the Measures screen in Studio). Only if you set your own `GROQ_API_KEY` is the DAX you ask it to rewrite sent to Groq. Without the key, nothing is sent.
+
+## How it works
 
 ```text
-PBIP Project (.pbip / TMDL / TMSL / PBIR)
-                  │
-                  ▼
-         Extraction Layer (extraction/pbip_reader.py)
-         ├── tmdl_parser.py / bim_parser.py      (semantic model)
-         └── report_parser.py / pbir_parser.py   (report.json / PBIR)
-                  │
-                  ▼
-         Canonical Model (canonical/model.py, dax_graph.py)
-         ├── ModelGraph (Topology: connected_components, relationships)
-         ├── DaxDependencyGraph (Transitive DAG, cycle-safe reachability)
-         └── SemanticReferenceIndex (Visuals, Calc Groups, Field Params, RLS)
-                  │
-                  ▼
-         Rule Engine (rules/model.py, dax.py, report.py)
-                  │
-                  ▼
-         Issue Generator & Recommendations (engine/issue.py, recommendations.py)
-                  │
-                  ▼
-         Suppression Filter (engine/suppressions.py)
-                  │
-                  ▼
-         Scoring & Multi-Target Renderers (engine/scoring.py, render/)
-         ┌────────────┬──────────────┬─────────────┬──────────────┐
-         ▼            ▼              ▼             ▼              ▼
-     CLI Text    HTML Report    SARIF v2.1.0   JUnit XML    Studio Web UI
+.pbip project (TMDL / TMSL / PBIR / report.json)
+  → extraction            parse the model and the report
+  → canonical model       tables, relationships, DAX dependency graph, reference index
+  → rules                 detect only
+  → issues                evidence and recommendations
+  → suppressions
+  → scoring and output    terminal, HTML, JSON, SARIF, JUnit, Studio
 ```
 
----
+The in-browser Studio runs a TypeScript port of the same engine. A parity test compares both engines on every test fixture, so the browser and the command line agree.
 
-## 🧪 Automated Testing
+## Development
 
 ```bash
-# Run all unit, golden contract, and integration tests
-pytest tests/ -v
+pip install -e ".[dev]"
+python -m pytest                          # everything, about 3 minutes (what CI runs)
+python -m pytest -m "not slow and not parity"   # quick loop, about 25 seconds
+ruff check pbiscan tests
+mypy pbiscan
 ```
 
-If Node.js and `studio-ui`'s dependencies (`npm install` inside `studio-ui/`) are available, cross-engine parity tests run automatically, diffing the in-browser `clientScanner.ts` engine's findings and scores against the Python `ScanService` for every golden fixture (CI always runs them) — this is what keeps the Netlify Studio Workbench's results honest against `pbiscan scan`.
-
-CI also enforces:
-- **Coverage** of at least 90% (`fail_under` in `pyproject.toml`).
-- **Strict mypy** for the modules listed under `[[tool.mypy.overrides]]` in `pyproject.toml`; add new modules there.
-- **An up-to-date Studio bundle.** `pbiscan/studio/dist` is committed because it ships in the wheel. After changing anything in `studio-ui/`, rebuild it and commit the result:
+The Studio source is in `studio-ui/`. The built app in `pbiscan/studio/dist` is committed because it ships in the package, so rebuild it after any change there:
 
 ```bash
 cd studio-ui
 npm ci
 node node_modules/typescript/bin/tsc --noEmit -p .
-node node_modules/vite/bin/vite.js build   # writes ../pbiscan/studio/dist
+node node_modules/vite/bin/vite.js build
 ```
 
-(The tools are called through `node` directly because `npm run` / `npx` break when the repository path contains `&`.)
+Call the tools through `node` as shown, because `npx` and `npm run` break when the repository path contains `&`. New detection needs a golden fixture under `tests/golden/` and a test with a true-positive control. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
----
+## License
 
-## 📄 License
-
-MIT License — Copyright (c) 2026 Tarun Kullolli
+MIT. See [LICENSE](LICENSE).
