@@ -128,8 +128,12 @@ def parse_visual_container(vc: dict[str, Any]) -> Optional[RawVisual]:
         src["Entity"] for src in pq.get("From", [])
         if isinstance(src, dict) and isinstance(src.get("Entity"), str) and src["Entity"]
     }
+    # Select items that are definitely not measures (columns, aggregations, hierarchy levels).
+    non_measure_names: set[str] = set()
     for select_item in pq.get("Select", []):
         name = select_item.get("Name", "")
+        if name and "Measure" not in select_item:
+            non_measure_names.add(name)
         if name:
             clean_name = name.split(".", 1)[-1] if "." in name else name
             fields_used.append(clean_name)
@@ -149,7 +153,8 @@ def parse_visual_container(vc: dict[str, Any]) -> Optional[RawVisual]:
                         if qref:
                             clean_name = qref.split(".", 1)[-1] if "." in qref else qref
                             fields_used.append(clean_name)
-                            measure_refs.append(clean_name)
+                            if qref not in non_measure_names:
+                                measure_refs.append(clean_name)
 
     # Recursively harvest measure references from objects / visual container JSON,
     # plus the visual-level filter pane (a separate stringified `filters` field)

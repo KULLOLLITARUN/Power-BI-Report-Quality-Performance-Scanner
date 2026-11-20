@@ -1,0 +1,33 @@
+{
+  "config": "{}",
+  "sections": [
+    {
+      "name": "ReportSection1",
+      "displayName": "Overview",
+      "visibility": 0,
+      "visualContainers": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 300,
+          "height": 200,
+          "config": "{\"name\": \"v\", \"singleVisual\": {\"visualType\": \"columnChart\", \"projections\": {\"Category\": [{\"queryRef\": \"Sales.Year\"}], \"Series\": [{\"queryRef\": \"Sales.Channel\"}], \"Y\": [{\"queryRef\": \"Sales.Revenue\"}]}, \"prototypeQuery\": {\"Select\": [{\"Column\": {\"Expression\": {\"SourceRef\": {\"Entity\": \"Sales\"}}, \"Property\": \"Year\"}, \"Name\": \"Sales.Year\"}, {\"Column\": {\"Expression\": {\"SourceRef\": {\"Entity\": \"Sales\"}}, \"Property\": \"Channel\"}, \"Name\": \"Sales.Channel\"}, {\"Measure\": {\"Expression\": {\"SourceRef\": {\"Entity\": \"Sales\"}}, \"Property\": \"Revenue\"}, \"Name\": \"Sales.Revenue\"}]}}}"
+        },
+        {
+          "x": 0,
+          "y": 0,
+          "width": 300,
+          "height": 200,
+          "config": "{\"name\": \"v\", \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"Min(Sales.Environment)\"}]}, \"prototypeQuery\": {\"Select\": [{\"Aggregation\": {\"Expression\": {\"Column\": {\"Expression\": {\"SourceRef\": {\"Entity\": \"Sales\"}}, \"Property\": \"Environment\"}}, \"Function\": 3}, \"Name\": \"Min(Sales.Environment)\"}]}}}"
+        },
+        {
+          "x": 0,
+          "y": 0,
+          "width": 300,
+          "height": 200,
+          "config": "{\"name\": \"v\", \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"Sales.Ghost Margin\"}]}, \"prototypeQuery\": {\"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Entity\": \"Sales\"}}, \"Property\": \"Ghost Margin\"}, \"Name\": \"Sales.Ghost Margin\"}]}}}"
+        }
+      ]
+    }
+  ]
+}

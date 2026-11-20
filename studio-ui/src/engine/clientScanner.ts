@@ -1129,7 +1129,12 @@ function processLegacyReportJson(
           for (const src of Array.isArray(pq.From) ? pq.From : []) {
             if (src && typeof src.Entity === 'string' && src.Entity) ownTables.add(src.Entity);
           }
+          // Select items that are definitely not measures (columns, aggregations, hierarchy levels).
+          const nonMeasureNames = new Set<string>();
           for (const selectItem of pq.Select || []) {
+            if (typeof selectItem?.Name === 'string' && selectItem.Name && !selectItem.Measure) {
+              nonMeasureNames.add(selectItem.Name);
+            }
             if (typeof selectItem?.Name === 'string' && selectItem.Name) {
               ownFields.add(selectItem.Name.includes('.') ? selectItem.Name.split('.').slice(1).join('.') : selectItem.Name);
             }
@@ -1147,8 +1152,10 @@ function processLegacyReportJson(
                   const qref = item?.queryRef;
                   if (qref) {
                     const clean = qref.includes('.') ? qref.split('.').slice(1).join('.') : qref;
-                    visualMeasureRefs.add(clean);
-                    ownMeasures.add(clean);
+                    if (!nonMeasureNames.has(qref)) {
+                      visualMeasureRefs.add(clean);
+                      ownMeasures.add(clean);
+                    }
                     ownFields.add(clean);
                   }
                 }

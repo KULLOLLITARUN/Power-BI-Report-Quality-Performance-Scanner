@@ -1,0 +1,35 @@
+{
+  "name": "fixture",
+  "compatibilityLevel": 1550,
+  "model": {
+    "culture": "en-US",
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {
+            "name": "Year",
+            "dataType": "int64",
+            "sourceColumn": "Year"
+          },
+          {
+            "name": "Channel",
+            "dataType": "string",
+            "sourceColumn": "Channel"
+          },
+          {
+            "name": "Environment",
+            "dataType": "string",
+            "sourceColumn": "Environment"
+          }
+        ],
+        "measures": [
+          {
+            "name": "Revenue",
+            "expression": "COUNTROWS(Sales)"
+          }
+        ]
+      }
+    ]
+  }
+}
