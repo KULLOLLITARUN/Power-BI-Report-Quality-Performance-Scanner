@@ -266,7 +266,7 @@ export const FixesScreen: React.FC<{
         <section className="panel" aria-label="Fix history">
           <div className="panel-head"><History size={16} aria-hidden="true" /><h3>Applied fixes</h3></div>
           {history.length === 0 ? <div className="empty">No fixes have been applied to this project yet.</div>
-            : <div className="table-wrap"><table className="table">
+            : <div className="table-wrap"><table className="tbl">
               <thead><tr><th>When</th><th>Result</th><th>Fixes</th><th>Score</th><th>Record</th></tr></thead>
               <tbody>{history.map((h) => (
                 <tr key={h.manifest_id}>
@@ -275,8 +275,8 @@ export const FixesScreen: React.FC<{
                     {h.decision === 'ROLLBACK_FAILED' ? 'Rollback failed' : h.rollback_executed ? 'Rolled back' : h.decision.toLowerCase()}
                   </td>
                   <td className="num">{h.applied_count}</td>
-                  <td className="mono">{h.before_score.toFixed(1)} → {h.after_score.toFixed(1)}</td>
-                  <td className="mono muted">{h.manifest_id}</td>
+                  <td className="num">{h.before_score.toFixed(1)} → {h.after_score.toFixed(1)}</td>
+                  <td className="mono muted" style={{ fontSize: 12 }}>{h.manifest_id}</td>
                 </tr>
               ))}</tbody>
             </table></div>}
