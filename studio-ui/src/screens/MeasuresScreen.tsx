@@ -58,6 +58,9 @@ export const MeasuresScreen: React.FC<{
   const usage = current && current.kind === 'measure' ? measureUsage(current, scan.pages || []) : [];
   const node = current ? scan.dax_graph?.nodes?.find((n) => n.name.toLowerCase() === current.name.toLowerCase()) : undefined;
   const depLayout = useMemo(() => buildDepLayout(scan), [scan]);
+  const countRule = (rule: string) => [...findingsFor.values()].filter((fs) => fs.some((f) => f.rule_id === rule)).length;
+  const unusedCount = countRule('DAX_UNUSED_MEASURE');
+  const duplicateCount = countRule('DAX_DUPLICATE_MEASURE');
   const hasVisualData = (scan.pages || []).some((p) => p.visuals);
 
   const copy = async () => {
@@ -70,15 +73,20 @@ export const MeasuresScreen: React.FC<{
     <>
       <div className="page-head">
         <div>
-          <h2>Measures</h2>
-          <p>{(scan.measures || []).length} measures and {(scan.calculated_columns || []).length} calculated columns. Flagged items carry a severity mark.</p>
+          <p>Flagged items carry a severity mark. Pick one to see its DAX and what was checked.</p>
         </div>
+        <div className="actions">
+          <span className="chip">{(scan.measures || []).length} measure{(scan.measures || []).length === 1 ? '' : 's'}</span>
+          <span className="chip">{(scan.calculated_columns || []).length} calculated column{(scan.calculated_columns || []).length === 1 ? '' : 's'}</span>
+          {unusedCount > 0 && <span className="chip hot">{unusedCount} unused</span>}
+          {duplicateCount > 0 && <span className="chip">{duplicateCount} duplicate{duplicateCount === 1 ? '' : 's'}</span>}
         {depLayout && (
           <div className="seg" role="group" aria-label="View">
             <button aria-pressed={view === 'list'} onClick={() => setView('list')}>List</button>
             <button aria-pressed={view === 'graph'} onClick={() => setView('graph')}>3D graph</button>
           </div>
         )}
+        </div>
       </div>
       {view === 'graph' && depLayout && (
         <DepGraph3D layout={depLayout} selected={selected}
@@ -107,12 +115,18 @@ export const MeasuresScreen: React.FC<{
             {list.map((it) => {
               const fs = findingsFor.get(keyOf(it)) ?? [];
               const worst = worstSeverity(fs.map((f) => f.severity));
+              const unused = fs.some((f) => f.rule_id === 'DAX_UNUSED_MEASURE');
+              const dup = fs.some((f) => f.rule_id === 'DAX_DUPLICATE_MEASURE');
               return (
                 <div key={keyOf(it)} className="item" role="option" tabIndex={0} aria-selected={current?.name === it.name && current?.table === it.table}
                      onClick={() => setSelected(it.name)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(it.name); } }}>
-                  <span>{worst ? <SevMarker sev={worst} size={11} /> : null}</span>
-                  <span className="nm">{it.name}</span>
-                  <span className="flags">{it.hidden && <span className="chip">hidden</span>}</span>
+                  <span className="nm">{worst && <SevMarker sev={worst} size={11} />} {it.name}</span>
+                  <span className="flags">
+                    {unused && <span className="chip hot">Unused</span>}
+                    {dup && <span className="chip">Duplicate</span>}
+                    {!unused && !dup && fs.length > 0 && <span className="chip">{fs.length} finding{fs.length === 1 ? '' : 's'}</span>}
+                    {it.hidden && <span className="chip">hidden</span>}
+                  </span>
                   <span className="sub">{it.table}</span>
                 </div>
               );
@@ -124,7 +138,7 @@ export const MeasuresScreen: React.FC<{
         {current ? (
           <section className="panel" aria-label={`${current.name} details`}>
             <div className="panel-head">
-              <h3>{current.name}</h3>
+              <h2>{current.name}</h2>
               <span className="chip">{current.table}</span>
               {current.kind === 'column' && current.data_type && <span className="chip">{current.data_type}</span>}
               <span className="spacer" />
@@ -135,7 +149,7 @@ export const MeasuresScreen: React.FC<{
               {curFindings.length > 0 && (
                 <div className="blk"><div className="label">Findings</div>
                   {curFindings.map((f, i) => (
-                    <button key={i} className="btn btn-ghost" style={{ justifyContent: 'flex-start', whiteSpace: 'normal', textAlign: 'left' }} onClick={() => onOpenFinding(f)}>
+                    <button key={i} className="btn btn-quiet" style={{ justifyContent: 'flex-start', whiteSpace: 'normal', textAlign: 'left', height: 'auto', minHeight: 34, padding: '6px 10px' }} onClick={() => onOpenFinding(f)}>
                       <SevMarker sev={f.severity} /><span style={{ flex: 1 }}>{f.title}</span><SevTag sev={f.severity} />
                     </button>
                   ))}
@@ -169,7 +183,7 @@ export const MeasuresScreen: React.FC<{
                 <UsageEvidence name={current.name} scan={scan} title={curFindings.some((f) => f.rule_id === 'DAX_UNUSED_MEASURE') ? 'Why it is flagged as unused' : 'Where pbiscan found it used'} />
               )}
               {curFindings.some((f) => f.rule_id === 'DAX_UNUSED_MEASURE') && (
-                <div className="notice warn"><TriangleAlert aria-hidden="true" /><span className="grow">Thin reports and Excel files outside this project are not scanned. Check them before deleting this measure.</span></div>
+                <div className="notice warn"><TriangleAlert aria-hidden="true" /><span className="grow"><strong>Check other reports before you delete it.</strong> Thin reports and Excel files outside this project are not scanned.</span></div>
               )}
             </div>
           </section>

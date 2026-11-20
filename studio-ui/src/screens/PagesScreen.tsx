@@ -72,7 +72,6 @@ export const PagesScreen: React.FC<{
   if (!pages.length) {
     return (
       <>
-        <div className="page-head"><div><h2>Report pages</h2></div></div>
         <div className="panel empty"><strong>No report pages</strong><span>This project has a semantic model but no report definition pbiscan could read.</span></div>
       </>
     );
@@ -82,10 +81,12 @@ export const PagesScreen: React.FC<{
     <>
       <div className="page-head">
         <div>
-          <h2>Report pages</h2>
           <p>Each page floats above the model. Threads run from every visual down to the tables it queries, so you can see which pages lean on which tables.</p>
         </div>
         <div className="actions">
+          <span className="chip">{pages.length} page{pages.length === 1 ? '' : 's'}</span>
+          <span className="chip">{pages.reduce((n, p) => n + p.visual_count, 0)} visuals</span>
+          {findingsByPage.size === 0 && <span className="chip good">No report findings</span>}
           <div className="seg" role="group" aria-label="View">
             <button aria-pressed={view === '3d'} onClick={() => setView('3d')}><Layers size={13} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 5 }} />Over the model</button>
             <button aria-pressed={view === '2d'} onClick={() => setView('2d')}><Square size={13} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 5 }} />Page layout</button>
@@ -93,19 +94,18 @@ export const PagesScreen: React.FC<{
         </div>
       </div>
 
-      <div className="split">
+      <div className="split pages-split">
         <section className="panel" aria-label="Pages">
-          <div className="panel-head"><h3>{pages.length} page{pages.length === 1 ? '' : 's'}</h3></div>
+          <div className="panel-head"><h2>Pages</h2></div>
           <div className="side-list" role="listbox" aria-label="Pages">
             {pages.map((p) => {
               const fs = findingsByPage.get(p.name) ?? [];
               return (
                 <div key={p.name} className="item" role="option" tabIndex={0} aria-selected={page?.name === p.name}
                      onClick={() => setPageName(p.name)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPageName(p.name); } }}>
-                  <span>{fs.length ? <SevMarker sev={sortFindings(fs)[0].severity} size={11} /> : null}</span>
-                  <span className="nm">{p.display_name}</span>
+                  <span className="nm">{fs.length ? <SevMarker sev={sortFindings(fs)[0].severity} size={11} /> : null} {p.display_name}</span>
                   <span className="flags">{p.is_hidden && <EyeOff size={13} aria-label="hidden page" />}</span>
-                  <span className="sub">{p.visual_count} visuals · {p.slicer_count} slicers{p.visual_count > VISUAL_LIMIT ? ` · over ${VISUAL_LIMIT}` : ''}</span>
+                  <span className="sub">{p.visual_count} visual{p.visual_count === 1 ? '' : 's'}, {p.slicer_count} slicer{p.slicer_count === 1 ? '' : 's'}{p.visual_count > VISUAL_LIMIT ? `, over ${VISUAL_LIMIT}` : ''}</span>
                 </div>
               );
             })}
@@ -125,7 +125,7 @@ export const PagesScreen: React.FC<{
               <span style={{ fontSize: 13 }}>
                 <strong>{bloatInfo.title}</strong> {bloatInfo.message}
               </span>
-              <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setView('2d')}>
+              <button className="btn btn-quiet btn-sm" onClick={() => setView('2d')}>
                 <Square size={12} aria-hidden="true" style={{ marginRight: 5 }} />
                 See 2D layout
               </button>
@@ -142,7 +142,7 @@ export const PagesScreen: React.FC<{
           <div className="grid-2">
             <section className="panel" aria-label="Selected visual">
               <div className="panel-head">
-                <h3>{sel ? sel.visual_type : 'Visual'}</h3>
+                <h2>{sel ? sel.visual_type : 'Selected visual'}</h2>
                 {selectedOrder !== null && <span className="chip" title="Layout position order (geometric top-to-bottom, left-to-right)">#{selectedOrder} in layout</span>}
                 {sel?.is_slicer && <span className="chip">slicer</span>}
                 {sel?.hidden && <span className="chip">hidden</span>}
@@ -163,10 +163,10 @@ export const PagesScreen: React.FC<{
               </div>
             </section>
             <section className="panel" aria-label="Page findings">
-              <div className="panel-head"><h3>Page findings</h3><span className="spacer" /><span className="label">{pageFindings.length}</span></div>
+              <div className="panel-head"><h2>Page findings</h2><span className="muted small">{pageFindings.length}</span></div>
               <div className="panel-body">
                 {pageFindings.length ? pageFindings.map((f, i) => (
-                  <button key={i} className="btn btn-ghost" style={{ justifyContent: 'flex-start', whiteSpace: 'normal', textAlign: 'left' }} onClick={() => onOpenFinding(f)}>
+                  <button key={i} className="btn btn-quiet" style={{ justifyContent: 'flex-start', whiteSpace: 'normal', textAlign: 'left', height: 'auto', minHeight: 34, padding: '6px 10px' }} onClick={() => onOpenFinding(f)}>
                     <SevMarker sev={f.severity} /><span style={{ flex: 1 }}>{f.title}</span><SevTag sev={f.severity} />
                   </button>
                 )) : <p className="muted" style={{ margin: 0, fontSize: 13 }}>No findings on this page.</p>}
