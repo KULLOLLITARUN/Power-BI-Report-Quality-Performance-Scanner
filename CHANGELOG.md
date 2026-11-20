@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Studio redesign.** One indigo accent with orange only on problems, light and dark themes from a single token set, and Archivo, IBM Plex Sans and IBM Plex Mono (mono only for rule ids and code). Buttons are primary (filled), secondary (outlined, 3:1 border), quiet or danger (red outline). Severity is shown by shape as well as colour. The desktop shell has a rail with a project card and per-view counts; phones get a bottom tab bar and an "All views" menu grid. Every screen (Overview, Model, Measures, Report pages, Fixes, Compare scans, Agent and MCP, and the landing page) follows the new layouts. The 3D scenes are unchanged and read the new tokens.
+- **Findings are grouped by rule** on the Overview, so thirteen hardcoded-path findings read as one row with its rule id, the lowest confidence in the group and a "Fix ready" or "Manual" chip. Selecting a group highlights every table it touches; "Suppress" on a group asks once, saves each finding and rescans once.
+- **Fixes are grouped into one card per fix** (one rule, one diff per file) with a side panel showing the projected score, findings resolved, files touched and the backup and rollback guarantees.
+
 ### Added
 - **Richer 3D scenes in Studio.** The model map now shows comet trails behind the dots that travel along relationships, a pulsing ring and glow under every table that has findings (coloured by its worst severity), and soft studio lighting with a faint clear-coat sheen on the boxes. The 3D measure dependency graph gets the same lighting, a halo on unused measures and a selected node, and comets that run along the selected chain from what a measure uses up to the measure that uses it. With reduced motion on, rings and glows stay still and the trails are off. The effects live in `studio-ui/src/lib/fx.ts`; none of them can be picked with the mouse.
 - **Only one `pbiscan fix` applies to a project at a time.** A second apply on the same project (another terminal, Studio, an MCP client) is refused with a clear message instead of interleaving writes with the first; it changes nothing and takes no backup. The lock is a `<project>.pbiscan.lock` file beside the project folder, replaced if it is over an hour old.

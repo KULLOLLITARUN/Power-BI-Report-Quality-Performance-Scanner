@@ -34,43 +34,48 @@ export const Landing: React.FC<Props> = ({ hasBackend, dragging, onOpen, onBrows
             pbiscan reads a <span className="mono">.pbip</span> project: the semantic model, its DAX and the report pages.
             It scores the model, explains each problem, and proposes fixes you review before anything is written.
           </p>
-          <div className="facts">
-            <span className="chip"><ShieldCheck size={12} aria-hidden="true" />{hasBackend ? 'Runs on this machine' : 'Files stay in this browser tab'}</span>
-            <span className="chip">TMDL · model.bim · PBIR · report.json</span>
+        <div className={`dropzone${dragging ? ' dragging' : ''}`}>
+          <h3>{dragging ? 'Drop to scan this project' : 'Open a .pbip project'}</h3>
+          <p>
+            {hasBackend
+              ? 'Drag the project folder anywhere onto this page, or click Open project to pick it. Browse folders lets you find it in a file browser.'
+              : 'Drag the project folder anywhere onto this page, or click Open project to pick it. It is read in this tab and never uploaded.'}
+          </p>
+          <div className="actions">
+            <button className="btn btn-primary" onClick={onOpen}><FolderOpen aria-hidden="true" />Open project</button>
+            {hasBackend && <button className="btn" onClick={onBrowse}><FolderSearch aria-hidden="true" />Browse folders</button>}
+            <button className="btn" onClick={onCompare}><GitCompareArrows aria-hidden="true" />Compare two scans</button>
           </div>
         </div>
-        {fallback ? <IsoCity ref={isoRef} /> : (
-          <div className="hero-3d" role="img" aria-label="Illustration: a sample model drawn as 3D blocks, fact table in the centre, with arcs for relationships">
-            <ModelMap ambient scan={SAMPLE_ENTERPRISE_REPORT} findings={SAMPLE_ENTERPRISE_REPORT.findings} onFail={() => setFallback(true)} />
+          <div className="facts">
+            <span className="chip"><ShieldCheck size={12} aria-hidden="true" />{hasBackend ? 'Runs on this machine' : 'Files stay in this browser tab'}</span>
+            <span className="chip">TMDL, model.bim, PBIR and report.json</span>
           </div>
-        )}
-      </div>
-
-      <div className={`dropzone${dragging ? ' dragging' : ''}`}>
-        <h3>{dragging ? 'Drop to scan this project' : 'Open a .pbip project'}</h3>
-        <p>
-          {hasBackend
-            ? 'Drag the project folder anywhere onto this page, or click Open project to pick it. Browse folders lets you find it in a file browser.'
-            : 'Drag the project folder anywhere onto this page, or click Open project to pick it. It is read in this tab and never uploaded.'}
-        </p>
-        <div className="actions">
-          <button className="btn btn-primary" onClick={onOpen}><FolderOpen aria-hidden="true" />Open project</button>
-          {hasBackend && <button className="btn" onClick={onBrowse}><FolderSearch aria-hidden="true" />Browse folders</button>}
-          <button className="btn" onClick={onCompare}><GitCompareArrows aria-hidden="true" />Compare two scans</button>
+        </div>
+        <div className="panel hero-card">
+          {fallback ? <IsoCity ref={isoRef} /> : (
+            <div className="hero-3d" role="img" aria-label="Illustration: a sample model drawn as 3D blocks, fact table in the centre, with arcs for relationships">
+              <ModelMap ambient scan={SAMPLE_ENTERPRISE_REPORT} findings={SAMPLE_ENTERPRISE_REPORT.findings} onFail={() => setFallback(true)} />
+            </div>
+          )}
+          <div className="hero-foot">
+            <span className="score">{Math.round(SAMPLE_ENTERPRISE_REPORT.scores.overall)}</span>
+            <div><b>Example scan</b><div className="muted small">{SAMPLE_ENTERPRISE_REPORT.findings.length} findings in the sample project. Each one links to its fix.</div></div>
+          </div>
         </div>
       </div>
 
       <div>
-        <div className="label" style={{ marginBottom: 10 }}>Or explore a sample project</div>
+        <h2 className="samples-h">Or explore a sample project</h2>
         <div className="demos">
           <button className="demo" onClick={() => onDemo('enterprise')}>
             <b>Enterprise Sales &amp; Margin</b>
-            <span className="mono">Star schema · bidirectional filter · 18-visual page</span>
+            <span className="muted">Star schema, a bidirectional filter and an 18-visual page. Scan it in your browser, no file needed.</span>
             <span className="go">Open sample <ArrowRight size={14} aria-hidden="true" /></span>
           </button>
           <button className="demo" onClick={() => onDemo('bananas')}>
             <b>World is going bananas</b>
-            <span className="mono">15 tables · TMDL · mostly clean</span>
+            <span className="muted">15 tables in TMDL, mostly clean.</span>
             <span className="go">Open sample <ArrowRight size={14} aria-hidden="true" /></span>
           </button>
         </div>

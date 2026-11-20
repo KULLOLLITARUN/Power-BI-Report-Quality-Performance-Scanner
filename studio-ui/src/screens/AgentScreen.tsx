@@ -38,7 +38,7 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
   if (!hasBackend) {
     return (
       <>
-        <div className="page-head"><div><h2>Agent &amp; MCP</h2><p>pbiscan can run as a Model Context Protocol server, so coding agents can scan projects and read findings.</p></div></div>
+        <div className="page-head"><div><p>pbiscan can run as a Model Context Protocol server, so coding agents can scan projects and read findings.</p></div></div>
         <div className="notice"><Terminal aria-hidden="true" /><div className="grow"><strong>Tool status needs the local engine.</strong> Start the MCP server with:
           <pre className="code" style={{ marginTop: 8 }}>pip install "pbiscan[mcp]"{'\n'}pbiscan mcp</pre></div></div>
       </>
@@ -47,12 +47,18 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
 
   return (
     <>
-      <div className="page-head"><div><h2>Agent &amp; MCP</h2><p>Every scan and rule is deterministic. Agents get the same deterministic results through the tools below. The DAX rewrite advisor, the only part that can call a language model, is on the Measures screen.</p></div></div>
+      <div className="page-head">
+        <div><p>Every scan and rule is deterministic. Agents get the same deterministic results through the tools below. The DAX rewrite advisor, the only part that can call a language model, is on the Measures screen.</p></div>
+        <div className="actions">
+          {tools && <span className="chip">{tools.tools.length} tools</span>}
+          {rules.length > 0 && <span className="chip">{rules.length} rules</span>}
+        </div>
+      </div>
       {error && <div className="notice error"><CircleAlert aria-hidden="true" /><span className="grow">{error}</span></div>}
 
       <div className="grid-2">
         <section className="panel">
-          <div className="panel-head"><h3>MCP server</h3><span className="spacer" />{status && (status.mcp_installed ? <span className="chip good">ready</span> : <span className="chip warn">not installed</span>)}</div>
+          <div className="panel-head"><h2>Connect an agent</h2><span className="grow" />{status && (status.mcp_installed ? <span className="chip good">ready</span> : <span className="chip warn">not installed</span>)}</div>
           <div className="panel-body">
             {!status ? <p className="muted" style={{ margin: 0 }}>Loading…</p> : status.mcp_installed ? (
               <>
@@ -70,22 +76,25 @@ export const AgentScreen: React.FC<{ hasBackend: boolean; onRuleCount?: (n: numb
         </section>
 
         <section className="panel">
-          <div className="panel-head"><h3>Tools</h3><span className="spacer" />{tools && !tools.live && <span className="label">static list</span>}</div>
-          {(tools?.tools || []).map((t) => (
-            <div key={t.name} className="trans" style={{ gridTemplateColumns: '18px minmax(0,1fr) auto' }}>
-              {t.destructive ? <ShieldAlert size={15} style={{ color: 'var(--sev-high)' }} aria-hidden="true" /> : <ShieldCheck size={15} style={{ color: 'var(--good)' }} aria-hidden="true" />}
-              <span className="t mono" style={{ fontSize: 12.5 }}>{t.name}</span>
-              <span className={`chip ${t.destructive ? 'warn' : ''}`}>{t.destructive ? 'writes files · host confirms' : 'read-only'}</span>
-              <span className="s" style={{ fontFamily: 'var(--f-body)' }}>{t.description}</span>
-            </div>
-          ))}
+          <div className="panel-head"><h2>Tools</h2><span className="grow" />{tools && !tools.live && <span className="muted small">static list</span>}{tools && tools.live && <span className="muted small">{tools.tools.filter((t) => !t.destructive).length} read only, {tools.tools.filter((t) => t.destructive).length} change files</span>}</div>
+          <div className="table-wrap"><table className="tbl" aria-label="MCP tools">
+            <thead><tr><th scope="col">Tool</th><th scope="col">Access</th></tr></thead>
+            <tbody>
+              {(tools?.tools || []).map((t) => (
+                <tr key={t.name}>
+                  <td><span className="mono">{t.name}</span><div className="muted small">{t.description}</div></td>
+                  <td className="nowrap">{t.destructive ? <span className="chip hot"><ShieldAlert size={13} aria-hidden="true" />Changes files</span> : <span className="muted"><ShieldCheck size={13} aria-hidden="true" style={{ verticalAlign: -2, color: 'var(--good)' }} /> Read only</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
         </section>
       </div>
 
       <section className="panel">
-        <div className="panel-head"><h3>Rule catalog</h3><span className="spacer" /><span className="label">{rules.length} rules · pbiscan://rules</span></div>
+        <div className="panel-head"><h2>Rule catalog</h2><span className="grow" /><span className="muted small">{rules.length} rules, also at <span className="mono">pbiscan://rules</span></span></div>
         {rules.map((r) => (
-          <details key={r.rule_id} className="disclosure" style={{ borderBottom: '1px solid var(--rule)' }}>
+          <details key={r.rule_id} className="disclosure" style={{ borderBottom: '1px solid var(--line)' }}>
             <summary style={{ padding: '10px 16px' }}><ChevronRight aria-hidden="true" /><span className="mono" style={{ fontSize: 12.5 }}>{r.rule_id}</span><span className="muted" style={{ fontSize: 12 }}>{r.category}</span></summary>
             <dl className="kv" style={{ padding: '0 16px 14px 38px' }}>
               <dt>issue</dt><dd>{r.issue}</dd><dt>impact</dt><dd>{r.impact}</dd><dt>fix</dt><dd>{r.recommendation}</dd>

@@ -141,7 +141,7 @@ export const ModelScreen: React.FC<{
       <section className="panel" aria-label="Relationships">
         <div className="panel-head"><h2>Relationships</h2><span className="grow" /><span className="muted small">{allRels.length} total{allRels.length && allRels.every((r) => !isBidirectional(r)) ? ', all single direction' : ''}</span></div>
         {allRels.length === 0 ? <div className="empty">This model has no relationships.</div> : (
-          <div className="table-wrap"><table className="tbl" aria-label="Relationships">
+          <div className="table-wrap"><table className="tbl rel-tbl" aria-label="Relationships">
             <thead><tr><th scope="col">From</th><th scope="col">To</th><th scope="col">Note</th></tr></thead>
             <tbody>{allRels.map((r) => {
               const [ca, cb] = cardinalityLabel(r);
@@ -149,8 +149,8 @@ export const ModelScreen: React.FC<{
               const note = [auto ? null : `${ca}:${cb}`, isBidirectional(r) ? 'both directions' : null, r.is_active === false ? 'inactive' : null].filter(Boolean).join(', ');
               return (
                 <tr key={relKey(r)} style={r.is_active === false ? { opacity: 0.7 } : undefined}>
-                  <td className="mono">{r.from_table}[{r.from_column}]</td>
-                  <td className="mono">{r.to_table}[{r.to_column}]</td>
+                  <td className="mono" data-label="From">{r.from_table}[{r.from_column}]</td>
+                  <td className="mono" data-label="To">{r.to_table}[{r.to_column}]</td>
                   <td>{auto && <span className="chip hot">Auto date/time</span>}{isBidirectional(r) && <span className="chip hot">Both directions</span>}{!auto && !isBidirectional(r) && <span className="muted">{note}</span>}</td>
                 </tr>
               );

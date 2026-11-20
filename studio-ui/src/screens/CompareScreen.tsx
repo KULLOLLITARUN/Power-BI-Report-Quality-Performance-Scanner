@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { Check, ChevronRight, CircleX, ClipboardCopy, Download, FileUp, FolderOpen, GitCompareArrows, RefreshCw, Terminal, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, CircleCheck, CircleX, ClipboardCopy, Download, FileUp, FolderOpen, GitCompareArrows, RefreshCw, Terminal, X } from 'lucide-react';
 import type { DiffResult, FindingTransition, ScanResult } from '../types';
 import { apiFetch } from '../utils/api';
-import { sortFindings } from '../lib/severity';
+import { AREA_LABEL, sortFindings } from '../lib/severity';
 import { SevMarker, copyText, useToast } from '../components/ui';
 import { errorMessage } from '../lib/errors';
 import { parseAuditJson } from '../lib/auditJson';
@@ -274,7 +274,7 @@ export const CompareScreen: React.FC<{
   if (!hasBackend) {
     return (
       <>
-        <div className="page-head"><div><h2>Compare scans</h2><p>Compare a baseline scan with a new one and apply a CI quality gate.</p></div></div>
+        <div className="page-head"><div><p>Compare a baseline scan with a new one and apply a CI quality gate.</p></div></div>
         <div className="notice"><Terminal aria-hidden="true" /><div className="grow"><strong>Comparing reads two projects from disk, so it needs the local engine.</strong> Run it from a terminal:
           <pre className="code" style={{ marginTop: 8 }}>pbiscan diff baseline.json current.pbip --fail-on-regression --fail-on-new HIGH</pre></div></div>
       </>
@@ -286,7 +286,7 @@ export const CompareScreen: React.FC<{
   return (
     <>
       <div className="page-head">
-        <div><h2>Compare scans</h2><p>Each side can be a .pbip project folder or a scan exported as JSON. The gate settings match the CLI flags, so CI gives the same verdict.</p></div>
+        <div><p>Each side can be a .pbip project folder or a scan exported as JSON. The gate settings match the CLI flags, so CI gives the same verdict.</p></div>
         {result && (
           <div className="actions">
             <button className="btn" onClick={async () => toast((await copyText(summary(result))) ? 'Copied the summary.' : 'Copying is blocked here.')}><ClipboardCopy aria-hidden="true" />Copy summary</button>
@@ -354,7 +354,7 @@ export const CompareScreen: React.FC<{
               )}
             </JsonDropzone>
           </div>
-          <div style={{ display: 'flex', gap: '10px 20px', flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--rule)', paddingTop: 14 }}>
+          <div style={{ display: 'flex', gap: '10px 20px', flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--line)', paddingTop: 14 }}>
             <label className="check"><input type="checkbox" checked={failOnRegression} onChange={(e) => setFailOnRegression(e.target.checked)} />Fail if the score drops</label>
             <label className="check">Fail on new
               <select className="select" value={failOnNew} onChange={(e) => setFailOnNew(e.target.value)}>
@@ -377,31 +377,38 @@ export const CompareScreen: React.FC<{
 
       {result && (
         <>
-          <section className={`panel gate ${result.quality_gate.passed ? 'pass' : 'fail'}`}>
-            <span className="verdict">{result.quality_gate.passed ? 'Pass' : 'Fail'}</span>
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <div className="mono muted" style={{ fontSize: 12 }}>{result.baseline_name} → {result.current_name}</div>
-              {result.quality_gate.reasons.length ? <ul>{result.quality_gate.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
-                : <p className="ink-2" style={{ margin: '4px 0 0', fontSize: 13 }}>Every gate rule is satisfied.</p>}
-            </div>
-            <div className="stat" style={{ textAlign: 'right' }}>
-              <b>{result.score_drift.baseline_score.toFixed(1)} → {result.score_drift.current_score.toFixed(1)}</b>
-              <span style={{ color: result.score_drift.overall_delta < 0 ? 'var(--sev-critical)' : result.score_drift.overall_delta > 0 ? 'var(--good)' : undefined }}>
-                {result.score_drift.overall_delta >= 0 ? '+' : ''}{result.score_drift.overall_delta.toFixed(1)} {result.score_drift.direction.toLowerCase()}
-              </span>
-            </div>
-          </section>
-          <div className="panel grid-4">
-            <div className="stat"><b style={{ color: 'var(--sev-critical)' }}>{result.counts.new}</b><span>new</span></div>
-            <div className="stat"><b style={{ color: 'var(--good)' }}>{result.counts.resolved}</b><span>resolved</span></div>
-            <div className="stat"><b style={{ color: 'var(--sev-medium)' }}>{result.counts.modified}</b><span>changed severity</span></div>
-            <div className="stat"><b>{result.counts.persistent}</b><span>unchanged</span></div>
+          {(() => {
+            const pass = result.quality_gate.passed;
+            const delta = result.score_drift.overall_delta;
+            const headline = delta > 0 ? `Score up by ${delta.toFixed(1)}` : delta < 0 ? `Score down by ${Math.abs(delta).toFixed(1)}` : 'Score unchanged';
+            return (
+              <section className={`panel gate ${pass ? 'pass' : 'fail'}`} aria-label="Gate result">
+                <span className={`chip ${pass ? 'good' : 'hot'} gate-chip`}>{pass ? 'Gate passed' : 'Gate failed'}</span>
+                <div className="gate-main">
+                  <h2>{headline}</h2>
+                  <div className="muted small">{result.baseline_name} → {result.current_name}</div>
+                  {result.quality_gate.reasons.length ? <ul>{result.quality_gate.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+                    : <p className="muted small" style={{ margin: '4px 0 0' }}>Every gate rule is satisfied.</p>}
+                </div>
+                <div className="proj">
+                  <span className="score muted">{result.score_drift.baseline_score.toFixed(1)}</span>
+                  <ArrowRight aria-hidden="true" />
+                  <span className="score">{result.score_drift.current_score.toFixed(1)}</span>
+                </div>
+              </section>
+            );
+          })()}
+          <div className="compare-cards">
+            <div className="panel stat-card"><span className="sev-label" style={{ color: 'var(--good)' }}><CircleCheck size={13} aria-hidden="true" />Resolved</span><span className="score">{result.counts.resolved}</span><span className="muted small">Findings that are gone</span></div>
+            <div className="panel stat-card"><span className="sev-label" style={{ color: 'var(--crit)' }}><SevMarker sev="CRITICAL" size={11} />New</span><span className="score">{result.counts.new}</span><span className="muted small">{result.counts.new === 0 ? 'Nothing got worse' : 'Findings that were not there before'}</span></div>
+            <div className="panel stat-card"><span className="sev-label" style={{ color: 'var(--med)' }}><SevMarker sev="MEDIUM" size={11} />Changed severity</span><span className="score">{result.counts.modified}</span><span className="muted small">Same finding, different severity</span></div>
+            <div className="panel stat-card"><span className="sev-label" style={{ color: 'var(--muted)' }}><SevMarker sev="LOW" size={11} />Still there</span><span className="score">{result.counts.persistent}</span><span className="muted small">Unchanged findings</span></div>
           </div>
           {Object.keys(result.score_drift.category_deltas || {}).length > 0 && (
-            <section className="panel"><div className="panel-head"><h3>By area</h3></div>
-              <div className="table-wrap"><table className="table"><thead><tr><th>Area</th><th>Baseline</th><th>Current</th><th>Change</th></tr></thead>
+            <section className="panel"><div className="panel-head"><h2>By area</h2></div>
+              <div className="table-wrap"><table className="tbl"><thead><tr><th>Area</th><th>Baseline</th><th>Current</th><th>Change</th></tr></thead>
                 <tbody>{Object.entries(result.score_drift.category_deltas).map(([cat, d]) => (
-                  <tr key={cat}><td>{cat}</td><td className="num">{result.score_drift.baseline_categories?.[cat]?.toFixed(1)}</td><td className="num">{result.score_drift.current_categories?.[cat]?.toFixed(1)}</td>
+                  <tr key={cat}><td>{AREA_LABEL[cat] ?? cat}</td><td className="num">{result.score_drift.baseline_categories?.[cat]?.toFixed(1)}</td><td className="num">{result.score_drift.current_categories?.[cat]?.toFixed(1)}</td>
                     <td className="num" style={{ color: d < 0 ? 'var(--sev-critical)' : d > 0 ? 'var(--good)' : undefined }}>{d >= 0 ? '+' : ''}{d.toFixed(1)}</td></tr>
                 ))}</tbody></table></div>
             </section>
@@ -412,7 +419,7 @@ export const CompareScreen: React.FC<{
             const titles = { NEW: 'New findings', RESOLVED: 'Resolved', MODIFIED: 'Changed severity', PERSISTENT: 'Unchanged' };
             return (
               <details key={state} className="panel disclosure" open={state !== 'PERSISTENT'}>
-                <summary className="panel-head"><ChevronRight aria-hidden="true" /><h3>{titles[state]}</h3><span className="spacer" /><span className="label">{list.length}</span></summary>
+                <summary className="panel-head"><ChevronRight aria-hidden="true" /><h2>{titles[state]}</h2><span className="muted small">{list.length}</span></summary>
                 {list.map((t, i) => (
                   <div className="trans" key={`${t.finding_id}-${i}`}>
                     <span className={`state ${state.toLowerCase()}`}>{state === 'MODIFIED' ? `${t.baseline_severity}→` : ''}{state === 'PERSISTENT' ? 'SAME' : state}</span>
