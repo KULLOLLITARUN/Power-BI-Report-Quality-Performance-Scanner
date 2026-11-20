@@ -75,7 +75,11 @@ def _report(tables: list[str], measure_tables: list[str], rels: list[tuple[str, 
     return CanonicalReport(
         model=ModelGraph(
             tables=[Table(name=t) for t in tables],
-            relationships=[Relationship(from_table=a, from_column="K", to_table=b, to_column="K") for a, b in rels],
+            # Many-to-many: fact-to-fact only considers links that can join two fact tables.
+            relationships=[
+                Relationship(from_table=a, from_column="K", to_table=b, to_column="K", cardinality="manyToMany")
+                for a, b in rels
+            ],
         ),
         dax=DaxDictionary(measures=[Measure(name=f"M {t}", table=t, expression="1") for t in measure_tables]),
         report=ReportDOM(pages=[]),

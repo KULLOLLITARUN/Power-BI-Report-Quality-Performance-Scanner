@@ -40,6 +40,8 @@
         "fromColumn": "ProductID",
         "toTable": "Preferences",
         "toColumn": "ProductID",
+        "fromCardinality": "many",
+        "toCardinality": "many",
         "crossFilteringBehavior": "oneDirection"
       }
     ]

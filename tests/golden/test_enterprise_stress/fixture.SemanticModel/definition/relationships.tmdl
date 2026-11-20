@@ -20,6 +20,8 @@ relationship rel_inventory_dates
 
 /// Intentional bidirectional relationship to test M001 in enterprise context
 relationship rel_sales_inventory_bidir
+	fromCardinality: many
+	toCardinality: many
 	crossFilteringBehavior: bothDirections
 	fromColumn: Sales.ProductID
 	toColumn: Inventory.ProductID

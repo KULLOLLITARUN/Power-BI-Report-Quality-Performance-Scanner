@@ -40,6 +40,8 @@
         "fromColumn": "ProductID",
         "toTable": "Returns",
         "toColumn": "ProductID",
+        "fromCardinality": "many",
+        "toCardinality": "many",
         "crossFilteringBehavior": "oneDirection"
       }
     ]

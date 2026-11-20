@@ -187,13 +187,25 @@ class TestCheckFactToFact:
         ]
         r = _make_report(
             tables=[_table("Orders"), _table("Returns")],
-            relationships=[_rel("Orders", "PID", "Returns", "PID")],
+            relationships=[_rel("Orders", "PID", "Returns", "PID", cardinality="manyToMany")],
             measures=measures,
         )
         findings = check_fact_to_fact(r)
         assert len(findings) == 1
         assert findings[0].rule_id == "MODEL_FACT_TO_FACT"
         assert findings[0].confidence == 60
+
+    def test_standard_many_to_one_between_measure_tables_is_not_fact_to_fact(self):
+        measures = [
+            Measure(name="Total Sales", table="Sales", expression="SUM(Sales[Amount])"),
+            Measure(name="# Customers", table="Customer", expression="COUNTROWS(Customer)"),
+        ]
+        r = _make_report(
+            tables=[_table("Sales"), _table("Customer")],
+            relationships=[_rel("Sales", "CID", "Customer", "CID")],  # default many-to-one
+            measures=measures,
+        )
+        assert check_fact_to_fact(r) == []
 
     def test_no_finding_when_one_is_dim(self):
         measures = [

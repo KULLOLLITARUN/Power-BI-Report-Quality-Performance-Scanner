@@ -153,6 +153,9 @@ def _is_high_cardinality_candidate(col: Column) -> bool:
 def check_fact_to_fact(report: CanonicalReport) -> list[RuleFinding]:
     """M005 — Detect potential fact-to-fact relationships.
 
+    Only many-to-many and one-to-one relationships between two tables that both hold measures and
+    neither of which is named like a dimension. Standard many-to-one relationships are skipped.
+
     Confidence: 60% (naming + measure-presence heuristic).
     Does NOT claim certainty.
     """
@@ -164,6 +167,11 @@ def check_fact_to_fact(report: CanonicalReport) -> list[RuleFinding]:
         to_has_measures = rel.to_table in measure_tables
 
         if not (from_has_measures and to_has_measures):
+            continue
+        # A standard many-to-one has a unique "one" side, which is a dimension whatever it is called
+        # and however many measures it holds (a Customer table with "# Customers" is still a dimension).
+        # Only a link that is many-to-many or one-to-one can join two fact tables directly.
+        if rel.cardinality not in ("manyToMany", "oneToOne"):
             continue
 
         from_looks_like_dim = looks_like_dimension_name(rel.from_table)

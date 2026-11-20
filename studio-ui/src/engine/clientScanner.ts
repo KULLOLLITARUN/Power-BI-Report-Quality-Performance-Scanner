@@ -386,6 +386,10 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
       const fromHasMeasures = measureTables.has(rel.from_table);
       const toHasMeasures = measureTables.has(rel.to_table);
       if (!fromHasMeasures || !toHasMeasures) continue;
+      // A standard many-to-one has a unique "one" side, a dimension whatever it is called.
+      // Only many-to-many and one-to-one links can join two fact tables directly.
+      const card = (rel.cardinality || '').toLowerCase();
+      if (card !== 'manytomany' && card !== 'onetoone') continue;
 
       const fromLooksLikeDim = looksLikeDimensionName(rel.from_table);
       const toLooksLikeDim = looksLikeDimensionName(rel.to_table);
