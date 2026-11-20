@@ -1057,6 +1057,8 @@ function parseRelationshipsTmdl(content: string, relationships: RelationshipInfo
   for (const lines of blocks) {
     let fromTable = "", fromCol = "", toTable = "", toCol = "";
     let bidi = false;
+    // TMDL defaults: many (from) to one (to), active. Mirrors tmdl_parser.parse_tmdl_relationships_text.
+    let fromCard = 'many', toCard = 'one', active = true;
 
     for (const line of lines) {
       if (line.startsWith('fromColumn:')) {
@@ -1065,8 +1067,16 @@ function parseRelationshipsTmdl(content: string, relationships: RelationshipInfo
         [toTable, toCol] = tmdlParseColRef(line.substring(9));
       } else if (line.includes('crossFilteringBehavior: bothDirections')) {
         bidi = true;
+      } else if (line.startsWith('fromCardinality:')) {
+        fromCard = line.substring(16).trim().toLowerCase();
+      } else if (line.startsWith('toCardinality:')) {
+        toCard = line.substring(14).trim().toLowerCase();
+      } else if (/^isActive\s*:\s*false\s*$/i.test(line)) {
+        active = false;
       }
     }
+    const cardinality = fromCard === 'many' && toCard === 'many' ? 'manyToMany'
+      : fromCard === 'one' && toCard === 'one' ? 'oneToOne' : 'manyToOne';
 
     if (fromTable && fromCol && toTable && toCol) {
       relationships.push({
@@ -1074,9 +1084,9 @@ function parseRelationshipsTmdl(content: string, relationships: RelationshipInfo
         from_column: fromCol,
         to_table: toTable,
         to_column: toCol,
-        cardinality: 'manyToOne',
+        cardinality,
         cross_filter_direction: bidi ? 'both' : 'single',
-        is_active: true,
+        is_active: active,
       });
     }
   }

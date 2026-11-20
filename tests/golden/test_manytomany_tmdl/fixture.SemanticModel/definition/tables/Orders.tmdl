@@ -1,0 +1,11 @@
+table Orders
+	column OrderID
+		dataType: int64
+		sourceColumn: OrderID
+	column ProductID
+		dataType: int64
+		sourceColumn: ProductID
+	column CustomerID
+		dataType: int64
+		sourceColumn: CustomerID
+	measure 'Total Orders' = COUNTROWS(Orders)

@@ -1,0 +1,8 @@
+table Returns
+	column ReturnID
+		dataType: int64
+		sourceColumn: ReturnID
+	column ProductID
+		dataType: int64
+		sourceColumn: ProductID
+	measure 'Total Returns' = COUNTROWS(Returns)

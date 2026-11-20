@@ -1,0 +1,9 @@
+relationship orders_returns
+	fromCardinality: many
+	toCardinality: many
+	fromColumn: Orders.ProductID
+	toColumn: Returns.ProductID
+
+relationship orders_customers
+	fromColumn: Orders.CustomerID
+	toColumn: Customers.CustomerID

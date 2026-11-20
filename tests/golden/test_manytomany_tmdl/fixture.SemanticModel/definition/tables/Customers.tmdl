@@ -1,0 +1,5 @@
+table Customers
+	column CustomerID
+		dataType: int64
+		isKey
+		sourceColumn: CustomerID
