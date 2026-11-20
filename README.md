@@ -176,17 +176,16 @@ Scanning, `fix`, `diff`, Studio and the MCP server run on your machine and make 
 
 ## How it works
 
-```text
-.pbip project (TMDL / TMSL / PBIR / report.json)
-  → extraction            parse the model and the report
-  → canonical model       tables, relationships, DAX dependency graph, reference index
-  → rules                 detect only
-  → issues                evidence and recommendations
-  → suppressions
-  → scoring and output    terminal, HTML, JSON, SARIF, JUnit, Studio
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.svg">
+  <img src="docs/architecture-light.svg" alt="pbiscan architecture. The CLI, Studio and AI agents all call ScanService, which extracts the .pbip project, builds a canonical model, runs the rules and produces issues and a score. Those feed the reports and the CI gate, and the fix engine, which backs up and patches the project. The in-browser Studio is a parity-tested copy of the rules." width="100%">
+</picture>
+
+Every way of running pbiscan (the CLI, Studio and AI agents over MCP) calls the same `ScanService`. It reads the model and the report, builds a canonical model with a DAX dependency graph, runs the detect-only rules, and turns the findings into advice and a score. The fix engine plans patches from those findings, checks them on a copy, backs up the project and then writes them.
 
 The in-browser Studio runs a TypeScript port of the same engine. A parity test compares both engines on every test fixture, so the browser and the command line agree.
+
+<sub>Diagram drawn with [Archify](https://github.com/tt-a1i/archify) (Apache-2.0).</sub>
 
 ## Development
 
