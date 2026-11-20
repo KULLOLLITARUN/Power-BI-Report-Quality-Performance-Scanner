@@ -150,3 +150,31 @@ class TestCliRemediationUxAndSelectiveApply:
         res = runner.invoke(main, ["fix", str(model_dir)])
         assert res.exit_code == 0
         assert "No actionable patches" in res.output or "0" in res.output
+
+
+class TestEchoTextOnLegacyConsole:
+    """The plan and diff views draw boxes; a cp1252 pipe or old console must not crash on them."""
+
+    def test_box_drawing_text_does_not_raise_on_cp1252_stdout(self, monkeypatch: pytest.MonkeyPatch):
+        import io
+        import sys
+
+        from pbiscan.cli import _echo_text
+
+        raw = io.BytesIO()
+        legacy = io.TextIOWrapper(raw, encoding="cp1252", errors="strict", write_through=True)
+        monkeypatch.setattr(sys, "stdout", legacy)
+
+        _echo_text("╔══ PLAN ══╗ café")  # box characters cp1252 lacks
+
+        out = raw.getvalue().decode("cp1252")
+        assert "PLAN" in out
+        assert "café" in out          # characters cp1252 can show are kept
+        assert "═" not in out         # the rest are replaced, not crashed on
+
+    def test_plain_text_is_unchanged(self, capsys: pytest.CaptureFixture[str]):
+        from pbiscan.cli import _echo_text
+
+        _echo_text("Baseline Score : 54.1 / 100")
+        assert capsys.readouterr().out.strip() == "Baseline Score : 54.1 / 100"
+

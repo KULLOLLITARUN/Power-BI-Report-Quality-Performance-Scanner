@@ -59,6 +59,19 @@ def _score_colour(score: float) -> str:
     return "\033[31m"        # red
 
 
+def _echo_text(text: str) -> None:
+    """Print text that may hold box-drawing characters, even on a console or pipe that cannot show them.
+
+    Windows pipes and older consoles use cp1252, so a plain click.echo raises UnicodeEncodeError on
+    the box-drawing characters in the plan and diff views. Unprintable characters become "?" instead.
+    """
+    try:
+        click.echo(text)
+    except UnicodeEncodeError:
+        encoding = sys.stdout.encoding or "utf-8"
+        click.echo(text.encode(encoding, errors="replace").decode(encoding))
+
+
 def _fail_unexpected(action: str, exc: Exception, exit_code: int) -> NoReturn:
     """Report an unexpected error and exit; print the traceback under --debug."""
     click.echo(f"[ERROR] {action}: {exc}", err=True)
@@ -415,12 +428,7 @@ def diff(
         except Exception as exc:
             _fail_unexpected("Failed to write diff report", exc, exit_code=2)
     elif not quiet:
-        try:
-            click.echo(rendered)
-        except UnicodeEncodeError:
-            encoding = sys.stdout.encoding or "utf-8"
-            safe_text = rendered.encode(encoding, errors="replace").decode(encoding)
-            click.echo(safe_text)
+        _echo_text(rendered)
 
     # Quality gate decision exit code
     if not diff_res.verdict.passed:
@@ -539,11 +547,11 @@ def fix(
     if interactive and plan.actionable_patches:
         approved_patch_ids: list[str] = []
         if not quiet:
-            click.echo(RemediationConsoleRenderer.render_header(model_path.name, len(plan.actionable_patches), scan_res.overall_score))
+            _echo_text(RemediationConsoleRenderer.render_header(model_path.name, len(plan.actionable_patches), scan_res.overall_score))
 
         for idx, patch in enumerate(plan.actionable_patches, 1):
             if not quiet:
-                click.echo(RemediationConsoleRenderer.render_patch_card(
+                _echo_text(RemediationConsoleRenderer.render_patch_card(
                     patch, idx, len(plan.actionable_patches), validation.after_score, validation.before_score
                 ))
 
@@ -599,9 +607,9 @@ def fix(
                 click.echo(f"\n  Remediation manifest saved: {_colour(str(out), _GREEN)}")
         elif not quiet:
             if output_format.lower() == "console":
-                click.echo(RemediationConsoleRenderer.render_summary(plan, validation))
+                _echo_text(RemediationConsoleRenderer.render_summary(plan, validation))
             else:
-                click.echo(rendered)
+                _echo_text(rendered)
 
         if success:
             if not quiet:
@@ -637,7 +645,7 @@ def fix(
             if not quiet:
                 click.echo(f"\n  Remediation plan saved: {_colour(str(out), _GREEN)}")
         elif not quiet:
-            click.echo(rendered)
+            _echo_text(rendered)
 
         if plan.actionable_patches:
             if fail_on_remediation_available:
