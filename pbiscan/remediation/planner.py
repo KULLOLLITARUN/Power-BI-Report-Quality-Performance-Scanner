@@ -36,7 +36,13 @@ class RemediationPlanner:
         scan_result: ScanResult,
         rule_filter: Optional[str] = None,
     ) -> RemediationPlan:
-        """Generate full remediation plan for findings in scan_result."""
+        """Generate full remediation plan for findings in scan_result.
+
+        `model_path` may be the project folder or its .pbip file (as with scan); patches, the
+        sandbox, the lock and the backup all work on the folder, so a file is resolved to its parent.
+        """
+        if model_path.is_file():
+            model_path = model_path.parent
         patches: list[Patch] = []
         conflicts: list[PatchConflict] = []
         skipped_findings: list[dict] = []
