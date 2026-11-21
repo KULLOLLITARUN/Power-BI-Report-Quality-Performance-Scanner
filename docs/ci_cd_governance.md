@@ -68,7 +68,7 @@ jobs:
 
       - name: Install PBIP Sentinel
         run: |
-          pip install pbiscan
+          pip install "git+https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner.git"
 
       - name: Scan Baseline & Current Models
         run: |
@@ -110,7 +110,7 @@ steps:
 
   - script: |
       python -m pip install --upgrade pip
-      pip install pbiscan
+      pip install "git+https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner.git"
     displayName: 'Install PBIP Sentinel'
 
   - script: |
