@@ -436,6 +436,7 @@ code, pre, .mono { font-family: var(--f-mono); }
 .canvas2d .vis.cat-slicer .sk { --sk: var(--v-slicer); }
 .canvas2d .sk-soft { fill: color-mix(in srgb, var(--sk) 34%, transparent); stroke: color-mix(in srgb, var(--sk) 70%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .canvas2d .sk-solid { fill: color-mix(in srgb, var(--sk) 62%, transparent); stroke: none; }
+.canvas2d .sk-dash { fill: none; stroke: color-mix(in srgb, var(--sk) 60%, transparent); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 .canvas2d .sk-line { fill: none; stroke: color-mix(in srgb, var(--sk) 75%, transparent); stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
 .canvas2d .sk-ring { fill: none; }
 .canvas2d .sk-ring-1 { stroke: color-mix(in srgb, var(--sk) 62%, transparent); }

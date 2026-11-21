@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { sketchKind, sketchRegion, sketchShapes, type SketchKind, type SketchShape } from './visualSketch';
+import { CORE_PLAIN_TYPES, sketchKind, sketchRegion, sketchShapes, type SketchKind, type SketchShape } from './visualSketch';
 
-const KINDS: SketchKind[] = ['bar', 'column', 'combo', 'line', 'area', 'pie', 'scatter', 'treemap', 'table', 'card', 'slicer'];
+const KINDS: SketchKind[] = [
+  'bar', 'column', 'combo', 'line', 'area', 'pie', 'scatter', 'treemap', 'table', 'card', 'slicer',
+  'map', 'tree', 'influencers', 'text', 'custom',
+];
 
 describe('sketchKind', () => {
   it.each([
@@ -21,9 +24,34 @@ describe('sketchKind', () => {
     expect(sketchKind('somethingNew', true)).toBe('slicer');
   });
 
-  it('leaves text boxes, shapes, images, maps and unknown types as plain boxes', () => {
-    for (const t of ['textbox', 'shape', 'image', 'actionButton', 'map', 'filledMap', 'decompositionTreeVisual', 'customVisual123', '', 'unknown']) {
+  it.each([
+    ['map', 'map'], ['filledMap', 'map'], ['shapeMap', 'map'], ['azureMap', 'map'],
+    ['decompositionTreeVisual', 'tree'], ['keyDriversVisual', 'influencers'],
+    ['qnaVisual', 'text'], ['smartNarrativeVisual', 'text'],
+  ])('%s gets the %s sketch', (type, kind) => {
+    expect(sketchKind(type)).toBe(kind);
+  });
+
+  it('marks a marketplace / custom visual with the generic frame', () => {
+    expect(sketchKind('D3JSVisual_PBI_CV_CDD143DEC3A145E7A507B562AF6CF490')).toBe('custom');
+    expect(sketchKind('PBI_CV_8D1B9A2F6C3E4F5A9B7D1E0C2A4B6D8F')).toBe('custom');
+  });
+
+  it('leaves layout pieces, R/Python visuals and unknown names as plain boxes', () => {
+    for (const t of [...CORE_PLAIN_TYPES, 'newCoreVisualWeDoNotKnow', '', 'unknown']) {
       expect(sketchKind(t)).toBeNull();
+    }
+  });
+
+  it('every core type seen in real reports is either sketched or on the plain list', () => {
+    const seen = [
+      'textbox', 'actionButton', 'pivotTable', 'clusteredBarChart', 'shape', 'cardVisual', 'donutChart', 'clusteredColumnChart',
+      'treemap', 'lineChart', 'barChart', 'azureMap', 'tableEx', 'scatterChart', 'ribbonChart', 'columnChart', 'slicer',
+      'lineClusteredColumnComboChart', 'keyDriversVisual', 'gauge', 'funnel', 'decompositionTreeVisual',
+      'image', 'pageNavigator', 'bookmarkNavigator', 'scriptVisual', 'pythonVisual', 'rdlVisual',
+    ];
+    for (const t of seen) {
+      expect(sketchKind(t) !== null || CORE_PLAIN_TYPES.has(t.toLowerCase()), t).toBe(true);
     }
   });
 });

@@ -8,11 +8,11 @@
 
 export type SketchKind =
   | 'bar' | 'column' | 'combo' | 'line' | 'area' | 'pie' | 'scatter' | 'treemap'
-  | 'table' | 'card' | 'slicer';
+  | 'table' | 'card' | 'slicer' | 'map' | 'tree' | 'influencers' | 'text' | 'custom';
 
 /** One drawing primitive, in coordinates local to the sketch box (0,0 to w,h). */
 export type SketchShape =
-  | { t: 'rect'; x: number; y: number; w: number; h: number; tone: 'soft' | 'solid' }
+  | { t: 'rect'; x: number; y: number; w: number; h: number; tone: 'soft' | 'solid' | 'dash' }
   | { t: 'line'; x1: number; y1: number; x2: number; y2: number }
   | { t: 'poly'; pts: Array<[number, number]>; closed: boolean }
   | { t: 'dot'; cx: number; cy: number; r: number }
@@ -20,6 +20,25 @@ export type SketchShape =
 
 const CARD_TYPES = new Set(['card', 'multirowcard', 'kpi', 'gauge', 'cardvisual', 'scorecard']);
 const TABLE_TYPES = new Set(['tableex', 'matrix', 'pivottable', 'table']);
+const MAP_TYPES = new Set(['map', 'filledmap', 'shapemap', 'azuremap']);
+const TREE_TYPES = new Set(['decompositiontreevisual', 'decompositiontree']);
+const INFLUENCER_TYPES = new Set(['keydriversvisual', 'keyinfluencers']);
+const TEXT_TYPES = new Set(['qnavisual', 'smartnarrativevisual', 'smartnarrative', 'ainarratives']);
+
+/**
+ * Built-in visuals that stay a plain box on purpose: layout pieces (not data visuals) and
+ * visuals that can show anything (R, Python, paginated reports). A test fails when a built-in
+ * type is neither sketched nor listed here, so a new type cannot slip by without a decision.
+ */
+export const CORE_PLAIN_TYPES = new Set([
+  'textbox', 'shape', 'basicshape', 'image', 'actionbutton', 'pagenavigator', 'bookmarknavigator',
+  'scriptvisual', 'pythonvisual', 'rdlvisual', 'powerapps', 'powerautomatevisual', 'group',
+]);
+
+/** A marketplace / custom visual id is the publisher's id (underscores or a long hex run), never a built-in name. */
+function looksCustom(t: string): boolean {
+  return t.includes('_') || /[0-9a-f]{16,}/i.test(t);
+}
 
 /** The sketch for a visual type, or null when the plain box is the honest picture. */
 export function sketchKind(visualType: string, isSlicer?: boolean): SketchKind | null {
@@ -27,6 +46,10 @@ export function sketchKind(visualType: string, isSlicer?: boolean): SketchKind |
   if (isSlicer || t.includes('slicer')) return 'slicer';
   if (CARD_TYPES.has(t)) return 'card';
   if (TABLE_TYPES.has(t)) return 'table';
+  if (MAP_TYPES.has(t)) return 'map';
+  if (TREE_TYPES.has(t)) return 'tree';
+  if (INFLUENCER_TYPES.has(t)) return 'influencers';
+  if (TEXT_TYPES.has(t)) return 'text';
   if (t.includes('combochart')) return 'combo';
   if (t === 'piechart' || t === 'donutchart') return 'pie';
   if (t === 'scatterchart' || t === 'bubblechart') return 'scatter';
@@ -35,6 +58,7 @@ export function sketchKind(visualType: string, isSlicer?: boolean): SketchKind |
   if (t === 'linechart') return 'line';
   if (t === 'funnel' || t.includes('barchart')) return 'bar';
   if (t.includes('columnchart') || t === 'waterfallchart' || t === 'ribbonchart') return 'column';
+  if (!CORE_PLAIN_TYPES.has(t) && looksCustom(t)) return 'custom';
   return null;
 }
 
@@ -152,6 +176,68 @@ export function sketchShapes(kind: SketchKind, w: number, h: number): SketchShap
         { t: 'rect', x: w * 0.2, y: h * 0.2, w: w * 0.6, h: h * 0.38, tone: 'solid' },
         { t: 'rect', x: w * 0.3, y: h * 0.68, w: w * 0.4, h: Math.min(5, h * 0.1), tone: 'soft' },
       ];
+    case 'map': {
+      const blobs: Array<Array<[number, number]>> = [
+        [[0.08, 0.35], [0.2, 0.15], [0.38, 0.2], [0.45, 0.4], [0.35, 0.62], [0.2, 0.7], [0.1, 0.55]],
+        [[0.55, 0.2], [0.7, 0.12], [0.9, 0.25], [0.88, 0.5], [0.75, 0.75], [0.6, 0.8], [0.52, 0.55]],
+        [[0.15, 0.8], [0.3, 0.74], [0.38, 0.9], [0.22, 0.95]],
+      ];
+      const out: SketchShape[] = blobs.map((b) => ({ t: 'poly' as const, closed: true, pts: b.map(([px, py]) => [px * w, py * h] as [number, number]) }));
+      const r = clamp(Math.min(w, h) / 14, 2.5, 6);
+      out.push({ t: 'dot', cx: w * 0.68, cy: h * 0.42, r });
+      return out;
+    }
+    case 'tree': {
+      const bh = clamp(h * 0.14, 5, 14);
+      const bw = w * 0.2;
+      const box = (x: number, f: number): SketchShape => ({ t: 'rect', x, y: f * h - bh / 2, w: bw, h: bh, tone: 'soft' });
+      const mids = [0.14, 0.5, 0.86];
+      const kids = [0.32, 0.68];
+      const x1 = w * 0.4, x2 = w * 0.8;
+      const out: SketchShape[] = [{ t: 'rect', x: 0, y: h / 2 - bh / 2, w: bw, h: bh, tone: 'solid' }];
+      for (const f of mids) {
+        out.push({ t: 'line', x1: bw, y1: h / 2, x2: x1, y2: f * h });
+        out.push(box(x1, f));
+      }
+      for (const f of kids) {
+        out.push({ t: 'line', x1: x1 + bw, y1: h / 2, x2: x2, y2: f * h });
+        out.push(box(x2, f));
+      }
+      return out;
+    }
+    case 'influencers': {
+      const fracs = [0.95, 0.68, 0.46, 0.3];
+      const t = clamp(h / (fracs.length * 1.7), 3, 12);
+      const g = t * 0.7;
+      const total = fracs.length * t + (fracs.length - 1) * g;
+      const y0 = (h - total) / 2;
+      const out: SketchShape[] = [];
+      fracs.forEach((f, i) => {
+        const y = y0 + i * (t + g);
+        out.push({ t: 'rect', x: 0, y, w: t, h: t, tone: 'solid' });
+        out.push({ t: 'rect', x: t + 4, y, w: Math.max(3, (w - t - 4) * f), h: t, tone: 'soft' });
+      });
+      return out;
+    }
+    case 'text': {
+      const fracs = [0.95, 0.8, 0.9, 0.55];
+      const t = clamp(h / (fracs.length * 2.4), 3, 6);
+      const g = t * 1.2;
+      const total = fracs.length * t + (fracs.length - 1) * g;
+      const y0 = (h - total) / 2;
+      return fracs.map((f, i) => ({ t: 'rect' as const, x: 0, y: y0 + i * (t + g), w: w * f, h: t, tone: 'soft' as const }));
+    }
+    case 'custom': {
+      // Not a built-in visual, so its look is unknown: a dashed frame with a plus, nothing more.
+      const s = Math.min(w, h) * 0.5;
+      const cx = w / 2, cy = h / 2;
+      const a = Math.min(8, s / 3);
+      return [
+        { t: 'rect', x: cx - s / 2, y: cy - s / 2, w: s, h: s, tone: 'dash' },
+        { t: 'line', x1: cx - a, y1: cy, x2: cx + a, y2: cy },
+        { t: 'line', x1: cx, y1: cy - a, x2: cx, y2: cy + a },
+      ];
+    }
     case 'slicer': {
       const rows = h >= 54 ? 3 : 2;
       const s = clamp(h / (rows * 2), 5, 10);
