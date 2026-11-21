@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import codecs
 import json
+import ntpath
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -198,6 +200,33 @@ def expect_structure(path: Path | str) -> Iterator[None]:
         yield
     except (AttributeError, TypeError, KeyError) as exc:
         raise SchemaError(f"Unexpected structure in {path}: {exc}") from exc
+
+
+_EXTENDED_PREFIX = "\\\\?\\"
+_EXTENDED_UNC_PREFIX = _EXTENDED_PREFIX + "UNC\\"
+
+
+def extended_path(path: Path | str, windows: Optional[bool] = None) -> Path:
+    """On Windows, `path` in extended-length form (`\\\\?\\D:\\...`), so files whose full path is 260
+    characters or more can still be opened. Without it, Windows reports such a file as missing and a
+    reader that checks `exists()` skips it without a word, which can hide a visual that uses a measure.
+
+    Other systems, and paths already in that form, are returned unchanged. Windows does not tidy an
+    extended path itself, so it is made absolute and normalised here first.
+    """
+    on_windows = os.name == "nt" if windows is None else windows
+    text = str(path)
+    if not on_windows or text.startswith(_EXTENDED_PREFIX):
+        return Path(path)
+    text = ntpath.abspath(text)
+    if text.startswith("\\\\"):  # a network share: \\server\share -> \\?\UNC\server\share
+        return Path(_EXTENDED_UNC_PREFIX + text[2:])
+    return Path(_EXTENDED_PREFIX + text)
+
+
+def plain_path_text(text: str) -> str:
+    """`text` with the extended-length prefix removed, for messages and results people read."""
+    return text.replace(_EXTENDED_UNC_PREFIX, "\\\\").replace(_EXTENDED_PREFIX, "")
 
 
 def extract_measure_names(obj: Any) -> set[str]:

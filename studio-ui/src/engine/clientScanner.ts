@@ -186,8 +186,10 @@ export function normalizeDaxExpression(expr: string): string {
  * followed; whatever is unresolved falls back to the first matching folder in name order. Files
  * inside the other reports and models are dropped, so a folder holding several projects is not merged,
  * and so are model and report files that sit outside the chosen folders (for example a loose copy of
- * a model next to the real one). With no .Report or .SemanticModel folder at all there is nothing to
- * choose between, and the files are returned unchanged. */
+ * a model next to the real one). A model folder with a model.bim is read from that file alone, as the
+ * Python reader does, so its TMDL files are dropped (reading both counted every measure twice). With no
+ * .Report or .SemanticModel folder at all there is nothing to choose between, and the files are
+ * returned unchanged. */
 function selectProjectFiles(files: DroppedFile[]): DroppedFile[] {
   const norm = (p: string) => p.replace(/\\/g, '/');
   const paths = files.map((f) => norm(f.path));
@@ -241,6 +243,7 @@ function selectProjectFiles(files: DroppedFile[]): DroppedFile[] {
   model = model ?? models[0] ?? null;
   if (report === null && model === null) return files;
   const others = [...reports, ...models].filter((d) => d !== report && d !== model);
+  const bimWins = model !== null && paths.includes(`${model}/model.bim`);
   const isModelFile = (name: string) => /\.tmdl$/i.test(name) || /^(model\.bim|database\.json)$/i.test(name);
   const isReportFile = (name: string, path: string) =>
     /^(page|pages|visual|report|reportExtensions)\.json$/i.test(name) || (path.includes('/bookmarks/') && /\.json$/i.test(name));
@@ -248,6 +251,7 @@ function selectProjectFiles(files: DroppedFile[]): DroppedFile[] {
     const p = norm(f.path);
     if (others.some((d) => p.startsWith(`${d}/`))) return false;
     if (model !== null && isModelFile(f.name) && !p.startsWith(`${model}/`)) return false;
+    if (bimWins && /\.tmdl$/i.test(f.name)) return false;
     if (report !== null && isReportFile(f.name, p) && !p.startsWith(`${report}/`)) return false;
     return true;
   });
@@ -446,7 +450,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
         evidence: `${rel.from_table}[${rel.from_column}] <-> ${rel.to_table}[${rel.to_column}] (BothDirections)`,
         impact: 'Bidirectional relationships create ambiguity in filter propagation and increase DAX context transition overhead.',
         recommendation: 'Change to single-directional cross-filtering or evaluate using CROSSFILTER() in DAX.',
-        location: `${rel.from_table}[${rel.from_column}] <-> ${rel.to_table}[${rel.to_column}]`,
+        location: `${rel.from_table}[${rel.from_column}] \u2194 ${rel.to_table}[${rel.to_column}]`,
       });
     }
 
@@ -459,7 +463,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
         evidence: `${rel.from_table}[${rel.from_column}] *..* ${rel.to_table}[${rel.to_column}]`,
         impact: 'Many-to-many relationships rely on hash tables in memory and introduce filter ambiguity.',
         recommendation: 'Introduce a distinct bridge dimension table to resolve into two 1:N relationships.',
-        location: `${rel.from_table} -> ${rel.to_table}`,
+        location: `${rel.from_table}[${rel.from_column}] \u2192 ${rel.to_table}[${rel.to_column}]`,
       });
     }
 
@@ -488,7 +492,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
           evidence: `${rel.from_table} -> ${rel.to_table}: both tables contain measures and neither matches a dimension naming pattern.`,
           impact: 'Direct relationships between transactional fact tables can produce inconsistent aggregation results.',
           recommendation: 'Introduce a shared dimension table to relate these facts, or confirm the relationship is intentional.',
-          location: `${rel.from_table} -> ${rel.to_table}`,
+          location: `${rel.from_table} \u2192 ${rel.to_table}`,
         });
       }
     }
@@ -564,8 +568,10 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
     });
   }
 
-  // D002: Excessive Calc Columns
+  // D002: Excessive Calc Columns (hidden and internal tables, such as auto date tables, are skipped,
+  // as in pbiscan.rules.dax.check_excessive_calc_columns)
   for (const tbl of tables) {
+    if (tbl.hidden) continue;
     if (tbl.calc_cols_count > 4) {
       findings.push({
         ...ruleMeta('DAX_EXCESSIVE_CALC_COLUMNS'),
@@ -1047,7 +1053,19 @@ function tmdlCollectBody(
   // A `variation` block (a date column's hierarchy link) is a property, not DAX: skip its lines.
   // Mirrors tmdl_parser, which does the same for measures and calculated columns.
   let variationDepth: number | null = null;
-  while (j < lines.length && lines[j].trim() !== '' && _leadingTabDepth(lines[j]) > depth) {
+  // Blank lines inside the expression stay part of it, as in tmdl_parser (a SWITCH written with a blank
+  // line before it, or between its lines, is still one measure). A blank line ends the body only when the
+  // next non-blank line is not indented deeper than the declaration.
+  const bodyContinues = (k: number): boolean => {
+    while (k < lines.length && lines[k].trim() === '') k++;
+    return k < lines.length && _leadingTabDepth(lines[k]) > depth;
+  };
+  while (j < lines.length && (lines[j].trim() !== '' ? _leadingTabDepth(lines[j]) > depth : bodyContinues(j))) {
+    if (lines[j].trim() === '') {
+      body.push('');
+      j++;
+      continue;
+    }
     const l = lines[j].trim();
     const lineDepth = _leadingTabDepth(lines[j]);
     if (variationDepth !== null && lineDepth > variationDepth) {
@@ -1086,6 +1104,7 @@ function parseTableTmdl(
   let calcItems: CalcItem[] = [];
   // Table-level `dataCategory: Time` marks a date table; only before the first child declaration.
   let tableIsDate = false;
+  let tableHidden = false;
   let seenChild = false;
 
   for (let i = 0; i < lines.length; i++) {
@@ -1098,6 +1117,8 @@ function parseTableTmdl(
       currentTable = tmdlUnquote(tableSig);
     } else if (!seenChild && /^dataCategory\s*:\s*(time|date)$/i.test(line)) {
       tableIsDate = true;
+    } else if (!seenChild && (line === 'isHidden' || line === 'isHidden: true')) {
+      tableHidden = true; // mirrors tmdl_parser: a table-level isHidden before any column or measure
     } else if (line.startsWith('partition ') || line.startsWith('partition\t')) {
       inPartition = true;
     } else if (inPartition) {
@@ -1130,19 +1151,18 @@ function parseTableTmdl(
         (l) => {
           if (l === 'isHidden' || /^isHidden\s*:\s*(?!false\b)/i.test(l)) hidden = true;
           return /^(formatString|lineageTag|dataType|summarizeBy|displayFolder|isHidden)\s*:/.test(l)
-            || TMDL_BARE_FLAGS.has(l) || l.startsWith('//');
+            || TMDL_BARE_FLAGS.has(l) || l.startsWith('//') || /^annotation\s/.test(l);
         },
       );
-      fileMeasures.push({
-        name: measureName,
-        expression: tmdlStripFence(body.join('\n')) || "BLANK()",
-        hidden,
-      });
+      // A measure with no expression is dropped, as the Python builder does (`if name and expr`): it is
+      // neither listed nor reported as unused.
+      const expression = tmdlStripFence(body.join('\n'));
+      if (measureName && expression) fileMeasures.push({ name: measureName, expression, hidden });
     } else if (line.startsWith('calculationItem ') || line.startsWith('calculationItem\t')) {
       const [itemName, inlineExpr] = tmdlSplitDeclaration(line.substring(16));
       const { body: bodyLines } = tmdlCollectBody(
         lines, i + 1, _leadingTabDepth(rawLine), inlineExpr,
-        (l) => l.startsWith('lineageTag') || l.startsWith('//'),
+        (l) => l.startsWith('lineageTag') || l.startsWith('//') || /^annotation\s/.test(l),
       );
       // A `formatStringDefinition = ...` (or possibly multi-line) property sits
       // inline within the captured body — split there into expression vs format string.
@@ -1181,7 +1201,7 @@ function parseTableTmdl(
 
   tables.push({
     name: currentTable,
-    hidden: false,
+    hidden: tableHidden,
     is_date_table: looksLikeDateTableName(currentTable) || tableIsDate,
     column_count: columns.length,
     columns,
