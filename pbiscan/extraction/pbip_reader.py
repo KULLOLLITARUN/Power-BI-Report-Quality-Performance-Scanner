@@ -32,7 +32,9 @@ from pbiscan.extraction.raw import (
     RawVisual,
     SchemaError,
     UnsupportedArtifactError,
+    extended_path,
     load_json,
+    plain_path_text,
 )
 from pbiscan.extraction.report_parser import parse_report_json, parse_report_json_level
 from pbiscan.extraction.tmdl_parser import parse_tmdl_model
@@ -79,8 +81,9 @@ class PBIPReader:
             ParseError: if a file cannot be parsed.
             SchemaError: if a required field is missing.
         """
-        root = Path(path)
-        logger.info("Loading PBIP: %s", root)
+        # Extended form on Windows, so a file with a very long path is read, not silently skipped.
+        root = extended_path(path)
+        logger.info("Loading PBIP: %s", plain_path_text(str(root)))
 
         if not root.exists():
             raise InputError(f"Path does not exist: {root}")
@@ -129,9 +132,12 @@ class PBIPReader:
             len(model.tables), len(model.relationships), len(pages),
         )
 
+        # Results and messages show ordinary paths, never the extended form used to read the files.
+        for table in model.tables:
+            table.source_file = plain_path_text(table.source_file)
         return RawExtraction(
             report_name=report_name,
-            source_path=str(root),
+            source_path=plain_path_text(str(root)),
             tables=model.tables,
             relationships=model.relationships,
             pages=pages,
@@ -139,8 +145,8 @@ class PBIPReader:
             tmdl_roles=model.tmdl_roles,
             report_measure_refs=report_measure_refs,
             report_extension_measures=report_extension_measures,
-            warnings=warnings,
-            unread_files=unread_files,
+            warnings=[plain_path_text(w) for w in warnings],
+            unread_files=[plain_path_text(f) for f in unread_files],
         )
 
     def _parse_semantic_model(self, sm_dir: Path) -> RawModel:
