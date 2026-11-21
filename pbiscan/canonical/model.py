@@ -249,6 +249,7 @@ class Visual:
     fields_used: list[str] = field(default_factory=list)   # e.g. ["Sales.Total Revenue"]
     measure_refs: list[str] = field(default_factory=list)  # e.g. ["Total Revenue"]
     table_refs: list[str] = field(default_factory=list)    # model tables the query reads, e.g. ["Sales"]
+    column_refs: list[tuple[str, str]] = field(default_factory=list)  # (table, column) pairs, e.g. [("Sales", "Amount")]
     is_slicer: bool = False
     hidden: bool = False
 
@@ -268,6 +269,7 @@ class Page:
     height: float = 720.0
 
     visuals: list[Visual] = field(default_factory=list)
+    filter_column_refs: list[tuple[str, str]] = field(default_factory=list)  # columns used by page-level filters
 
     @property
     def is_hidden(self) -> bool:

@@ -16,6 +16,7 @@ from pbiscan.extraction.raw import (
     RawVisual,
     collect_extension_measures,
     expect_structure,
+    extract_column_refs,
     extract_measure_names,
     load_json,
 )
@@ -45,9 +46,8 @@ def _parse_sections(raw: dict[str, Any]) -> list[RawPage]:
         visuals = parse_visual_containers(section.get("visualContainers", []))
 
         # Page-level filters and config are stringified JSON in report.json
-        filter_refs = extract_measure_names(
-            [decode_json_field(section.get(k)) for k in ("filters", "config")]
-        )
+        page_json = [decode_json_field(section.get(k)) for k in ("filters", "config")]
+        filter_refs = extract_measure_names(page_json)
 
         pages.append(RawPage(
             name=name,
@@ -57,6 +57,7 @@ def _parse_sections(raw: dict[str, Any]) -> list[RawPage]:
             height=height,
             visuals=visuals,
             filter_measure_refs=sorted(filter_refs),
+            filter_column_refs=extract_column_refs(page_json),
         ))
     return pages
 
@@ -171,6 +172,7 @@ def parse_visual_container(vc: dict[str, Any]) -> Optional[RawVisual]:
         fields_used=all_fields_used,
         measure_refs=all_measure_refs,
         table_refs=sorted(table_refs),
+        column_refs=extract_column_refs([config, decode_json_field(vc.get("filters"))]),
         is_slicer=(visual_type.lower() == "slicer"),
         hidden=vc.get("hidden", False),
     )

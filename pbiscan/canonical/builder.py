@@ -478,6 +478,7 @@ class CanonicalBuilder:
                     fields_used=rv.fields_used,
                     measure_refs=rv.measure_refs,
                     table_refs=rv.table_refs,
+                    column_refs=rv.column_refs,
                     is_slicer=rv.is_slicer,
                     hidden=rv.hidden,
                 )
@@ -490,5 +491,6 @@ class CanonicalBuilder:
                 width=raw_page.width,
                 height=raw_page.height,
                 visuals=visuals,
+                filter_column_refs=raw_page.filter_column_refs,
             ))
         return pages

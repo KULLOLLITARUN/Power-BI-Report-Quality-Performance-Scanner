@@ -21,7 +21,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +92,8 @@ class RawVisual:
     # Model tables the visual's query reads from (SourceRef entities). Display-only:
     # no rule reads it, so it cannot change what a scan reports.
     table_refs: list[str] = field(default_factory=list)
+    # (table, column) pairs the visual reads, including its filters and formatting rules.
+    column_refs: list[tuple[str, str]] = field(default_factory=list)
     is_slicer: bool = False
     hidden: bool = False
 
@@ -107,6 +109,8 @@ class RawPage:
     visuals: list[RawVisual] = field(default_factory=list)
     # Measures referenced by page-level filters / page config (not by any one visual)
     filter_measure_refs: list[str] = field(default_factory=list)
+    # (table, column) pairs used by page-level filters
+    filter_column_refs: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -211,6 +215,49 @@ def extract_measure_names(obj: Any) -> set[str]:
         for item in obj:
             refs.update(extract_measure_names(item))
     return refs
+
+
+def extract_column_refs(obj: Any, aliases: Optional[dict[str, str]] = None) -> list[tuple[str, str]]:
+    """Collect every (table, column) pair in a JSON subtree, sorted and de-duplicated.
+
+    A column reference is `{"Column": {"Expression": {"SourceRef": {...}}, "Property": name}}`.
+    The SourceRef names the table directly (`Entity`) or through an alias (`Source`) that a
+    surrounding `From` list maps to a table, as legacy prototypeQuery and PBIR filters do.
+    A reference whose table cannot be resolved is left out.
+    """
+    found: set[tuple[str, str]] = set()
+    _collect_column_refs(obj, aliases or {}, found)
+    return sorted(found)
+
+
+def _collect_column_refs(obj: Any, aliases: dict[str, str], found: set[tuple[str, str]]) -> None:
+    if isinstance(obj, dict):
+        sources = obj.get("From")
+        if isinstance(sources, list):
+            aliases = {
+                **aliases,
+                **{
+                    s["Name"]: s["Entity"] for s in sources
+                    if isinstance(s, dict) and isinstance(s.get("Name"), str) and isinstance(s.get("Entity"), str)
+                },
+            }
+        column = obj.get("Column")
+        if isinstance(column, dict):
+            prop = column.get("Property")
+            expression = column.get("Expression")
+            ref = expression.get("SourceRef") if isinstance(expression, dict) else None
+            if isinstance(ref, dict) and isinstance(prop, str) and prop:
+                table = ref.get("Entity")
+                if not isinstance(table, str):
+                    source = ref.get("Source")
+                    table = aliases.get(source) if isinstance(source, str) else None
+                if table:
+                    found.add((table, prop))
+        for value in obj.values():
+            _collect_column_refs(value, aliases, found)
+    elif isinstance(obj, list):
+        for item in obj:
+            _collect_column_refs(item, aliases, found)
 
 
 def extract_entity_names(obj: Any) -> set[str]:

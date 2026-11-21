@@ -14,6 +14,7 @@ from pbiscan.extraction.raw import (
     RawVisual,
     collect_extension_measures,
     expect_structure,
+    extract_column_refs,
     extract_entity_names,
     extract_measure_names,
     load_json,
@@ -68,6 +69,7 @@ def parse_pbir_pages(definition_dir: Path) -> list[RawPage]:
             visuals=visuals,
             # page.json filterConfig (page-level filter pane) and any other bindings
             filter_measure_refs=sorted(extract_measure_names(page_data)),
+            filter_column_refs=extract_column_refs(page_data),
         ))
 
     return pages
@@ -152,6 +154,7 @@ def parse_pbir_visual(raw: dict[str, Any]) -> Optional[RawVisual]:
         fields_used=sorted(set(fields_used) | ast_measures),
         measure_refs=sorted(set(query_measures) | ast_measures),
         table_refs=sorted(extract_entity_names(visual_node.get("query", {}))),
+        column_refs=extract_column_refs(raw),
         is_slicer=(visual_type.lower() == "slicer"),
         # PBIR visualContainer marks a hidden visual with "isHidden": true.
         hidden=bool(raw.get("isHidden", raw.get("hidden", False))),
