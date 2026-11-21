@@ -1,0 +1,7 @@
+table Sales
+
+	column Amount
+		dataType: string
+
+	column Region
+		dataType: string

@@ -184,8 +184,10 @@ export function normalizeDaxExpression(expr: string): string {
  * (`artifacts[0].report.path`), and that report's definition.pbir names its model
  * (`datasetReference.byPath.path`). A link that is missing or leaves the project folder is not
  * followed; whatever is unresolved falls back to the first matching folder in name order. Files
- * inside the other reports and models are dropped, so a folder holding several projects is not merged.
- * A folder with at most one report and one model, and no usable link, is returned unchanged. */
+ * inside the other reports and models are dropped, so a folder holding several projects is not merged,
+ * and so are model and report files that sit outside the chosen folders (for example a loose copy of
+ * a model next to the real one). With no .Report or .SemanticModel folder at all there is nothing to
+ * choose between, and the files are returned unchanged. */
 function selectProjectFiles(files: DroppedFile[]): DroppedFile[] {
   const norm = (p: string) => p.replace(/\\/g, '/');
   const paths = files.map((f) => norm(f.path));
@@ -235,12 +237,20 @@ function selectProjectFiles(files: DroppedFile[]): DroppedFile[] {
       }
     }
   }
-  if (report === null && model === null && reports.length <= 1 && models.length <= 1) return files;
   report = report ?? reports[0] ?? null;
   model = model ?? models[0] ?? null;
+  if (report === null && model === null) return files;
   const others = [...reports, ...models].filter((d) => d !== report && d !== model);
-  if (!others.length) return files;
-  return files.filter((f) => { const p = norm(f.path); return !others.some((d) => p.startsWith(`${d}/`)); });
+  const isModelFile = (name: string) => /\.tmdl$/i.test(name) || /^(model\.bim|database\.json)$/i.test(name);
+  const isReportFile = (name: string, path: string) =>
+    /^(page|pages|visual|report|reportExtensions)\.json$/i.test(name) || (path.includes('/bookmarks/') && /\.json$/i.test(name));
+  return files.filter((f) => {
+    const p = norm(f.path);
+    if (others.some((d) => p.startsWith(`${d}/`))) return false;
+    if (model !== null && isModelFile(f.name) && !p.startsWith(`${model}/`)) return false;
+    if (report !== null && isReportFile(f.name, p) && !p.startsWith(`${report}/`)) return false;
+    return true;
+  });
 }
 
 export function parseDroppedPbip(files: DroppedFile[], projectName: string = "uploaded_report.pbip"): ScanResult {
