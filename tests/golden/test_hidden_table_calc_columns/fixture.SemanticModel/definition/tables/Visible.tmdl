@@ -1,0 +1,19 @@
+table Visible
+
+	column Key
+		dataType: int64
+
+	column Calc1 = 1 + 1
+		dataType: int64
+
+	column Calc2 = 2 + 1
+		dataType: int64
+
+	column Calc3 = 3 + 1
+		dataType: int64
+
+	column Calc4 = 4 + 1
+		dataType: int64
+
+	column Calc5 = 5 + 1
+		dataType: int64

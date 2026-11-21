@@ -1,0 +1,29 @@
+{
+  "name": "Model",
+  "compatibilityLevel": 1567,
+  "model": {
+    "culture": "en-US",
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {
+            "name": "Amount",
+            "dataType": "double",
+            "sourceColumn": "Amount"
+          }
+        ],
+        "measures": [
+          {
+            "name": "Revenue",
+            "expression": "SUM(Sales[Amount])"
+          },
+          {
+            "name": "Orphan",
+            "expression": "COUNTROWS(Sales)"
+          }
+        ]
+      }
+    ]
+  }
+}

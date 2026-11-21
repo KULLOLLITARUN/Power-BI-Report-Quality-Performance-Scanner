@@ -141,6 +141,23 @@ def test_missing_measures_match_python_engine(fixture_dir: Path):
     assert _run_ts_scanner(fixture_dir)["missing_measures"] == py_missing, fixture_dir.name
 
 
+def _run_ts_locations(project_dir: Path) -> list[tuple[str, str]]:
+    result = subprocess.run(
+        ["node", str(HARNESS_BUNDLE), str(project_dir), "--verbose"],
+        capture_output=True, text=True, encoding="utf-8", timeout=60,
+    )
+    assert result.returncode == 0, f"parityHarness.cjs failed on {project_dir.name}: {result.stderr}"
+    return sorted((f["rule_id"], f.get("location") or "") for f in json.loads(result.stdout))
+
+
+@pytest.mark.parametrize("fixture_dir", _fixture_dirs(), ids=lambda p: p.name)
+def test_finding_locations_match_python_engine(fixture_dir: Path):
+    """Same rule ids is not enough: the location text names what a finding is about, and it is what
+    suppressions and `pbiscan fix` match on, so both engines must write it identically."""
+    py = sorted((i.rule_id, i.location or "") for i in ScanService.execute_scan(fixture_dir).issues)
+    assert _run_ts_locations(fixture_dir) == py, fixture_dir.name
+
+
 def test_unreadable_file_disables_unused_measures_in_both_engines(tmp_path: Path):
     """A bookmark that can't be parsed may be the only user of a measure, so neither
     engine may report unused measures for that scan, and both must say why."""
