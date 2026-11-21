@@ -1151,19 +1151,18 @@ function parseTableTmdl(
         (l) => {
           if (l === 'isHidden' || /^isHidden\s*:\s*(?!false\b)/i.test(l)) hidden = true;
           return /^(formatString|lineageTag|dataType|summarizeBy|displayFolder|isHidden)\s*:/.test(l)
-            || TMDL_BARE_FLAGS.has(l) || l.startsWith('//');
+            || TMDL_BARE_FLAGS.has(l) || l.startsWith('//') || /^annotation\s/.test(l);
         },
       );
-      fileMeasures.push({
-        name: measureName,
-        expression: tmdlStripFence(body.join('\n')) || "BLANK()",
-        hidden,
-      });
+      // A measure with no expression is dropped, as the Python builder does (`if name and expr`): it is
+      // neither listed nor reported as unused.
+      const expression = tmdlStripFence(body.join('\n'));
+      if (measureName && expression) fileMeasures.push({ name: measureName, expression, hidden });
     } else if (line.startsWith('calculationItem ') || line.startsWith('calculationItem\t')) {
       const [itemName, inlineExpr] = tmdlSplitDeclaration(line.substring(16));
       const { body: bodyLines } = tmdlCollectBody(
         lines, i + 1, _leadingTabDepth(rawLine), inlineExpr,
-        (l) => l.startsWith('lineageTag') || l.startsWith('//'),
+        (l) => l.startsWith('lineageTag') || l.startsWith('//') || /^annotation\s/.test(l),
       );
       // A `formatStringDefinition = ...` (or possibly multi-line) property sits
       // inline within the captured body — split there into expression vs format string.

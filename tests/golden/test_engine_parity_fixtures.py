@@ -39,4 +39,13 @@ def test_only_the_visible_table_is_reported_for_calculated_columns():
 
 
 def test_measures_called_from_dax_with_blank_lines_are_used():
-    assert _locations("test_measure_with_blank_lines", "DAX_UNUSED_MEASURE") == ["Measure: Orphan"]
+    assert sorted(_locations("test_measure_with_blank_lines", "DAX_UNUSED_MEASURE")) == [
+        "Measure: Dup One", "Measure: Dup Two", "Measure: Orphan"]
+
+
+def test_a_blank_line_before_an_annotation_does_not_change_a_measure():
+    assert _locations("test_measure_with_blank_lines", "DAX_DUPLICATE_MEASURE") == ["Sales[Dup One], Sales[Dup Two]"]
+
+
+def test_a_measure_with_no_expression_is_not_reported():
+    assert "Measure: Empty" not in _locations("test_measure_with_blank_lines", "DAX_UNUSED_MEASURE")

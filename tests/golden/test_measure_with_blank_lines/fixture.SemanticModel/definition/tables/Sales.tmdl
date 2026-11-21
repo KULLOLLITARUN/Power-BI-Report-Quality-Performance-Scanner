@@ -18,3 +18,19 @@ table Sales
 	measure Beta = COUNTROWS(Sales)
 
 	measure Orphan = MAX(Sales[Amount])
+
+	measure 'Dup One' = DIVIDE([Alpha], [Beta])
+		lineageTag: 11111111-1111-1111-1111-111111111111
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Dup Two' = ```
+			DIVIDE([Alpha], [Beta])
+
+			```
+		lineageTag: 22222222-2222-2222-2222-222222222222
+
+	measure Empty
+		lineageTag: 33333333-3333-3333-3333-333333333333
+
+		annotation Note = True
