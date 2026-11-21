@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from typing import Any
+from urllib.parse import quote
+
 from pbiscan import __version__
 from pbiscan.engine.issue import AuditIssue
 
@@ -17,6 +21,31 @@ _SEVERITY_TO_SARIF_LEVEL = {
     "ADVISORY": "note",
     "LOW": "note",
 }
+
+
+def artifact_uri(report_path: str) -> str:
+    """The file every result points at: a path GitHub Code Scanning accepts.
+
+    A SARIF artifact location must be a file URI relative to the repository. A finding's own label
+    ("Measure: Sales", "Column: Sales[Region]") is not one: GitHub reads the text before the colon as
+    a URI scheme and rejects the whole upload. So results point at the project's .pbip file (or the
+    given path), relative to the working directory, and the label goes in logicalLocations.
+    """
+    if not report_path:
+        return "report"
+    path = Path(report_path)
+    if path.is_dir():
+        pbip_files = sorted(path.glob("*.pbip"))
+        if pbip_files:
+            path = pbip_files[0]
+    try:
+        relative = Path(os.path.relpath(path, Path.cwd()))
+    except ValueError:  # another drive on Windows
+        relative = path
+    text = relative.as_posix()
+    if relative.is_absolute() or text == ".." or text.startswith("../"):
+        text = path.name
+    return quote(text or "report", safe="/")
 
 
 class SarifRenderer:
@@ -33,6 +62,7 @@ class SarifRenderer:
         """Render AuditIssues as a formatted SARIF v2.1.0 JSON string."""
         rules_map: dict[str, dict[str, Any]] = {}
         results: list[dict[str, Any]] = []
+        uri = artifact_uri(report_path)
 
         for issue in issues:
             # 1. Register rule if not already present
@@ -64,7 +94,7 @@ class SarifRenderer:
             # 2. Build SARIF result
             sarif_level = _SEVERITY_TO_SARIF_LEVEL.get(issue.severity, "warning")
             
-            # Format location / uri
+            # The finding's own label (a measure, column, page ...) is a logical location, not a file
             loc_str = issue.location or "report"
             result_obj: dict[str, Any] = {
                 "ruleId": issue.rule_id,
@@ -76,10 +106,13 @@ class SarifRenderer:
                     {
                         "physicalLocation": {
                             "artifactLocation": {
-                                "uri": loc_str,
+                                "uri": uri,
                                 "uriBaseId": "%SRCROOT%",
                             }
-                        }
+                        },
+                        "logicalLocations": [
+                            {"name": loc_str, "fullyQualifiedName": loc_str},
+                        ],
                     }
                 ],
                 "properties": {
