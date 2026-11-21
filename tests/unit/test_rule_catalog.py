@@ -20,57 +20,35 @@ REPO_ROOT = Path(__file__).parent.parent.parent
 README = REPO_ROOT / "README.md"
 GOLDEN_DIR = REPO_ROOT / "tests" / "golden"
 
-SECTION_CATEGORIES = {
-    "Model & Data Source Architecture": "model",
-    "DAX & Calculations": "dax",
-    "Report Layout & Density": "report",
-}
-ROW_RE = re.compile(r"^\| `(?P<code>[A-Z]\d{3})` \| `(?P<rule_id>[A-Z_]+)` \| `(?P<severity>[A-Z]+)` \| (?P<confidence>\d+)% \|")
+ROW_RE = re.compile(r"^\| `(?P<rule_id>[A-Z_]+)` \| (?P<severity>[A-Za-z]+) \| (?P<confidence>\d+)% \|")
 CODE_PREFIX = {"model": "M", "dax": "D", "report": "R"}
 
 
-def _readme_catalog() -> tuple[dict[str, dict], dict[str, int], int]:
-    """Parse the README rule catalog: rows keyed by rule_id, the "(N Rules)"
-    count per category section, and the overall "(N Rules)" count."""
+def _readme_catalog() -> dict[str, dict]:
+    """Parse the README "## Rules" table: one row per rule, keyed by rule_id."""
     text = README.read_text(encoding="utf-8")
-    total_match = re.search(r"^## .*Rule Catalog \((\d+) Rules\)$", text, re.MULTILINE)
-    assert total_match, "README is missing the '## ... Rule Catalog (N Rules)' heading"
-    catalog_text = text[total_match.end():].split("\n## ", 1)[0]
+    start = re.search(r"^## Rules$", text, re.MULTILINE)
+    assert start, "README is missing the '## Rules' heading"
+    rules_text = text[start.end():].split("\n## ", 1)[0]
 
     rows: dict[str, dict] = {}
-    section_counts: dict[str, int] = {}
-    category = None
-    for line in catalog_text.splitlines():
-        heading = re.match(r"^### (?P<name>.+) \((?P<n>\d+) Rules?\)$", line)
-        if heading:
-            category = SECTION_CATEGORIES[heading["name"]]
-            section_counts[category] = int(heading["n"])
-            continue
+    for line in rules_text.splitlines():
         row = ROW_RE.match(line)
         if row:
             assert row["rule_id"] not in rows, f"{row['rule_id']} listed twice in README"
-            rows[row["rule_id"]] = {**row.groupdict(), "confidence": int(row["confidence"]), "category": category}
-    return rows, section_counts, int(total_match.group(1))
+            rows[row["rule_id"]] = {"severity": row["severity"].upper(), "confidence": int(row["confidence"])}
+    return rows
 
 
 class TestReadmeTable:
 
     def test_lists_exactly_the_catalog_rules(self):
-        rows, _, _ = _readme_catalog()
-        assert sorted(rows) == sorted(RULES_BY_ID)
+        assert sorted(_readme_catalog()) == sorted(RULES_BY_ID)
 
     @pytest.mark.parametrize("spec", RULE_CATALOG, ids=lambda s: s.rule_id)
     def test_row_matches_catalog(self, spec):
-        row = _readme_catalog()[0][spec.rule_id]
-        assert (row["code"], row["category"], row["severity"], row["confidence"]) == (
-            spec.code, spec.category, spec.severity, spec.confidence,
-        )
-
-    def test_rule_counts_in_headings(self):
-        _, section_counts, total = _readme_catalog()
-        assert total == len(RULE_CATALOG)
-        for category, count in section_counts.items():
-            assert count == sum(1 for s in RULE_CATALOG if s.category == category), category
+        row = _readme_catalog()[spec.rule_id]
+        assert (row["severity"], row["confidence"]) == (spec.severity, spec.confidence)
 
 
 class TestCatalogConsistency:
