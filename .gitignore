@@ -57,3 +57,6 @@ CLAUDE.md
 
 # Graphify knowledge-graph build output (see CLAUDE.md)
 graphify-out/
+
+# Downloaded real-world Power BI projects used to test the rules (large, third-party, local only)
+/real-world-reports/
