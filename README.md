@@ -41,7 +41,7 @@ pbiscan scan path/to/Report.pbip --format html --out report.html
 pbiscan studio path/to/Report.pbip                    # local web app
 ```
 
-You can pass either the `.pbip` file or the project folder.
+You can pass either the `.pbip` file or the project folder. If a folder holds several reports or models, pbiscan scans the one the `.pbip` file links to (its report, and the model that report points at). With no usable link it takes the first folder in name order, so pass the `.pbip` file itself when in doubt.
 
 ## Rules
 
@@ -169,7 +169,7 @@ To accept a finding on purpose, add it to `pbiscan.suppressions.json` next to th
 - **"Unused" means unused in this project.** Other reports, Excel workbooks and tools that use the same semantic model are invisible to it. Check before you delete a measure from a shared model.
 - **A file that cannot be read turns off unused-measure detection** for that scan, because the unread file might be the only place a measure is used. The scan warnings name the file.
 - **Heuristic rules are labelled** by their confidence below 100%. Expect some false positives and use suppressions.
-- It has been run against about 75 public PBIP projects from GitHub. That turned up several false positives, which are fixed and covered by tests. Others may remain. If you find one, please [open an issue](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner/issues).
+- It has been run against about 940 public PBIP projects from GitHub (most in the newer per-page PBIR format, some in the older single `report.json` format). That turned up several false positives, which are fixed and covered by tests. `REPORT_MISSING_COLUMN` was also checked by breaking a column on purpose in copies of real projects (68 tries): it found every one. These are public portfolio and demo projects, so large company reports may behave differently, and other false positives may remain. If you find one, please [open an issue](https://github.com/KULLOLLITARUN/Power-BI-Report-Quality-Performance-Scanner/issues).
 
 ## Privacy
 
