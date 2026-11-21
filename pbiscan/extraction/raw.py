@@ -223,7 +223,9 @@ def extract_column_refs(obj: Any, aliases: Optional[dict[str, str]] = None) -> l
     A column reference is `{"Column": {"Expression": {"SourceRef": {...}}, "Property": name}}`.
     The SourceRef names the table directly (`Entity`) or through an alias (`Source`) that a
     surrounding `From` list maps to a table, as legacy prototypeQuery and PBIR filters do.
-    A reference whose table cannot be resolved is left out.
+    A reference whose table cannot be resolved is left out. A `selector` subtree is skipped: it only
+    scopes formatting (column widths, data-point colours) to a data value, and Power BI keeps those
+    entries after the column is removed, so they are not a use of the column.
     """
     found: set[tuple[str, str]] = set()
     _collect_column_refs(obj, aliases or {}, found)
@@ -253,8 +255,9 @@ def _collect_column_refs(obj: Any, aliases: dict[str, str], found: set[tuple[str
                     table = aliases.get(source) if isinstance(source, str) else None
                 if table:
                     found.add((table, prop))
-        for value in obj.values():
-            _collect_column_refs(value, aliases, found)
+        for key, value in obj.items():
+            if key != "selector":
+                _collect_column_refs(value, aliases, found)
     elif isinstance(obj, list):
         for item in obj:
             _collect_column_refs(item, aliases, found)

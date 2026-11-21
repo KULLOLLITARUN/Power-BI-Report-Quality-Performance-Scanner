@@ -355,7 +355,9 @@ export type ColumnRef = [table: string, column: string];
 /**
  * Every `{"Column": {"Expression": {"SourceRef": ...}, "Property": name}}` in a JSON subtree, sorted and
  * de-duplicated. The SourceRef names the table directly (`Entity`) or through an alias (`Source`) that a
- * surrounding `From` list maps to a table. A reference whose table cannot be resolved is left out.
+ * surrounding `From` list maps to a table. A reference whose table cannot be resolved is left out. A
+ * `selector` subtree is skipped: it only scopes formatting to a data value and Power BI keeps it after
+ * the column is removed, so it is not a use of the column.
  * Mirrors pbiscan.extraction.raw.extract_column_refs.
  */
 export function extractColumnRefs(obj: any): ColumnRef[] {
@@ -386,7 +388,9 @@ function collectColumnRefs(obj: any, aliases: Record<string, string>, found: Map
       if (table) found.set(`${table}\u0000${column.Property}`, [table, column.Property]);
     }
   }
-  for (const value of Object.values(obj)) collectColumnRefs(value, scope, found);
+  for (const [key, value] of Object.entries(obj)) {
+    if (key !== 'selector') collectColumnRefs(value, scope, found);
+  }
 }
 
 /** Recursively traverse any JSON subtree and extract every `{"Measure": {"Property": ...}}` reference. */

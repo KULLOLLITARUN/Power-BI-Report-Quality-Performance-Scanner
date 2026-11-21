@@ -41,6 +41,14 @@ describe('extractColumnRefs (mirrors tests/unit/test_column_refs.py)', () => {
     expect(extractColumnRefs(node)).toEqual([['Sales', 'A']]);
   });
 
+  it('does not count a formatting selector as a use of the column', () => {
+    const node = {
+      objects: { columnWidth: [{ selector: { data: [{ scopeId: { Comparison: { Left: col('People', 'Old') } } }] } }] },
+      query: col('People', 'Team'),
+    };
+    expect(extractColumnRefs(node)).toEqual([['People', 'Team']]);
+  });
+
   it('ignores odd shapes without throwing', () => {
     for (const node of [null, 'text', 3, { Column: 'x' }, { Column: { Property: 5 } }, { From: 'nope' }, [[], {}]]) {
       expect(extractColumnRefs(node)).toEqual([]);

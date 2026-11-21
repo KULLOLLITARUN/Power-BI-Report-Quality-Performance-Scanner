@@ -12,6 +12,8 @@ The model has Sales (Amount, Region, a calculated column Profit, a measure Reven
 - Date[Quarter]:      not in the model, used by a page filter (true positive)
 - Sales[Ghost]:       not in the model, used only by a hidden visual (flagged, says so)
 - Sales[Half]:        not in the model, used by one visible and one hidden visual
+- Sales[Stale]:      named only by a formatting selector (a column width left behind), which is not a
+                      use of the column, so it is not flagged (control)
 - Archive[Anything], LocalDateTable_1234[Year]: tables the model does not have (controls: this
                       rule checks columns of tables the model defines, so they are not flagged)
 """
@@ -71,7 +73,7 @@ def test_a_column_used_by_visible_and_hidden_visuals_says_so(flagged):
 
 def test_present_columns_and_foreign_tables_are_not_flagged(result):
     text = " ".join(i.evidence for i in result.issues)
-    for control in ("Region'", "Amount", "PROFIT", "Profit", "Year", "Revenue", "Anything", "LocalDateTable"):
+    for control in ("Region'", "Amount", "PROFIT", "Profit", "Year", "Revenue", "Anything", "LocalDateTable", "Stale"):
         assert control not in text.replace("Old Region", "")
 
 

@@ -54,6 +54,12 @@ def test_alias_does_not_leak_to_a_sibling_scope():
     assert extract_column_refs(node) == [("Sales", "A")]
 
 
+def test_formatting_selectors_are_not_uses_of_the_column():
+    node = {"objects": {"columnWidth": [{"selector": {"data": [{"scopeId": {"Comparison": {"Left": col("People", "Old")}}}]}}]},
+            "query": col("People", "Team")}
+    assert extract_column_refs(node) == [("People", "Team")]
+
+
 def test_odd_shapes_are_ignored_not_raised():
     for node in (None, "text", 3, {"Column": "x"}, {"Column": {"Property": 5}}, {"From": "nope"}, [[], {}]):
         assert extract_column_refs(node) == []
