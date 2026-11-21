@@ -14,6 +14,7 @@ The error types and Raw* dataclasses live in `raw.py` and are re-exported here.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -31,6 +32,7 @@ from pbiscan.extraction.raw import (
     RawVisual,
     SchemaError,
     UnsupportedArtifactError,
+    load_json,
 )
 from pbiscan.extraction.report_parser import parse_report_json, parse_report_json_level
 from pbiscan.extraction.tmdl_parser import parse_tmdl_model
@@ -82,20 +84,22 @@ class PBIPReader:
 
         if not root.exists():
             raise InputError(f"Path does not exist: {root}")
+        pbip_file: Optional[Path] = None
         if root.is_file():
             # If the user passed the .pbip file directly, use its stem
             report_name = root.stem
+            pbip_file = root if root.suffix.lower() == ".pbip" else None
             root = root.parent
         else:
-            # If a folder was passed, check for any .pbip file inside to name the report
-            pbip_files = list(root.glob("*.pbip"))
-            report_name = pbip_files[0].stem if pbip_files else root.name
+            # If a folder was passed, use the first .pbip file in name order to name the report
+            pbip_files = sorted(root.glob("*.pbip"))
+            pbip_file = pbip_files[0] if pbip_files else None
+            report_name = pbip_file.stem if pbip_file else root.name
 
         if not root.is_dir():
             raise InputError(f"Path is not a directory: {root}")
 
-        semantic_model_dir = _find_dir(root, ".SemanticModel")
-        report_dir = _find_dir(root, ".Report")
+        report_dir, semantic_model_dir = resolve_project_dirs(root, pbip_file)
 
         warnings: list[str] = []
         unread_files: list[str] = []
@@ -198,9 +202,58 @@ class PBIPReader:
         return sorted(refs), extensions
 
 
+def _load_json_object(path: Path) -> dict[str, Any]:
+    """The JSON object in `path`, or {} when the file is missing, unreadable or not an object."""
+    try:
+        data = load_json(path)
+    except (ParseError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _dir_inside(path: Path, root: Path) -> bool:
+    """True when `path` is an existing directory at or below `root`."""
+    try:
+        path.resolve().relative_to(root.resolve())
+    except (ValueError, OSError):
+        return False
+    return path.is_dir()
+
+
+def resolve_project_dirs(root: Path, pbip_file: Optional[Path]) -> tuple[Optional[Path], Optional[Path]]:
+    """The (report folder, semantic model folder) this project means, the way Power BI finds them.
+
+    Follows the .pbip file to its report (`artifacts[0].report.path`), then that report's
+    `definition.pbir` to its model (`datasetReference.byPath.path`). A link that does not exist or
+    leaves the project folder is not followed. Whatever cannot be resolved falls back to the first
+    matching folder in name order, so a folder holding several reports or models gives the same
+    answer on every machine. Mirrored by selectProjectFiles in studio-ui/src/engine/clientScanner.ts.
+    """
+    report_dir: Optional[Path] = None
+    model_dir: Optional[Path] = None
+    if pbip_file is not None:
+        artifacts = _load_json_object(pbip_file).get("artifacts")
+        first = artifacts[0] if isinstance(artifacts, list) and artifacts else None
+        report = first.get("report") if isinstance(first, dict) else None
+        report_path = report.get("path") if isinstance(report, dict) else None
+        if isinstance(report_path, str):
+            candidate = Path(os.path.normpath(root / report_path))
+            if _dir_inside(candidate, root):
+                report_dir = candidate
+    if report_dir is not None:
+        reference = _load_json_object(report_dir / "definition.pbir").get("datasetReference")
+        by_path = reference.get("byPath") if isinstance(reference, dict) else None
+        model_path = by_path.get("path") if isinstance(by_path, dict) else None
+        if isinstance(model_path, str):
+            candidate = Path(os.path.normpath(report_dir / model_path))
+            if _dir_inside(candidate, root):
+                model_dir = candidate
+    return report_dir or _find_dir(root, ".Report"), model_dir or _find_dir(root, ".SemanticModel")
+
+
 def _find_dir(root: Path, suffix: str) -> Optional[Path]:
-    """Return the first child directory of `root` whose name ends with `suffix`."""
-    for item in root.iterdir():
+    """Return the first child directory of `root` whose name ends with `suffix`, in name order."""
+    for item in sorted(root.iterdir(), key=lambda p: p.name):
         if item.is_dir() and item.name.endswith(suffix):
             logger.debug("%s dir: %s", suffix, item)
             return item

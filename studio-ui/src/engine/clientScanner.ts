@@ -179,6 +179,70 @@ export function normalizeDaxExpression(expr: string): string {
     .toLowerCase();
 }
 
+/** Files of the one project a dropped folder means, the way Power BI finds it. Mirrors
+ * pbiscan.extraction.pbip_reader.resolve_project_dirs: the .pbip file names its report
+ * (`artifacts[0].report.path`), and that report's definition.pbir names its model
+ * (`datasetReference.byPath.path`). A link that is missing or leaves the project folder is not
+ * followed; whatever is unresolved falls back to the first matching folder in name order. Files
+ * inside the other reports and models are dropped, so a folder holding several projects is not merged.
+ * A folder with at most one report and one model, and no usable link, is returned unchanged. */
+function selectProjectFiles(files: DroppedFile[]): DroppedFile[] {
+  const norm = (p: string) => p.replace(/\\/g, '/');
+  const paths = files.map((f) => norm(f.path));
+  const depth = (d: string) => d.split('/').length;
+  const order = (a: string, b: string) => depth(a) - depth(b) || (a < b ? -1 : a > b ? 1 : 0);
+  const dirOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+  const isDir = (d: string) => paths.some((p) => p.startsWith(`${d}/`));
+  const within = (d: string, base: string) => base === '' || d === base || d.startsWith(`${base}/`);
+  const join = (base: string, rel: string): string | null => {
+    const out = base ? base.split('/') : [];
+    for (const seg of norm(rel).split('/')) {
+      if (seg === '' || seg === '.') continue;
+      if (seg === '..') { if (!out.length) return null; out.pop(); } else out.push(seg);
+    }
+    return out.join('/');
+  };
+  const tryParse = (text: string): any => { try { return JSON.parse(text); } catch { return null; } };
+  const dirsEndingWith = (suffix: string): string[] => {
+    const found = new Set<string>();
+    for (const p of paths) {
+      const segs = p.split('/');
+      for (let i = 0; i < segs.length - 1; i++) {
+        if (segs[i].endsWith(suffix)) { found.add(segs.slice(0, i + 1).join('/')); break; }
+      }
+    }
+    return [...found].sort(order);
+  };
+
+  const reports = dirsEndingWith('.Report');
+  const models = dirsEndingWith('.SemanticModel');
+  let report: string | null = null;
+  let model: string | null = null;
+  const pbip = files.filter((f) => /\.pbip$/i.test(f.name)).sort((a, b) => order(norm(a.path), norm(b.path)))[0];
+  if (pbip) {
+    const base = dirOf(norm(pbip.path));
+    const reportPath = tryParse(pbip.content)?.artifacts?.[0]?.report?.path;
+    if (typeof reportPath === 'string') {
+      const candidate = join(base, reportPath);
+      if (candidate !== null && within(candidate, base) && isDir(candidate)) report = candidate;
+    }
+    if (report !== null) {
+      const pbir = files.find((f) => norm(f.path) === `${report}/definition.pbir`);
+      const modelPath = pbir ? tryParse(pbir.content)?.datasetReference?.byPath?.path : undefined;
+      if (typeof modelPath === 'string') {
+        const candidate = join(report, modelPath);
+        if (candidate !== null && within(candidate, base) && isDir(candidate)) model = candidate;
+      }
+    }
+  }
+  if (report === null && model === null && reports.length <= 1 && models.length <= 1) return files;
+  report = report ?? reports[0] ?? null;
+  model = model ?? models[0] ?? null;
+  const others = [...reports, ...models].filter((d) => d !== report && d !== model);
+  if (!others.length) return files;
+  return files.filter((f) => { const p = norm(f.path); return !others.some((d) => p.startsWith(`${d}/`)); });
+}
+
 export function parseDroppedPbip(files: DroppedFile[], projectName: string = "uploaded_report.pbip"): ScanResult {
   const tables: TableInfo[] = [];
   const relationships: RelationshipInfo[] = [];
@@ -192,10 +256,12 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
 
   // Filter out backup folders, git, and metadata. A leading byte-order mark is
   // dropped: it would hide a TMDL file's first line and make JSON.parse fail.
-  const validFiles = files.filter(f => {
+  const readableFiles = files.filter(f => {
     const p = f.path.toLowerCase().replace(/\\/g, '/');
     return !p.includes('/backup/') && !p.startsWith('backup/') && !p.includes('/.git/') && !p.includes('/.pbi/');
   }).map((f) => (f.content.charCodeAt(0) === 0xfeff ? { ...f, content: f.content.slice(1) } : f));
+  // A folder holding several reports or models means one project: the one the .pbip file links to.
+  const validFiles = selectProjectFiles(readableFiles);
 
   // Files that exist but could not be parsed. Any of them could define or use a
   // measure, so D004 (unused measures) is not reported while this is non-empty —

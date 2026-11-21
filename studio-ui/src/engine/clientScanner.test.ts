@@ -76,3 +76,47 @@ describe('TMDL measure bodies', () => {
     expect(result.measures.find((m) => m.name === 'A')!.expression).toBe('1 + 1');
   });
 });
+
+describe('a folder that holds several reports and models', () => {
+  const tmdl = (cols: string[]) => `table Sales\n\n${cols.map((c) => `\tcolumn ${c}\n\t\tdataType: string\n`).join('\n')}`;
+  const visual = (fields: string[]) => JSON.stringify({
+    name: 'v1',
+    visual: { visualType: 'tableEx', query: { queryState: { Values: { projections: fields.map((f) => ({
+      field: { Column: { Expression: { SourceRef: { Entity: 'Sales' } }, Property: f } }, queryRef: `Sales.${f}`,
+    })) } } } },
+  });
+  const project = (prefix: string, link: boolean) => {
+    const f = (path: string, content: string) => ({ name: path.split('/').pop()!, path: `${prefix}${path}`, content });
+    return [
+      f('fixture.pbip', JSON.stringify({ artifacts: [{ report: { path: 'B.Report' } }] })),
+      f('A.SemanticModel/definition/tables/Sales.tmdl', tmdl(['Amount'])),
+      f('B.SemanticModel/definition/tables/Sales.tmdl', tmdl(['Amount', 'Region'])),
+      f('A.Report/definition.pbir', JSON.stringify({ datasetReference: { byPath: { path: '../A.SemanticModel' } } })),
+      f('B.Report/definition.pbir', JSON.stringify({ datasetReference: { byPath: { path: link ? '../B.SemanticModel' : '../Nope.SemanticModel' } } })),
+      f('A.Report/definition/pages/Main/page.json', JSON.stringify({ name: 'Main', displayName: 'A page' })),
+      f('B.Report/definition/pages/Main/page.json', JSON.stringify({ name: 'Main', displayName: 'B page' })),
+      f('A.Report/definition/pages/Main/visuals/v1/visual.json', visual(['Amount', 'OnlyReportA'])),
+      f('B.Report/definition/pages/Main/visuals/v1/visual.json', visual(['Amount', 'Region', 'Gone'])),
+    ];
+  };
+  const missingColumns = (files: ReturnType<typeof project>) =>
+    parseDroppedPbip(files, 'x').findings.filter((x) => x.rule_id === 'REPORT_MISSING_COLUMN').map((x) => x.location);
+
+  it('follows the .pbip link to its report and model', () => {
+    expect(missingColumns(project('', true))).toEqual(['Column: Sales[Gone]']);
+  });
+
+  it('does the same when the browser prefixes every path with the dropped folder name', () => {
+    expect(missingColumns(project('MyFolder/', true))).toEqual(['Column: Sales[Gone]']);
+  });
+
+  it('reads only the chosen report: its page is the only one', () => {
+    const pages = parseDroppedPbip(project('', true), 'x').pages.map((p) => p.display_name);
+    expect(pages).toEqual(['B page']);
+  });
+
+  it('falls back to the first model in name order when the model link is broken', () => {
+    // report B is still chosen by the .pbip; the model falls back to A, which has no Region
+    expect(missingColumns(project('', false)).sort()).toEqual(['Column: Sales[Gone]', 'Column: Sales[Region]']);
+  });
+});
