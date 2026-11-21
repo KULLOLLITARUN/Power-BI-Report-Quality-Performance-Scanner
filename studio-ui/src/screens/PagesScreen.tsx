@@ -3,6 +3,7 @@ import { EyeOff, Layers, Square } from 'lucide-react';
 import type { AuditFinding, PageInfo, ScanResult, VisualInfo } from '../types';
 import { findingTargets, readingOrder, visualTables, VISUAL_LIMIT } from '../lib/model';
 import { sortFindings } from '../lib/severity';
+import { sketchKind, sketchRegion, sketchShapes, type SketchKind } from '../lib/visualSketch';
 import { ModelMap } from '../components/ModelMap';
 import { SevMarker, SevTag, useMobile } from '../components/ui';
 
@@ -204,6 +205,29 @@ function visualCategory(type: string, isSlicer?: boolean): string {
   return 'cat-other';
 }
 
+/** A fixed pictogram of a visual's kind (bars, a line, a grid ...). It is not data: it carries no text or numbers. */
+const SketchGlyph: React.FC<{ kind: SketchKind; x: number; y: number; w: number; h: number }> = ({ kind, x, y, w, h }) => (
+  <g className="sk" transform={`translate(${x} ${y})`} aria-hidden="true">
+    {sketchShapes(kind, w, h).map((s, i) => {
+      switch (s.t) {
+        case 'rect': return <rect key={i} className={`sk-${s.tone}`} x={s.x} y={s.y} width={s.w} height={s.h} rx={1.5} />;
+        case 'line': return <line key={i} className="sk-line" x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} />;
+        case 'poly': {
+          const pts = s.pts.map(([px, py]) => `${px},${py}`).join(' ');
+          return s.closed ? <polygon key={i} className="sk-soft" points={pts} /> : <polyline key={i} className="sk-line" points={pts} />;
+        }
+        case 'dot': return <circle key={i} className="sk-solid" cx={s.cx} cy={s.cy} r={s.r} />;
+        case 'arc': {
+          const a0 = s.a0 * 2 * Math.PI - Math.PI / 2, a1 = s.a1 * 2 * Math.PI - Math.PI / 2;
+          const large = s.a1 - s.a0 > 0.5 ? 1 : 0;
+          const d = `M ${s.cx + s.r * Math.cos(a0)} ${s.cy + s.r * Math.sin(a0)} A ${s.r} ${s.r} 0 ${large} 1 ${s.cx + s.r * Math.cos(a1)} ${s.cy + s.r * Math.sin(a1)}`;
+          return <path key={i} className={`sk-ring sk-ring-${s.tone}`} d={d} strokeWidth={s.sw} />;
+        }
+      }
+    })}
+  </g>
+);
+
 const PageCanvas: React.FC<{ page: PageInfo; over: Set<number>; selected: number | null; onSelect: (i: number | null) => void }> = ({ page, over, selected, onSelect }) => {
   const W = page.width || 1280, H = page.height || 720;
   const visuals = page.visuals || [];
@@ -247,12 +271,17 @@ const PageCanvas: React.FC<{ page: PageInfo; over: Set<number>; selected: number
           const showBadge = v.width >= 32 && v.height >= 22;
           const fs = Math.max(10, Math.min(14, v.height / 5));
           const showTitle = v.width > 70 && v.height > 26;
+          // The sketch goes under the label, so it needs the label at the top of a tall enough box.
+          // Hidden visuals are not shown in the report, so they stay a plain dashed box.
+          const kind = showTitle && !v.hidden && v.height >= 46 ? sketchKind(v.visual_type, v.is_slicer) : null;
+          const room = kind ? sketchRegion(v, fs) : null;
 
           return (
             <g key={i} className={cls} tabIndex={0} role="button" aria-label={`Position #${pos}: ${v.visual_type}${over.has(i) ? ', over the visual limit' : ''}`}
                onClick={() => onSelect(selected === i ? null : i)}
                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(selected === i ? null : i); } }}>
               <rect className="vis-box" x={v.x + 3} y={v.y + 3} width={Math.max(4, v.width - 6)} height={Math.max(4, v.height - 6)} />
+              {kind && room && <SketchGlyph kind={kind} x={room.x} y={room.y} w={room.w} h={room.h} />}
               {showBadge && (
                 <g className="badge-group">
                   <title>{`Layout order #${pos}`}</title>
@@ -274,6 +303,7 @@ const PageCanvas: React.FC<{ page: PageInfo; over: Set<number>; selected: number
           );
         })}
       </svg>
+      <p className="muted small" style={{ margin: '8px 0 0' }}>Sketches show the kind of visual, not your data.</p>
     </div>
   );
 };
