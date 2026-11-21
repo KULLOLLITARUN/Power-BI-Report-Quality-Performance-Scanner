@@ -1053,7 +1053,19 @@ function tmdlCollectBody(
   // A `variation` block (a date column's hierarchy link) is a property, not DAX: skip its lines.
   // Mirrors tmdl_parser, which does the same for measures and calculated columns.
   let variationDepth: number | null = null;
-  while (j < lines.length && lines[j].trim() !== '' && _leadingTabDepth(lines[j]) > depth) {
+  // Blank lines inside the expression stay part of it, as in tmdl_parser (a SWITCH written with a blank
+  // line before it, or between its lines, is still one measure). A blank line ends the body only when the
+  // next non-blank line is not indented deeper than the declaration.
+  const bodyContinues = (k: number): boolean => {
+    while (k < lines.length && lines[k].trim() === '') k++;
+    return k < lines.length && _leadingTabDepth(lines[k]) > depth;
+  };
+  while (j < lines.length && (lines[j].trim() !== '' ? _leadingTabDepth(lines[j]) > depth : bodyContinues(j))) {
+    if (lines[j].trim() === '') {
+      body.push('');
+      j++;
+      continue;
+    }
     const l = lines[j].trim();
     const lineDepth = _leadingTabDepth(lines[j]);
     if (variationDepth !== null && lineDepth > variationDepth) {

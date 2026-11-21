@@ -1,0 +1,20 @@
+table Sales
+
+	column Amount
+		dataType: double
+
+	measure Picker =
+
+			SWITCH(
+			    SELECTEDVALUE(Sales[Amount]),
+
+			    1, [Alpha],
+			    2, [Beta]
+			)
+		formatString: 0
+
+	measure Alpha = SUM(Sales[Amount])
+
+	measure Beta = COUNTROWS(Sales)
+
+	measure Orphan = MAX(Sales[Amount])
