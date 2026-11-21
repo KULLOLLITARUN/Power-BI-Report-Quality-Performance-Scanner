@@ -1,0 +1,28 @@
+{
+  "name": "hidden_only",
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Sales"
+                    }
+                  },
+                  "Property": "Ghost"
+                }
+              },
+              "queryRef": "Sales.Ghost"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "isHidden": true
+}

@@ -108,7 +108,7 @@ class TestMcpClientE2E:
                     catalog_res = await session.read_resource("pbiscan://rules")
                     assert len(catalog_res.contents) > 0
                     catalog_json = json.loads(catalog_res.contents[0].text)  # type: ignore[attr-defined]
-                    assert catalog_json["total_rules"] == 14
+                    assert catalog_json["total_rules"] == 15
                     assert "MODEL_BIDIRECTIONAL" in catalog_json["rules"]
 
                     # 2. Read Single Rule Detail Resource

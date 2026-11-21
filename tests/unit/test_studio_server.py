@@ -333,7 +333,7 @@ class TestAgentMcpIntegrationApi:
         resp = client.get("/api/mcp/rules")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total_rules"] == 14
+        assert data["total_rules"] == 15
         assert "MODEL_BIDIRECTIONAL" in data["rules"]
         assert "DAX_UNUSED_MEASURE" in data["rules"]
 

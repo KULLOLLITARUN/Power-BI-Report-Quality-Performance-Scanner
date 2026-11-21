@@ -1,0 +1,22 @@
+{
+  "name": "Main",
+  "displayName": "Overview",
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "pagefilter",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Date"
+              }
+            },
+            "Property": "Quarter"
+          }
+        },
+        "type": "Categorical"
+      }
+    ]
+  }
+}

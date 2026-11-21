@@ -1,0 +1,12 @@
+table Sales
+
+	measure Revenue = SUM(Sales[Amount])
+
+	column Amount
+		dataType: double
+
+	column Region
+		dataType: string
+
+	column Profit = Sales[Amount] * 0.1
+		dataType: double

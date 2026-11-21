@@ -349,6 +349,46 @@ export function extractRlsBimReferences(roles: any[], sourceFile: string = 'mode
 // (mirrors PBIPReader._extract_measure_names_from_expr_tree)
 // ---------------------------------------------------------------------------
 
+/** A (table, column) pair a visual or filter reads. */
+export type ColumnRef = [table: string, column: string];
+
+/**
+ * Every `{"Column": {"Expression": {"SourceRef": ...}, "Property": name}}` in a JSON subtree, sorted and
+ * de-duplicated. The SourceRef names the table directly (`Entity`) or through an alias (`Source`) that a
+ * surrounding `From` list maps to a table. A reference whose table cannot be resolved is left out.
+ * Mirrors pbiscan.extraction.raw.extract_column_refs.
+ */
+export function extractColumnRefs(obj: any): ColumnRef[] {
+  const found = new Map<string, ColumnRef>();
+  collectColumnRefs(obj, {}, found);
+  return [...found.values()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
+}
+
+function collectColumnRefs(obj: any, aliases: Record<string, string>, found: Map<string, ColumnRef>): void {
+  if (Array.isArray(obj)) {
+    for (const item of obj) collectColumnRefs(item, aliases, found);
+    return;
+  }
+  if (!obj || typeof obj !== 'object') return;
+  let scope = aliases;
+  if (Array.isArray(obj.From)) {
+    scope = { ...aliases };
+    for (const s of obj.From) {
+      if (s && typeof s === 'object' && typeof s.Name === 'string' && typeof s.Entity === 'string') scope[s.Name] = s.Entity;
+    }
+  }
+  const column = obj.Column;
+  if (column && typeof column === 'object' && !Array.isArray(column)) {
+    const ref = column.Expression && typeof column.Expression === 'object' ? column.Expression.SourceRef : null;
+    if (ref && typeof ref === 'object' && typeof column.Property === 'string' && column.Property) {
+      let table: string | undefined = typeof ref.Entity === 'string' ? ref.Entity : undefined;
+      if (table === undefined && typeof ref.Source === 'string' && Object.prototype.hasOwnProperty.call(scope, ref.Source)) table = scope[ref.Source];
+      if (table) found.set(`${table}\u0000${column.Property}`, [table, column.Property]);
+    }
+  }
+  for (const value of Object.values(obj)) collectColumnRefs(value, scope, found);
+}
+
 /** Recursively traverse any JSON subtree and extract every `{"Measure": {"Property": ...}}` reference. */
 export function extractMeasureNamesFromExprTree(obj: any): Set<string> {
   const refs = new Set<string>();

@@ -9,6 +9,8 @@ import {
   extractRlsTmdlReferences,
   extractRlsBimReferences,
   extractMeasureNamesFromExprTree,
+  extractColumnRefs,
+  ColumnRef,
 } from './semanticReferences';
 import { bracketNames, buildDaxGraph, serializeDaxGraph } from './daxGraph';
 import { SUPPRESSIONS_FILENAME, applySuppressions, loadSuppressions } from './suppressions';
@@ -17,6 +19,13 @@ export interface DroppedFile {
   name: string;
   path: string;
   content: string;
+}
+
+/** The (table, column) pairs each visual and each page's filter pane use. Kept beside the scan, not in
+ * VisualInfo / PageInfo, so the scan output is unchanged. Read only by REPORT_MISSING_COLUMN. */
+interface ColumnRefIndex {
+  visuals: Map<VisualInfo, ColumnRef[]>;
+  pages: Map<PageInfo, ColumnRef[]>;
 }
 
 /** Records a report-side measure reference (page filter, report filter, bookmark, report-level measure). */
@@ -314,6 +323,7 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
   // from whichever report format is present — legacy report.json or modern PBIR
   // page.json + visual.json files.
   const visualMeasureRefs = new Set<string>();
+  const columnRefs: ColumnRefIndex = { visuals: new Map(), pages: new Map() };
   // Report-side references are also recorded for the scan output, where Studio
   // shows them as unused-measure evidence. D004 below reads visualMeasureRefs.
   const reportRefs: SemanticReference[] = [];
@@ -323,8 +333,8 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
       source_object: sourceObject, source_file: '', activates_root: true, confidence: 100,
     });
   };
-  processLegacyReportJson(reportJsonFiles, pages, visualMeasureRefs, unreadFiles, reportRef);
-  processModernPbirPages(pageJsonFiles, visualJsonFiles, pages, visualMeasureRefs, unreadFiles, reportRef);
+  processLegacyReportJson(reportJsonFiles, pages, visualMeasureRefs, unreadFiles, reportRef, columnRefs);
+  processModernPbirPages(pageJsonFiles, visualJsonFiles, pages, visualMeasureRefs, unreadFiles, reportRef, columnRefs);
   // Page/report-level filters, bookmarks and report-level ("thin report") measures
   // (mirrors PBIPReader._parse_report_level + CanonicalBuilder steps 1b-1d)
   const extensionNames = new Set<string>(); // report-level measures: not part of the model, but not broken either
@@ -564,6 +574,10 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
       `REPORT_MISSING_MEASURE was not checked: ${unreadFiles.length} project file(s) could not be read, ` +
       'so the list of measures the model defines may be incomplete.'
     );
+    warnings.push(
+      `REPORT_MISSING_COLUMN was not checked: ${unreadFiles.length} project file(s) could not be read, ` +
+      'so the list of columns the model defines may be incomplete.'
+    );
   }
   for (const m of unreadFiles.length ? [] : measures) {
     const isUsed = daxGraph.isReachableFromVisual(m.name, activeRootMeasures);
@@ -651,6 +665,57 @@ export function parseDroppedPbip(files: DroppedFile[], projectName: string = "up
         impact: "Power BI cannot resolve a field that is not in the model. A visible visual shows \"Something's wrong with one or more fields\" instead of data, and a hidden visual fails the same way when it is revealed, for example by a bookmark or button. The measure was most likely deleted or renamed in the model while the report kept the old name.",
         recommendation: 'Open the report in Power BI Desktop, select the affected visual, and either re-point it to the measure it should use or restore the measure in the model.',
         location: `Measure: ${name}`,
+      });
+    }
+  }
+
+  // R004: a visual or page filter uses a column its table no longer has (mirrors
+  // pbiscan.rules.report.check_missing_columns). A column is present when its table has a column, a
+  // calculated column or a measure of that name (case-insensitive). Only tables the model defines, with
+  // known columns, are checked; Power BI's generated date tables are skipped. Not checked for a thin
+  // report or when a file could not be read.
+  if (tables.length > 0 && unreadFiles.length === 0) {
+    const knownColumns = new Map<string, Set<string>>();
+    for (const t of tables) {
+      const lower = t.name.toLowerCase();
+      if (lower.startsWith('localdatetable_') || lower.startsWith('datetabletemplate_')) continue;
+      const names = knownColumns.get(lower) ?? new Set<string>();
+      for (const c of t.columns) names.add(c.name.toLowerCase());
+      knownColumns.set(lower, names);
+    }
+    for (const c of calcCols) knownColumns.get(c.table.toLowerCase())?.add(c.name.toLowerCase());
+    for (const m of measures) knownColumns.get(m.table.toLowerCase())?.add(m.name.toLowerCase());
+
+    const missingColumns = new Map<string, { table: string; column: string; pages: string[]; flags: boolean[] }>();
+    const noteColumn = (table: string, column: string, where: string, hidden: boolean) => {
+      const names = knownColumns.get(table.toLowerCase());
+      if (!names || names.size === 0 || names.has(column.toLowerCase())) return; // unknown table, or one with no known columns
+      const key = `${table.toLowerCase()}\u0000${column.toLowerCase()}`;
+      let entry = missingColumns.get(key);
+      if (!entry) { entry = { table, column, pages: [], flags: [] }; missingColumns.set(key, entry); }
+      if (!entry.pages.includes(where)) entry.pages.push(where);
+      entry.flags.push(hidden);
+    };
+    for (const p of pages) {
+      const where = p.display_name || p.name;
+      for (const v of p.visuals || []) {
+        for (const [table, column] of columnRefs.visuals.get(v) ?? []) noteColumn(table, column, where, !!v.hidden);
+      }
+      for (const [table, column] of columnRefs.pages.get(p) ?? []) noteColumn(table, column, where, false);
+    }
+    for (const { table, column, pages: seen, flags } of missingColumns.values()) {
+      const shown = seen.slice(0, 3).map((p) => `'${p}'`).join(', ') + (seen.length > 3 ? ` and ${seen.length - 3} more` : '');
+      let evidence = `Column '${column}' of table '${table}' is used on ${seen.length === 1 ? 'page' : 'pages'} ${shown}, but that table has no column or measure with that name.`;
+      if (flags.every(Boolean)) evidence += ' Every visual that uses it is hidden, so no error shows until one is revealed, for example by a bookmark.';
+      else if (flags.some(Boolean)) evidence += ' Some of these visuals are hidden.';
+      findings.push({
+        ...ruleMeta('REPORT_MISSING_COLUMN'),
+        title: 'Visual uses a column the table does not have',
+        issue: 'A visual or page filter uses a column that no longer exists in its table in the semantic model.',
+        evidence,
+        impact: "Power BI cannot resolve a field that is not in the model. A visible visual shows \"Something's wrong with one or more fields\" instead of data, and a hidden visual fails the same way when it is revealed, for example by a bookmark or button. The column was most likely deleted or renamed in the model, or in the query that loads it, while the report kept the old name.",
+        recommendation: 'Open the report in Power BI Desktop, select the affected visual or filter, and either re-point it to the column it should use or restore the column in the model.',
+        location: `Column: ${table}[${column}]`,
       });
     }
   }
@@ -1106,7 +1171,8 @@ function parseRelationshipsTmdl(content: string, relationships: RelationshipInfo
  * parsed visual config (objects.title/subTitle/referenceLabel/conditional
  * formatting/filters — not just a crude bracket-text scan). */
 function processLegacyReportJson(
-  files: DroppedFile[], pages: PageInfo[], visualMeasureRefs: Set<string>, unreadFiles: string[], reportRef: ReportRefSink
+  files: DroppedFile[], pages: PageInfo[], visualMeasureRefs: Set<string>, unreadFiles: string[], reportRef: ReportRefSink,
+  columnRefs: ColumnRefIndex
 ) {
   for (const file of files) {
     // PBIR's definition/report.json is report-level config, not the legacy page list:
@@ -1186,7 +1252,7 @@ function processLegacyReportJson(
           for (const m of extractMeasureNamesFromExprTree([config, decodeJsonField(vc.filters)])) {
             visualMeasureRefs.add(m); ownMeasures.add(m); ownFields.add(m);
           }
-          visuals.push({
+          const info: VisualInfo = {
             visual_type: singleVisual.visualType || 'unknown',
             x: numOr0(vc.x), y: numOr0(vc.y), width: numOr0(vc.width), height: numOr0(vc.height),
             measure_refs: [...ownMeasures].sort(),
@@ -1194,18 +1260,21 @@ function processLegacyReportJson(
             table_refs: [...ownTables].sort(),
             is_slicer: visualType === 'slicer',
             hidden: !!vc.hidden,
-          });
+          };
+          visuals.push(info);
+          columnRefs.visuals.set(info, extractColumnRefs([config, decodeJsonField(vc.filters)]));
         }
 
         // Page-level filters and config are stringified JSON in report.json
-        for (const m of extractMeasureNamesFromExprTree([decodeJsonField(s.filters), decodeJsonField(s.config)])) {
+        const pageJson = [decodeJsonField(s.filters), decodeJsonField(s.config)];
+        for (const m of extractMeasureNamesFromExprTree(pageJson)) {
           visualMeasureRefs.add(m);
           reportRef(m, 'visual_filter', `${s.displayName || s.name}.filters`);
         }
 
         if (!listsPages) continue;
         const visibility = typeof s.visibility === 'number' ? s.visibility : 0;
-        pages.push({
+        const pageInfo: PageInfo = {
           name: s.name || `Section_${pages.length + 1}`,
           display_name: s.displayName || `Page ${pages.length + 1}`,
           is_hidden: visibility !== 0,
@@ -1213,7 +1282,9 @@ function processLegacyReportJson(
           slicer_count: slicerCount,
           ...canvasSize(s),
           visuals,
-        });
+        };
+        pages.push(pageInfo);
+        columnRefs.pages.set(pageInfo, extractColumnRefs(pageJson));
       }
     } catch {
       // Non-JSON or malformed report.json — skip, and report it.
@@ -1351,7 +1422,8 @@ function processModernPbirPages(
   pages: PageInfo[],
   visualMeasureRefs: Set<string>,
   unreadFiles: string[],
-  reportRef: ReportRefSink
+  reportRef: ReportRefSink,
+  columnRefs: ColumnRefIndex
 ) {
   if (!pageFiles.length && !visualFiles.length) return;
 
@@ -1371,6 +1443,7 @@ function processModernPbirPages(
     width: number;
     height: number;
     visuals: VisualInfo[];
+    filterColumns: ColumnRef[];
   }
   const pageMap = new Map<string, PageAgg>();
 
@@ -1393,10 +1466,11 @@ function processModernPbirPages(
         slicerCount: 0,
         ...canvasSize(data),
         visuals: [],
+        filterColumns: extractColumnRefs(data),
       });
     } catch {
       unreadFiles.push(file.path);
-      pageMap.set(pageId, { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0, width: 1280, height: 720, visuals: [] });
+      pageMap.set(pageId, { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0, width: 1280, height: 720, visuals: [], filterColumns: [] });
     }
   }
 
@@ -1404,7 +1478,7 @@ function processModernPbirPages(
     const pageId = pageIdFromPath(file.path);
     let agg = pageMap.get(pageId);
     if (!agg) {
-      agg = { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0, width: 1280, height: 720, visuals: [] };
+      agg = { displayName: pageId, isHidden: false, visualCount: 0, slicerCount: 0, width: 1280, height: 720, visuals: [], filterColumns: [] };
       pageMap.set(pageId, agg);
     }
     agg.visualCount++;
@@ -1433,7 +1507,7 @@ function processModernPbirPages(
       for (const m of extractMeasureNamesFromExprTree(raw)) { visualMeasureRefs.add(m); ownMeasures.add(m); }
 
       const pos = raw.position || {};
-      agg.visuals.push({
+      const info: VisualInfo = {
         visual_type: visualNode.visualType || 'unknown',
         x: numOr0(pos.x), y: numOr0(pos.y), width: numOr0(pos.width), height: numOr0(pos.height),
         measure_refs: [...ownMeasures].sort(),
@@ -1441,7 +1515,9 @@ function processModernPbirPages(
         table_refs: [...extractEntityNames(visualNode.query || {})].sort(),
         is_slicer: visualType === 'slicer',
         hidden: !!(raw.isHidden ?? raw.hidden), // PBIR visualContainer: "isHidden": true
-      });
+      };
+      agg.visuals.push(info);
+      columnRefs.visuals.set(info, extractColumnRefs(raw));
     } catch {
       // Malformed visual.json — counted above; its measure refs are unknown.
       unreadFiles.push(file.path);
@@ -1451,7 +1527,7 @@ function processModernPbirPages(
   const existingNames = new Set(pages.map((p) => p.name));
   for (const [pageId, agg] of pageMap.entries()) {
     if (existingNames.has(pageId)) continue;
-    pages.push({
+    const pageInfo: PageInfo = {
       name: pageId,
       display_name: agg.displayName,
       is_hidden: agg.isHidden,
@@ -1460,7 +1536,9 @@ function processModernPbirPages(
       width: agg.width,
       height: agg.height,
       visuals: agg.visuals,
-    });
+    };
+    pages.push(pageInfo);
+    columnRefs.pages.set(pageInfo, agg.filterColumns);
   }
 }
 
@@ -1481,6 +1559,7 @@ export const RULE_CATALOG: Record<string, RuleMeta> = {
   REPORT_VISUAL_BLOAT: { category: 'report', severity: 'MEDIUM', confidence: 100 },
   REPORT_SLICER_BLOAT: { category: 'report', severity: 'MEDIUM', confidence: 100 },
   REPORT_MISSING_MEASURE: { category: 'report', severity: 'MEDIUM', confidence: 90 },
+  REPORT_MISSING_COLUMN: { category: 'report', severity: 'MEDIUM', confidence: 85 },
 };
 
 function ruleMeta(ruleId: string): RuleMeta & { rule_id: string } {

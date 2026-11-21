@@ -12,7 +12,7 @@
 
 ## What it does
 
-- **Scans** a `.pbip` project against 14 rules for the model, DAX and report layout, and gives a health score from 0 to 100.
+- **Scans** a `.pbip` project against 15 rules for the model, DAX and report layout, and gives a health score from 0 to 100.
 - **Gates CI.** Fail a build when the score drops or a severity appears. Output as HTML, JSON, SARIF (GitHub Code Scanning) or JUnit XML.
 - **Fixes** four kinds of finding with a reviewable plan, a sandbox check and a backup (`pbiscan fix`).
 - **Compares** two scans and reports what is new, resolved or worse (`pbiscan diff`).
@@ -61,6 +61,7 @@ You can pass either the `.pbip` file or the project folder.
 | `REPORT_VISUAL_BLOAT` | Medium | 100% | Pages with too many visuals. |
 | `REPORT_SLICER_BLOAT` | Medium | 100% | Pages with too many slicers. |
 | `REPORT_MISSING_MEASURE` | Medium | 90% | A visual or page filter that uses a measure nothing defines. |
+| `REPORT_MISSING_COLUMN` | Medium | 85% | A visual or page filter that uses a column its table no longer has. |
 
 Rules below 100% confidence are heuristics. They can flag a design that is intentional. Suppress those (see [Suppressions](#suppressions)) rather than ignoring the report.
 

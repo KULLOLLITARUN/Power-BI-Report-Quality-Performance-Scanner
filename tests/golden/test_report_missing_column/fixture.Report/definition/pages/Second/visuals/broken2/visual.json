@@ -1,0 +1,27 @@
+{
+  "name": "broken2",
+  "visual": {
+    "visualType": "barChart",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Sales"
+                    }
+                  },
+                  "Property": "Old Region"
+                }
+              },
+              "queryRef": "Sales.Old Region"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

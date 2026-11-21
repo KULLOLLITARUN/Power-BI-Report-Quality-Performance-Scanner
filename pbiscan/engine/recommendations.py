@@ -313,6 +313,29 @@ RECOMMENDATIONS: dict[str, dict[str, str]] = {
             "part of this project."
         ),
     },
+
+    "REPORT_MISSING_COLUMN": {
+        "title": "Visual uses a column the table does not have",
+        "issue": (
+            "A visual or page filter uses a column that no longer exists in its "
+            "table in the semantic model."
+        ),
+        "impact": (
+            "Power BI cannot resolve a field that is not in the model. A visible visual "
+            "shows \"Something's wrong with one or more fields\" instead of data, and a "
+            "hidden visual fails the same way when it is revealed, for example by a "
+            "bookmark or button. The column was most likely deleted or renamed in the "
+            "model, or in the query that loads it, while the report kept the old name. "
+            "A filter on a missing column stops filtering without a clear sign that "
+            "anything is wrong."
+        ),
+        "recommendation": (
+            "Open the report in Power BI Desktop and select the affected visual or filter. "
+            "Either re-point it to the column it should use, or restore the column in the "
+            "model. If the column was renamed, use the new name. If the project holds "
+            "several versions of the model, check that this report points at the right one."
+        ),
+    },
 }
 
 

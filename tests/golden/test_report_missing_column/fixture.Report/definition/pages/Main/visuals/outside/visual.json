@@ -1,0 +1,40 @@
+{
+  "name": "outside",
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Archive"
+                    }
+                  },
+                  "Property": "Anything"
+                }
+              },
+              "queryRef": "Archive.Anything"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "LocalDateTable_1234"
+                    }
+                  },
+                  "Property": "Year"
+                }
+              },
+              "queryRef": "LocalDateTable_1234.Year"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
